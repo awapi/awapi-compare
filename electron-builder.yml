@@ -1,0 +1,59 @@
+appId: com.awapi.compare
+productName: AwapiCompare
+copyright: Copyright © 2026 Awapi
+
+directories:
+  buildResources: resources
+  output: release
+
+files:
+  - "src/desktop/out/**"
+  - "!**/*.map"
+  - "!**/*.test.*"
+  - "!**/tsconfig*.json"
+  - "!**/{.eslintrc,.prettierrc,.editorconfig}*"
+
+# Signing is intentionally disabled for v1. Reintroduce when certificates
+# are provisioned. See docs/release-process.md.
+forceCodeSigning: false
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  identity: null
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+linux:
+  category: Development
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+
+publish:
+  provider: github
+  owner: awapi
+  repo: awapi-compare
+  releaseType: release
+  # For a private repo, the running app needs a GH_TOKEN; it is embedded
+  # during packaging via env var, NOT committed. See docs/release-process.md.
+  private: true
+
+asarUnpack:
+  - "**/*.node"

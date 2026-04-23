@@ -1,0 +1,35 @@
+{
+  "name": "@awapi/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "description": "AwapiCompare desktop application.",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "clean": "rm -rf out dist"
+  },
+  "dependencies": {
+    "@awapi/licensing": "workspace:*",
+    "@awapi/shared": "workspace:*",
+    "electron-updater": "^6.3.9",
+    "picomatch": "^4.0.2"
+  },
+  "devDependencies": {
+    "@tanstack/react-virtual": "^3.10.8",
+    "@types/picomatch": "^3.0.1",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "electron": "^33.0.0",
+    "electron-vite": "^2.3.0",
+    "monaco-editor": "^0.52.0",
+    "pixelmatch": "^6.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.10",
+    "zustand": "^5.0.0"
+  }
+}

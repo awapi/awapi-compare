@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+out/
+build/
+*.tsbuildinfo
+
+# Electron-builder output
+release/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Playwright
+playwright-report/
+test-results/
+.playwright/
+
+# Generated notices
+THIRD_PARTY_NOTICES.md
+
+# Signing / license artifacts (never commit)
+*.p12
+*.pem
+*.key
