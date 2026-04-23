@@ -1,0 +1,6 @@
+
+> awapi-compare-root@0.0.0 typecheck /Users/omeryesil/projects/github.awapi/awapi-compare
+> tsc -b
+
+src/desktop/src/preload/index.ts(56,3): error TS2353: Object literal may only specify known properties, and 'app' does not exist in type '{ check(): Promise<{ available: boolean; version?: string | undefined; }>; download(): Promise<void>; install(): Promise<void>; }'.
+ ELIFECYCLE  Command failed with exit code 1.

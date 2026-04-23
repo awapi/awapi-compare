@@ -1,10 +1,18 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, app } from 'electron';
+import { BrowserWindow, Menu, app, ipcMain } from 'electron';
+
+import {
+  attachProgressBridge,
+  createServices,
+  installApplicationMenu,
+  registerIpcHandlers,
+  type Services,
+} from './services/index.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-function createMainWindow(): BrowserWindow {
+function createMainWindow(services: Services): BrowserWindow {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -17,6 +25,9 @@ function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   });
+
+  const detachProgress = attachProgressBridge(win, services);
+  win.on('closed', detachProgress);
 
   win.once('ready-to-show', () => win.show());
 
@@ -31,10 +42,24 @@ function createMainWindow(): BrowserWindow {
 }
 
 void app.whenReady().then(() => {
-  createMainWindow();
+  const services = createServices();
+  registerIpcHandlers(ipcMain, services);
+  installApplicationMenu(
+    {
+      Menu,
+      getTargetWindow: () =>
+        BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null,
+    },
+    {
+      platform: process.platform,
+      appName: app.getName(),
+      isDev: process.env['ELECTRON_RENDERER_URL'] !== undefined,
+    },
+  );
+  createMainWindow(services);
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow(services);
   });
 });
 

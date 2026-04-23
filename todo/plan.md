@@ -39,19 +39,19 @@ Build **AwapiCompare**, a cross-platform (Windows/macOS/Linux) Beyond Compare al
 - [x] `src/shared/src/ipc.ts` — typed channel contracts (`fs.*`, `session.*`, `rules.*`, `license.*`, `updater.*`, `sftp.*` stub)
 - [x] `src/shared/src/types.ts` — `Entry`, `DiffStatus`, `Rule`, `Session`
 - [x] Preload `contextBridge.exposeInMainWorld('awapi', api)` typed client
-- [ ] Main services skeleton in `src/desktop/src/main/services/`: `fsService`, `hashService`, `diffService`, `rulesService`, `sessionService`, `sftpService` (stub), `licenseService`, `updaterService`, `cliService`
-- [ ] App menu + hotkeys (File / Edit / View / Help)
+- [x] Main services skeleton in `src/desktop/src/main/services/`: `fsService`, `hashService`, `diffService`, `rulesService`, `sessionService`, `sftpService` (stub), `licenseService`, `updaterService`, `cliService`
+- [x] App menu + hotkeys (File / Edit / View / Help)
 - [x] Unit tests for IPC type guards + preload bridge shape
 
 ## Phase 4 — Folder compare engine *(parallel with Phase 5)*
 
-- [ ] Streaming recursive scanner (async generator + backpressure) with progress events
-- [ ] Metadata: name, relPath, size, mtime, type, permissions; symlink + cycle guard
-- [ ] Compare modes: **quick** (size+mtime), **thorough** (streamed SHA-256), **binary** byte-by-byte
-- [ ] Classifier: `left-only`, `right-only`, `identical`, `different`, `newer-left`, `newer-right`
-- [ ] Per-entry error capture (no aborts on permission errors)
-- [ ] Apply include/exclude rules during scan
-- [ ] Unit tests (memfs): classifier matrix, symlink cycle, empty dirs, large-tree simulation
+- [x] Streaming recursive scanner (async generator + backpressure) with progress events
+- [x] Metadata: name, relPath, size, mtime, type, permissions; symlink + cycle guard
+- [x] Compare modes: **quick** (size+mtime), **thorough** (streamed SHA-256), **binary** byte-by-byte
+- [x] Classifier: `left-only`, `right-only`, `identical`, `different`, `newer-left`, `newer-right`
+- [x] Per-entry error capture (no aborts on permission errors)
+- [x] Apply include/exclude rules during scan
+- [x] Unit tests (memfs): classifier matrix, symlink cycle, empty dirs, large-tree simulation
 
 ## Phase 5 — Renderer UI *(parallel with Phase 4)*
 

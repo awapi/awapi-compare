@@ -9,6 +9,7 @@ import type {
   FsWriteRequest,
   LicenseActivateRequest,
   LicenseStatus,
+  MenuAction,
   Rule,
   ScanProgress,
   Session,
@@ -52,6 +53,13 @@ const api: AwapiApi = {
       ipcRenderer.invoke(IpcChannel.UpdaterCheck),
     download: (): Promise<void> => ipcRenderer.invoke(IpcChannel.UpdaterDownload),
     install: (): Promise<void> => ipcRenderer.invoke(IpcChannel.UpdaterInstall),
+  },
+  app: {
+    onMenuAction: (cb: (action: MenuAction) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, action: MenuAction): void => cb(action);
+      ipcRenderer.on(IpcChannel.AppMenuAction, listener);
+      return () => ipcRenderer.removeListener(IpcChannel.AppMenuAction, listener);
+    },
   },
 };
 

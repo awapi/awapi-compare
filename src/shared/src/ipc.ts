@@ -31,6 +31,7 @@ export const IpcChannel = {
   UpdaterDownload: 'updater.download',
   UpdaterInstall: 'updater.install',
   SftpConnect: 'sftp.connect',
+  AppMenuAction: 'app.menuAction',
 } as const;
 
 export type IpcChannelId = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -80,6 +81,40 @@ export interface LicenseActivateRequest {
 }
 
 /**
+ * Semantic identifiers for commands emitted by the native application
+ * menu (File / Edit / View / Help). The renderer subscribes via
+ * `awapi.app.onMenuAction` and dispatches UI behaviour accordingly.
+ * New actions MUST be added here first, then wired in `menuService`.
+ */
+export type MenuAction =
+  // File
+  | 'session.new'
+  | 'session.open'
+  | 'session.save'
+  | 'session.saveAs'
+  | 'session.refresh'
+  | 'session.closeTab'
+  // Edit
+  | 'edit.find'
+  | 'edit.findNext'
+  | 'edit.findPrev'
+  | 'edit.preferences'
+  // Compare (Edit submenu)
+  | 'compare.copyLeftToRight'
+  | 'compare.copyRightToLeft'
+  | 'compare.markSame'
+  | 'compare.exclude'
+  // View
+  | 'view.toggleTheme'
+  | 'view.expandAll'
+  | 'view.collapseAll'
+  // Help
+  | 'help.docs'
+  | 'help.checkForUpdates'
+  | 'help.viewLicense'
+  | 'help.about';
+
+/**
  * Typed API surface exposed to the renderer via preload's `contextBridge`.
  * The renderer accesses this as `window.awapi`.
  */
@@ -110,6 +145,13 @@ export interface AwapiApi {
     check(): Promise<{ available: boolean; version?: string }>;
     download(): Promise<void>;
     install(): Promise<void>;
+  };
+  app: {
+    /**
+     * Subscribe to application-menu actions dispatched by the main
+     * process. Returns an unsubscribe function.
+     */
+    onMenuAction(cb: (action: MenuAction) => void): () => void;
   };
 }
 
