@@ -8,7 +8,7 @@ import { DiffService } from './diffService.js';
 import { FsService } from './fsService.js';
 import { HashService } from './hashService.js';
 import { LicenseService } from './licenseService.js';
-import { RulesService } from './rulesService.js';
+import { RulesService, type RulesServiceDeps } from './rulesService.js';
 import { SessionService } from './sessionService.js';
 import { SftpService } from './sftpService.js';
 import { UpdaterService } from './updaterService.js';
@@ -27,12 +27,17 @@ export interface Services {
   cli: CliService;
 }
 
-export function createServices(): Services {
+export interface CreateServicesOptions {
+  /** Persistence options for the global rules store. */
+  rules?: RulesServiceDeps;
+}
+
+export function createServices(options: CreateServicesOptions = {}): Services {
   return {
     fs: new FsService(),
     hash: new HashService(),
     diff: new DiffService(),
-    rules: new RulesService(),
+    rules: new RulesService(options.rules),
     session: new SessionService(),
     sftp: new SftpService(),
     license: new LicenseService(),
@@ -79,6 +84,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
 
   ipcMain.handle(IpcChannel.RulesGet, () => wrap(() => rules.get()));
   ipcMain.handle(IpcChannel.RulesSet, (_e, r) => wrap(() => rules.set(r)));
+  ipcMain.handle(IpcChannel.RulesTest, (_e, req) => wrap(() => rules.test(req)));
 
   ipcMain.handle(IpcChannel.LicenseStatus, () => wrap(() => license.status()));
   ipcMain.handle(IpcChannel.LicenseActivate, (_e, req) => wrap(() => license.activate(req)));

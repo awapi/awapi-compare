@@ -511,3 +511,246 @@ body,
   font-size: 11px;
   margin-left: 16px;
 }
+
+/* ---- Modal & Rules editor ----------------------------------------- */
+
+.awapi-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.awapi-modal {
+  background: var(--awapi-panel);
+  color: var(--awapi-text);
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  max-width: 1080px;
+  width: 92vw;
+  max-height: 88vh;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.awapi-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background: var(--awapi-ribbon);
+  border-bottom: 1px solid var(--awapi-border);
+}
+
+.awapi-modal__header h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.awapi-modal__close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--awapi-text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.awapi-modal__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-top: 1px solid var(--awapi-border);
+  background: var(--awapi-panel-alt);
+}
+
+.awapi-button--primary {
+  background: var(--awapi-accent);
+  color: #fff;
+  border: 1px solid var(--awapi-accent);
+  border-radius: 3px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.awapi-button--primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.awapi-rules-editor {
+  width: min(1080px, 92vw);
+}
+
+.awapi-rules-editor__scope {
+  border: none;
+  display: flex;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+}
+
+.awapi-rules-editor__body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+
+.awapi-rules-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.awapi-rules-editor__list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-rules-editor__empty {
+  color: var(--awapi-text-muted);
+  font-style: italic;
+}
+
+.awapi-rules-editor__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.awapi-rules-editor__row {
+  border: 1px solid var(--awapi-border-soft);
+  border-radius: 3px;
+  padding: 6px 8px;
+  background: var(--awapi-panel-alt);
+}
+
+.awapi-rules-editor__row-main {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.awapi-rules-editor__row-main input[type='text'] {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 3px 6px;
+  border-radius: 2px;
+}
+
+.awapi-rules-editor__row-predicates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.awapi-rules-editor__predicate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-rules-editor__predicate input {
+  width: 110px;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.awapi-rules-editor__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.awapi-rules-editor__preview h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.awapi-rules-editor__hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-rules-editor__preview textarea {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 6px;
+  border-radius: 2px;
+  resize: vertical;
+}
+
+.awapi-rules-editor__verdicts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.awapi-rules-editor__verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: var(--awapi-panel-alt);
+}
+
+.awapi-rules-editor__verdict-label {
+  display: inline-block;
+  min-width: 64px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.awapi-rules-editor__verdict--kept .awapi-rules-editor__verdict-label {
+  color: var(--awapi-status-identical);
+}
+
+.awapi-rules-editor__verdict--excluded .awapi-rules-editor__verdict-label {
+  color: var(--awapi-status-excluded);
+}
+
+.awapi-rules-editor__saved {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--awapi-text-muted);
+}

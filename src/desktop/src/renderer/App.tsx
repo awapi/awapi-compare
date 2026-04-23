@@ -6,18 +6,21 @@ import { DiffTable } from './components/DiffTable.js';
 import { Tabs } from './components/Tabs.js';
 import { FileDiffTab } from './components/FileDiffTab.js';
 import { ContextMenu } from './components/ContextMenu.js';
+import { RulesEditor, type RulesScope } from './components/RulesEditor.js';
 import { emptyDiffSummary, summarize } from './diffSummary.js';
 import { createSessionStore } from './state/sessionStore.js';
 import { createThemeStore } from './state/themeStore.js';
 import { createWorkspaceStore, COMPARE_TAB_ID } from './state/workspaceStore.js';
+import { createRulesStore } from './state/rulesStore.js';
 import { buildRowMenuItems, isActionEnabled } from './actions.js';
 import type { RowAction } from './actions.js';
 import { useHotkeys } from './useHotkeys.js';
-import type { MenuAction } from '@awapi/shared';
+import type { MenuAction, Rule } from '@awapi/shared';
 
 const useSession = createSessionStore();
 const useTheme = createThemeStore();
 const useWorkspace = createWorkspaceStore();
+const useRules = createRulesStore();
 
 const MENU_TO_ROW: Partial<Record<MenuAction, RowAction>> = {
   'compare.copyLeftToRight': 'copyLeftToRight',
@@ -61,7 +64,29 @@ export function App(): JSX.Element {
   const openFileDiffTab = useWorkspace((s) => s.openFileDiffTab);
   const closeTab = useWorkspace((s) => s.closeTab);
 
+  const globalRules = useRules((s) => s.rules);
+  const setGlobalRules = useRules((s) => s.setRules);
+  const rulesLoaded = useRules((s) => s.loaded);
+  const markRulesLoaded = useRules((s) => s.markLoaded);
+  const sessionRules = useSession((s) => s.rules);
+  const setSessionRules = useSession((s) => s.setRules);
+
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
+  const [rulesScope, setRulesScope] = useState<RulesScope>('global');
+
+  // Load global rules from main on mount.
+  useEffect(() => {
+    if (rulesLoaded) return;
+    void (async () => {
+      try {
+        const rules = (await window.awapi?.rules.get()) ?? [];
+        setGlobalRules(rules);
+      } finally {
+        markRulesLoaded();
+      }
+    })();
+  }, [rulesLoaded, setGlobalRules, markRulesLoaded]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -84,7 +109,9 @@ export function App(): JSX.Element {
         leftRoot,
         rightRoot,
         mode,
-        rules: [],
+        // Global rules apply to every session; session rules layer on top
+        // and may override (last-match-wins per Phase 6 semantics).
+        rules: [...globalRules, ...sessionRules],
       });
       setPairs(result.pairs);
     } catch (err) {
@@ -92,7 +119,7 @@ export function App(): JSX.Element {
     } finally {
       setScanning(false);
     }
-  }, [leftRoot, rightRoot, mode, setScanning, setError, setProgress, setPairs]);
+  }, [leftRoot, rightRoot, mode, globalRules, sessionRules, setScanning, setError, setProgress, setPairs]);
 
   const summary = useMemo(
     () => (pairs.length === 0 ? emptyDiffSummary() : summarize(pairs)),
@@ -199,6 +226,7 @@ export function App(): JSX.Element {
         onCompare={runCompare}
         onRefresh={runCompare}
         onToggleTheme={toggleTheme}
+        onOpenRules={() => setRulesEditorOpen(true)}
       />
       <Tabs
         tabs={tabs}
@@ -239,6 +267,22 @@ export function App(): JSX.Element {
         <div role="alert" style={{ padding: 8, background: '#5a1f1f', color: '#fff' }}>
           {error}
         </div>
+      ) : null}
+      {rulesEditorOpen ? (
+        <RulesEditor
+          scope={rulesScope}
+          onScopeChange={setRulesScope}
+          rules={rulesScope === 'global' ? globalRules : sessionRules}
+          onSave={async (next: Rule[]) => {
+            if (rulesScope === 'global') {
+              setGlobalRules(next);
+              await window.awapi?.rules.set(next);
+            } else {
+              setSessionRules(next);
+            }
+          }}
+          onClose={() => setRulesEditorOpen(false)}
+        />
       ) : null}
     </div>
   );

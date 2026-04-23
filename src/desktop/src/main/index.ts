@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { promises as fsPromises } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, Menu, app, ipcMain } from 'electron';
 
@@ -41,8 +42,17 @@ function createMainWindow(services: Services): BrowserWindow {
   return win;
 }
 
-void app.whenReady().then(() => {
-  const services = createServices();
+void app.whenReady().then(async () => {
+  const rulesFile = join(app.getPath('userData'), 'rules.json');
+  const services = createServices({
+    rules: {
+      filePath: rulesFile,
+      dirPath: dirname(rulesFile),
+      fs: fsPromises,
+    },
+  });
+  // Surface load errors via console; the service falls back to empty.
+  await services.rules.get();
   registerIpcHandlers(ipcMain, services);
   installApplicationMenu(
     {

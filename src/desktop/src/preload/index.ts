@@ -11,6 +11,8 @@ import type {
   LicenseStatus,
   MenuAction,
   Rule,
+  RulesTestRequest,
+  RulesTestResponse,
   ScanProgress,
   Session,
 } from '@awapi/shared';
@@ -41,6 +43,8 @@ const api: AwapiApi = {
   rules: {
     get: (): Promise<Rule[]> => ipcRenderer.invoke(IpcChannel.RulesGet),
     set: (rules: Rule[]): Promise<void> => ipcRenderer.invoke(IpcChannel.RulesSet, rules),
+    test: (req: RulesTestRequest): Promise<RulesTestResponse> =>
+      ipcRenderer.invoke(IpcChannel.RulesTest, req),
   },
   license: {
     status: (): Promise<LicenseStatus> => ipcRenderer.invoke(IpcChannel.LicenseStatus),

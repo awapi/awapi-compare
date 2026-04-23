@@ -14,6 +14,7 @@ export interface ToolbarProps {
   onCompare(): void;
   onRefresh(): void;
   onToggleTheme(): void;
+  onOpenRules(): void;
 }
 
 const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
@@ -73,6 +74,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onCompare,
     onRefresh,
     onToggleTheme,
+    onOpenRules,
   } = props;
 
   const canCompare = !scanning && leftRoot.trim() !== '' && rightRoot.trim() !== '';
@@ -134,6 +136,14 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           </select>
         </div>
         <div className="awapi-toolbar__spacer" />
+        <div className="awapi-toolbar__group">
+          <IconBtn
+            glyph="⚙"
+            label="Rules"
+            ariaLabel="Open rules editor"
+            onClick={onOpenRules}
+          />
+        </div>
         <div className="awapi-toolbar__group">
           <IconBtn
             glyph={theme === 'dark' ? '☀' : '☾'}

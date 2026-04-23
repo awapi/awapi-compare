@@ -1,38 +1,51 @@
 import picomatch from 'picomatch';
 
-import type { FsEntry, Rule } from '@awapi/shared';
+import type { FsEntry, Rule, RuleVerdict } from '@awapi/shared';
+
+export type { RuleVerdict };
 
 /**
- * Result of evaluating a set of rules against a single entry.
- * `'excluded'` means the entry should be dropped from the scan; `'kept'`
- * means it passed through. The exact semantics are:
+ * Ordered rule evaluation (Phase 6).
  *
- * 1. If any enabled `include` rule matches, the entry is kept.
- * 2. Otherwise, if any enabled `exclude` rule matches, the entry is dropped.
- * 3. Otherwise, the entry is kept (no rules configured ⇒ keep everything).
+ * Semantics — modelled loosely on `.gitignore`:
  *
- * This mirrors the order-independent behaviour we want for the scanner
- * (Phase 4). Phase 6 replaces this with an ordered, user-editable engine.
+ * 1. If the rule set contains at least one enabled `include` rule, the
+ *    filter switches to **whitelist mode** and the default verdict for an
+ *    entry that matches no rule becomes `'excluded'`. Otherwise, the
+ *    default is `'kept'`.
+ * 2. Rules are evaluated **in order**. For every rule whose pattern AND
+ *    predicates match the entry, the verdict is updated to that rule's
+ *    `kind` (`include` → kept, `exclude` → excluded). The **last matching
+ *    rule wins**, so users can express overrides (`exclude **`,
+ *    `include src/**`).
+ * 3. Disabled rules are ignored.
+ *
+ * Pattern matching uses [picomatch][1]. Negation patterns (`!pattern`)
+ * are supported natively by picomatch; combined with the `kind` field
+ * they let users express the common cases either via order
+ * (`exclude *.log` then `include important.log`) or via a single negated
+ * pattern (`exclude !important.log`).
+ *
+ * [1]: https://github.com/micromatch/picomatch
  */
-export type RuleVerdict = 'kept' | 'excluded';
-
 interface CompiledRule {
   rule: Rule;
-  test: (relPath: string) => boolean;
+  /** Returns true when the rule's pattern + predicates match the entry. */
+  test: (entry: { relPath: string; name: string; size?: number; mtimeMs?: number }) => boolean;
 }
 
 function compile(rule: Rule): CompiledRule {
+  // `dot: true` so dotfiles match `**` like everything else.
+  // `nocase: false` keeps case-sensitive behaviour on POSIX; users can
+  // express case-insensitive matches with character classes if needed.
   const matcher = picomatch(rule.pattern, { dot: true, nocase: false });
+  const target = rule.target ?? 'path';
   return {
     rule,
-    test: (relPath) => {
-      if (!matcher(relPath)) return false;
-      if (rule.size) {
-        // Size predicates only make sense with a concrete entry; we apply
-        // them in `evaluate` where we have the FsEntry. The pattern test
-        // is the cheap path.
-      }
-      return true;
+    test: (entry) => {
+      const subject = target === 'name' ? entry.name : entry.relPath;
+      if (!matcher(subject)) return false;
+      return predicatesMatch(rule, entry);
     },
   };
 }
@@ -42,39 +55,71 @@ export function compileRules(rules: Rule[]): CompiledRule[] {
   return rules.filter((r) => r.enabled).map(compile);
 }
 
-function predicatesMatch(rule: Rule, entry: FsEntry): boolean {
+function predicatesMatch(
+  rule: Rule,
+  entry: { size?: number; mtimeMs?: number },
+): boolean {
   if (rule.size) {
-    if (rule.size.gt !== undefined && !(entry.size > rule.size.gt)) return false;
-    if (rule.size.lt !== undefined && !(entry.size < rule.size.lt)) return false;
+    const size = entry.size;
+    if (size === undefined) return false;
+    if (rule.size.gt !== undefined && !(size > rule.size.gt)) return false;
+    if (rule.size.lt !== undefined && !(size < rule.size.lt)) return false;
   }
   if (rule.mtime) {
-    if (rule.mtime.after !== undefined && !(entry.mtimeMs > rule.mtime.after)) return false;
-    if (rule.mtime.before !== undefined && !(entry.mtimeMs < rule.mtime.before)) return false;
+    const mtimeMs = entry.mtimeMs;
+    if (mtimeMs === undefined) return false;
+    if (rule.mtime.after !== undefined && !(mtimeMs > rule.mtime.after)) return false;
+    if (rule.mtime.before !== undefined && !(mtimeMs < rule.mtime.before)) return false;
   }
   return true;
 }
 
 /**
  * Evaluate a compiled rule set against a single entry. Pure; no IO.
+ *
+ * Accepts either a full {@link FsEntry} (used by the scanner) or a
+ * partial sample (used by the rules-editor live preview).
  */
-export function evaluate(compiled: CompiledRule[], entry: FsEntry): RuleVerdict {
+export function evaluate(
+  compiled: CompiledRule[],
+  entry: FsEntry | { relPath: string; name?: string; size?: number; mtimeMs?: number },
+): RuleVerdict {
   if (compiled.length === 0) return 'kept';
 
-  let anyInclude = false;
-  let includeMatched = false;
-  let excludeMatched = false;
-  for (const c of compiled) {
-    if (c.rule.kind === 'include') {
-      anyInclude = true;
-      if (c.test(entry.relPath) && predicatesMatch(c.rule, entry)) {
-        includeMatched = true;
-      }
-    } else if (c.test(entry.relPath) && predicatesMatch(c.rule, entry)) {
-      excludeMatched = true;
-    }
-  }
+  const subject = {
+    relPath: entry.relPath,
+    name: entry.name ?? basename(entry.relPath),
+    size: 'size' in entry ? entry.size : undefined,
+    mtimeMs: 'mtimeMs' in entry ? entry.mtimeMs : undefined,
+  };
 
-  if (anyInclude && !includeMatched) return 'excluded';
-  if (excludeMatched && !includeMatched) return 'excluded';
-  return 'kept';
+  const hasInclude = compiled.some((c) => c.rule.kind === 'include');
+  let kept = !hasInclude; // whitelist mode starts excluded
+  for (const c of compiled) {
+    if (!c.test(subject)) continue;
+    kept = c.rule.kind === 'include';
+  }
+  return kept ? 'kept' : 'excluded';
+}
+
+/**
+ * Convenience: compile + evaluate a list of samples in one call. Used by
+ * the `rules.test` IPC handler that backs the live-preview pane.
+ */
+export function evaluateAll(
+  rules: Rule[],
+  samples: ReadonlyArray<{
+    relPath: string;
+    name?: string;
+    size?: number;
+    mtimeMs?: number;
+  }>,
+): RuleVerdict[] {
+  const compiled = compileRules(rules);
+  return samples.map((s) => evaluate(compiled, s));
+}
+
+function basename(p: string): string {
+  const i = p.lastIndexOf('/');
+  return i >= 0 ? p.slice(i + 1) : p;
 }

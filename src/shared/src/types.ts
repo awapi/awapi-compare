@@ -42,17 +42,34 @@ export interface ComparedPair {
 
 export type RuleKind = 'include' | 'exclude';
 
+/**
+ * What the glob pattern is matched against:
+ * - `'name'` — the entry's basename (e.g. `*.log` matches any file named `*.log`).
+ * - `'path'` — the entry's relative path with `/` separators (e.g. `build/**`).
+ *
+ * Defaults to `'path'` when omitted, which preserves the v0 behaviour.
+ */
+export type RuleTarget = 'name' | 'path';
+
 export interface Rule {
   id: string;
   kind: RuleKind;
   /** Glob pattern (picomatch syntax). */
   pattern: string;
+  /** What the pattern matches against. Defaults to `'path'`. */
+  target?: RuleTarget;
   /** Optional size filter in bytes, e.g. { gt: 1024 }. */
   size?: { gt?: number; lt?: number };
   /** Optional mtime filter, epoch ms. */
   mtime?: { after?: number; before?: number };
   enabled: boolean;
 }
+
+/**
+ * Verdict for a single entry tested against a rule set. `'kept'` means
+ * the entry passes through the filter; `'excluded'` means it is dropped.
+ */
+export type RuleVerdict = 'kept' | 'excluded';
 
 export interface Session {
   id: string;

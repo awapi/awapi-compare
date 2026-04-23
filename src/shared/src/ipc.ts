@@ -3,6 +3,7 @@ import type {
   CompareMode,
   LicenseStatus,
   Rule,
+  RuleVerdict,
   ScanProgress,
   Session,
 } from './types.js';
@@ -24,6 +25,7 @@ export const IpcChannel = {
   SessionList: 'session.list',
   RulesGet: 'rules.get',
   RulesSet: 'rules.set',
+  RulesTest: 'rules.test',
   LicenseStatus: 'license.status',
   LicenseActivate: 'license.activate',
   LicenseDeactivate: 'license.deactivate',
@@ -81,6 +83,31 @@ export interface LicenseActivateRequest {
 }
 
 /**
+ * A minimal entry-shaped sample used by the rules editor's live preview.
+ * Mirrors the fields {@link Rule} predicates inspect.
+ */
+export interface RuleTestSample {
+  /** Posix-style relative path used by `target: 'path'` patterns. */
+  relPath: string;
+  /** Basename used by `target: 'name'` patterns. Defaults to last `/` segment. */
+  name?: string;
+  /** Size in bytes; required for `size` predicates. */
+  size?: number;
+  /** Modification time (epoch ms); required for `mtime` predicates. */
+  mtimeMs?: number;
+}
+
+export interface RulesTestRequest {
+  rules: Rule[];
+  samples: RuleTestSample[];
+}
+
+export interface RulesTestResponse {
+  /** One verdict per input sample, in the same order. */
+  verdicts: RuleVerdict[];
+}
+
+/**
  * Semantic identifiers for commands emitted by the native application
  * menu (File / Edit / View / Help). The renderer subscribes via
  * `awapi.app.onMenuAction` and dispatches UI behaviour accordingly.
@@ -135,6 +162,7 @@ export interface AwapiApi {
   rules: {
     get(): Promise<Rule[]>;
     set(rules: Rule[]): Promise<void>;
+    test(req: RulesTestRequest): Promise<RulesTestResponse>;
   };
   license: {
     status(): Promise<LicenseStatus>;

@@ -11,6 +11,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
     onCompare: vi.fn(),
     onRefresh: vi.fn(),
     onToggleTheme: vi.fn(),
+    onOpenRules: vi.fn(),
   };
   render(
     <Toolbar

@@ -65,12 +65,12 @@ Build **AwapiCompare**, a cross-platform (Windows/macOS/Linux) Beyond Compare al
 
 ## Phase 6 — Rules engine (include/exclude with wildcards)
 
-- [ ] `picomatch` for globs (`*`, `**`, `?`, `[abc]`, `!negation`)
-- [ ] Rule types: filename, path, size, mtime
-- [ ] Rule sets: global + per-session
-- [ ] Rules editor UI with live test-string preview
-- [ ] Unit tests: full glob matrix, negation precedence, ordering, size/mtime predicates
-- [ ] Write `docs/rules-syntax.md`
+- [x] `picomatch` for globs (`*`, `**`, `?`, `[abc]`, `!negation`)
+- [x] Rule types: filename, path, size, mtime
+- [x] Rule sets: global + per-session
+- [x] Rules editor UI with live test-string preview
+- [x] Unit tests: full glob matrix, negation precedence, ordering, size/mtime predicates
+- [x] Write `docs/rules-syntax.md`
 
 ## Phase 7 — File compare views
 
