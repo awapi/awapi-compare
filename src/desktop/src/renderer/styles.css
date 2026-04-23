@@ -1,0 +1,513 @@
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --awapi-bg: #1e1e1e;
+  --awapi-panel: #2b2b2d;
+  --awapi-panel-alt: #353537;
+  --awapi-ribbon: #313133;
+  --awapi-ribbon-grad: linear-gradient(#3a3a3d, #2c2c2e);
+  --awapi-text: #e6e6e6;
+  --awapi-text-muted: #9da0a4;
+  --awapi-border: #444446;
+  --awapi-border-soft: #3a3a3c;
+  --awapi-accent: #4e9af1;
+  --awapi-row-hover: rgba(78, 154, 241, 0.08);
+  --awapi-row-selected: rgba(78, 154, 241, 0.22);
+  --awapi-row-divider: rgba(255, 255, 255, 0.04);
+  --awapi-button-hover: #45454a;
+  --awapi-button-active: #2a2a2c;
+  --awapi-status-identical: #d4d4d4;
+  --awapi-status-different: #e74c3c;
+  --awapi-status-left-only: #c792ea;
+  --awapi-status-right-only: #7fdbca;
+  --awapi-status-newer-left: #f1c40f;
+  --awapi-status-newer-right: #f39c12;
+  --awapi-status-excluded: #6a6a6a;
+  --awapi-status-error: #ff6b6b;
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  font-size: 13px;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --awapi-bg: #ffffff;
+  --awapi-panel: #ececec;
+  --awapi-panel-alt: #f6f6f6;
+  --awapi-ribbon: #e7e7e7;
+  --awapi-ribbon-grad: linear-gradient(#f3f3f3, #dcdcdc);
+  --awapi-text: #1e1e1e;
+  --awapi-text-muted: #555555;
+  --awapi-border: #b8b8b8;
+  --awapi-border-soft: #cfcfcf;
+  --awapi-accent: #0066cc;
+  --awapi-row-hover: rgba(0, 102, 204, 0.08);
+  --awapi-row-selected: rgba(0, 102, 204, 0.22);
+  --awapi-row-divider: rgba(0, 0, 0, 0.06);
+  --awapi-button-hover: #d6d6d6;
+  --awapi-button-active: #c2c2c2;
+  --awapi-status-identical: #2c2c2c;
+  --awapi-status-different: #c0392b;
+  --awapi-status-left-only: #8e44ad;
+  --awapi-status-right-only: #16a085;
+  --awapi-status-newer-left: #b7950b;
+  --awapi-status-newer-right: #ca8a04;
+  --awapi-status-excluded: #888888;
+  --awapi-status-error: #c0392b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--awapi-bg);
+  color: var(--awapi-text);
+}
+
+.awapi-app {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.awapi-toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 4px 6px;
+  background: var(--awapi-ribbon);
+  background-image: var(--awapi-ribbon-grad);
+  border-bottom: 1px solid var(--awapi-border);
+  flex: 0 0 auto;
+  min-height: 56px;
+}
+
+.awapi-toolbar__group {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 6px;
+  border-right: 1px solid var(--awapi-border-soft);
+}
+
+.awapi-toolbar__group:last-of-type {
+  border-right: none;
+}
+
+.awapi-toolbar__spacer {
+  flex: 1 1 auto;
+}
+
+.awapi-toolbar__filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-toolbar__filter input {
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 2px;
+  min-width: 220px;
+}
+
+.awapi-iconbtn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  min-width: 48px;
+  padding: 4px 6px 2px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--awapi-text);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.awapi-iconbtn__glyph {
+  font-size: 18px;
+  line-height: 1;
+  margin-bottom: 2px;
+  color: var(--awapi-accent);
+}
+
+.awapi-iconbtn:hover:not(:disabled) {
+  background: var(--awapi-button-hover);
+  border-color: var(--awapi-border);
+}
+
+.awapi-iconbtn:active:not(:disabled) {
+  background: var(--awapi-button-active);
+}
+
+.awapi-iconbtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.awapi-iconbtn--active {
+  background: var(--awapi-button-hover);
+  border-color: var(--awapi-border);
+}
+
+.awapi-toolbar select {
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 3px 6px;
+  font: inherit;
+  border-radius: 2px;
+  align-self: center;
+  cursor: pointer;
+}
+
+/* ---- Path bar (two side-by-side path inputs) ----------------------- */
+
+.awapi-pathbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  padding: 4px 6px;
+  background: var(--awapi-panel);
+  border-bottom: 1px solid var(--awapi-border);
+  flex: 0 0 auto;
+}
+
+.awapi-pathbar__side {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+.awapi-pathbar__side + .awapi-pathbar__side {
+  border-left: 1px solid var(--awapi-border-soft);
+}
+
+.awapi-pathbar__side input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+.awapi-pathbar__side input:focus {
+  outline: 1px solid var(--awapi-accent);
+}
+
+/* ---- Diff table ---------------------------------------------------- */
+
+.awapi-diff-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--awapi-bg);
+}
+
+.awapi-diff-colheader {
+  display: grid;
+  grid-template-columns: 1fr 80px 110px 56px 1fr 80px 110px;
+  background: var(--awapi-panel);
+  border-bottom: 1px solid var(--awapi-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--awapi-text-muted);
+  flex: 0 0 auto;
+}
+
+.awapi-diff-colheader > div {
+  padding: 4px 8px;
+  border-right: 1px solid var(--awapi-border-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.awapi-diff-colheader > div:last-child {
+  border-right: none;
+}
+
+.awapi-diff-table {
+  position: relative;
+  overflow: auto;
+  background: var(--awapi-bg);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.awapi-diff-table__body {
+  position: relative;
+  width: 100%;
+}
+
+.awapi-diff-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1fr 80px 110px 56px 1fr 80px 110px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--awapi-row-divider);
+}
+
+.awapi-diff-row:hover {
+  background: var(--awapi-row-hover);
+}
+
+.awapi-diff-row[aria-selected='true'] {
+  background: var(--awapi-row-selected);
+}
+
+.awapi-diff-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-right: 1px solid var(--awapi-row-divider);
+}
+
+.awapi-diff-cell:last-child {
+  border-right: none;
+}
+
+.awapi-diff-cell--center {
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  background: var(--awapi-panel-alt);
+  border-left: 1px solid var(--awapi-border-soft);
+  border-right: 1px solid var(--awapi-border-soft);
+}
+
+.awapi-diff-cell--meta {
+  justify-content: flex-end;
+  color: var(--awapi-text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.awapi-diff-cell__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.awapi-diff-table__empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 10px;
+  background: var(--awapi-panel);
+  border-top: 1px solid var(--awapi-border);
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+  flex: 0 0 auto;
+}
+
+.awapi-statusbar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.awapi-statusbar__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.awapi-statusbar__spacer {
+  flex: 1 1 auto;
+}
+
+/* ---- Tabs ------------------------------------------------------------ */
+
+.awapi-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  padding: 0 6px;
+  background: var(--awapi-panel);
+  border-bottom: 1px solid var(--awapi-border);
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+
+.awapi-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--awapi-panel-alt);
+  color: var(--awapi-text-muted);
+  border: 1px solid var(--awapi-border);
+  border-bottom: none;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+}
+
+.awapi-tab--active {
+  background: var(--awapi-bg);
+  color: var(--awapi-text);
+  font-weight: 600;
+}
+
+.awapi-tab__close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.awapi-tab__close:hover {
+  background: var(--awapi-button-hover);
+  border-radius: 2px;
+}
+
+/* ---- File-diff tab placeholder -------------------------------------- */
+
+.awapi-file-diff {
+  overflow: auto;
+  padding: 12px 16px;
+  background: var(--awapi-bg);
+  color: var(--awapi-text);
+}
+
+.awapi-file-diff__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--awapi-border);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+.awapi-file-diff__panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.awapi-file-diff__pane {
+  background: var(--awapi-panel);
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.awapi-file-diff__pane dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 10px;
+  margin: 0;
+}
+
+.awapi-file-diff__pane dt {
+  color: var(--awapi-text-muted);
+  font-size: 12px;
+}
+
+.awapi-file-diff__pane dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.awapi-file-diff__notice {
+  margin-top: 16px;
+  color: var(--awapi-text-muted);
+  font-style: italic;
+}
+
+/* ---- Context menu --------------------------------------------------- */
+
+.awapi-context-menu {
+  min-width: 200px;
+  background: var(--awapi-panel);
+  color: var(--awapi-text);
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  padding: 4px 0;
+  outline: none;
+}
+
+.awapi-context-menu__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: transparent;
+  color: inherit;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.awapi-context-menu__item:hover:not(:disabled) {
+  background: var(--awapi-row-hover);
+}
+
+.awapi-context-menu__item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.awapi-context-menu__accel {
+  color: var(--awapi-text-muted);
+  font-size: 11px;
+  margin-left: 16px;
+}

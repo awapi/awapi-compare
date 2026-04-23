@@ -55,13 +55,13 @@ Build **AwapiCompare**, a cross-platform (Windows/macOS/Linux) Beyond Compare al
 
 ## Phase 5 — Renderer UI *(parallel with Phase 4)*
 
-- [ ] Layout: toolbar, twin virtualized tree/table (`@tanstack/react-virtual`), status bar
-- [ ] Zustand session store; serializable snapshot
-- [ ] Beyond-Compare-like color scheme (light/dark); persist theme
-- [ ] Context menu + hotkeys: Copy L→R / R→L / Delete / Open / Compare / Mark same / Exclude
-- [ ] Double-click pair → open file-diff tab
-- [ ] Tabbed workspace (multiple sessions + file diffs)
-- [ ] Component unit tests (Vitest + RTL)
+- [x] Layout: toolbar, twin virtualized tree/table (`@tanstack/react-virtual`), status bar
+- [x] Zustand session store; serializable snapshot
+- [x] Beyond-Compare-like color scheme (light/dark); persist theme
+- [x] Context menu + hotkeys: Copy L→R / R→L / Delete / Open / Compare / Mark same / Exclude
+- [x] Double-click pair → open file-diff tab
+- [x] Tabbed workspace (multiple sessions + file diffs)
+- [x] Component unit tests (Vitest + RTL)
 
 ## Phase 6 — Rules engine (include/exclude with wildcards)
 
