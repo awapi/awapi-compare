@@ -13,7 +13,12 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    // Sandboxed preloads cannot `require` workspace/node_modules packages,
+    // so bundle @awapi/shared (and any other workspace deps) into the preload.
+    plugins: [externalizeDepsPlugin({ exclude: ['@awapi/shared'] })],
+    ssr: {
+      noExternal: ['@awapi/shared'],
+    },
     build: {
       outDir: 'out/preload',
       rollupOptions: {

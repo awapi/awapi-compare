@@ -87,16 +87,16 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         aria-label="Compare toolbar"
       >
         <div className="awapi-toolbar__group">
-          <IconBtn glyph="⌂" label="Home" />
-          <IconBtn glyph="🗂" label="Sessions" />
+          <IconBtn glyph="⌂" label="Home" disabled title="Coming soon" />
+          <IconBtn glyph="🗂" label="Sessions" disabled title="Coming soon" />
         </div>
         <div className="awapi-toolbar__group">
-          <IconBtn glyph="✱" label="All" />
-          <IconBtn glyph="≠" label="Diffs" active />
-          <IconBtn glyph="=" label="Same" />
+          <IconBtn glyph="✱" label="All" disabled title="Coming soon" />
+          <IconBtn glyph="≠" label="Diffs" active disabled title="Coming soon" />
+          <IconBtn glyph="=" label="Same" disabled title="Coming soon" />
         </div>
         <div className="awapi-toolbar__group">
-          <IconBtn glyph="📄" label="Files" />
+          <IconBtn glyph="📄" label="Files" disabled title="Coming soon" />
           <IconBtn
             glyph="▶"
             label={scanning ? 'Scanning…' : 'Compare'}

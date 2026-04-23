@@ -533,9 +533,11 @@ body,
   flex-direction: column;
   max-width: 1080px;
   width: 92vw;
+  min-height: 320px;
   max-height: 88vh;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
   overflow: hidden;
+  z-index: 1001;
 }
 
 .awapi-modal__header {

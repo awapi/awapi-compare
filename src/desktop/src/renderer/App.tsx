@@ -80,7 +80,16 @@ export function App(): JSX.Element {
     if (rulesLoaded) return;
     void (async () => {
       try {
-        const rules = (await window.awapi?.rules.get()) ?? [];
+        if (!window.awapi) {
+          // The preload script didn't run (dev server started before
+          // Phase 6 main/preload changes were rebuilt). Surface this so
+          // it's obvious in devtools instead of silently failing.
+          console.warn(
+            '[awapi] window.awapi is undefined — restart `just dev` to pick up preload/main changes.',
+          );
+          return;
+        }
+        const rules = (await window.awapi.rules.get()) ?? [];
         setGlobalRules(rules);
       } finally {
         markRulesLoaded();
