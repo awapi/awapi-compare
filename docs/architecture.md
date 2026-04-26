@@ -25,10 +25,17 @@
 ## Data flow (compare)
 
 1. User picks two folders in the renderer.
-2. Renderer calls `window.awapi.fs.scan({ leftRoot, rightRoot, mode, rules })`.
-3. Main `fsService` streams entries on both sides, applies rules, classifies.
+2. Renderer calls `window.awapi.fs.scan({ leftRoot, rightRoot, mode, rules, diffOptions })`.
+3. Main `fsService` streams entries on both sides, applies rules, pairs
+   left ↔ right via `pairingKey(...)`, then classifies each pair via
+   `classifyPair(..., { diffOptions })`.
 4. Progress is pushed back via `fs.scan.progress` events.
 5. Result is rendered as a twin virtualized tree.
+
+The pairing rules, attribute checks (size, mtime tolerance, DST,
+timezone), and content-comparison strategy live in
+[`DiffOptions`](./diff-options.md). Include/exclude filters live in the
+[rules engine](./rules-syntax.md) and run *before* pairing.
 
 ## Launch arguments
 

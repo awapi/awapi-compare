@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 import { CompareTabBody } from './components/CompareTabBody.js';
+import { DiffOptionsDialog } from './components/DiffOptionsDialog.js';
 import { FileDiffTab } from './components/FileDiffTab.js';
 import { Tabs } from './components/Tabs.js';
 import { RulesEditor, type RulesScope } from './components/RulesEditor.js';
 import { useRulesStore, useThemeStore, useWorkspaceStore } from './state/stores.js';
 import { getSessionStore } from './state/sessionRegistry.js';
-import type { Rule } from '@awapi/shared';
+import { DEFAULT_DIFF_OPTIONS, type DiffOptions, type Rule } from '@awapi/shared';
 
 export function App(): JSX.Element {
   const theme = useThemeStore((s) => s.theme);
@@ -24,6 +25,7 @@ export function App(): JSX.Element {
 
   const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const [rulesScope, setRulesScope] = useState<RulesScope>('global');
+  const [diffOptionsOpen, setDiffOptionsOpen] = useState(false);
 
   // Load global rules from main on mount.
   useEffect(() => {
@@ -98,6 +100,15 @@ export function App(): JSX.Element {
     getSessionStore(activeCompareId).getState().setRules(next);
   };
 
+  const getActiveDiffOptions = (): DiffOptions => {
+    if (!activeCompareId) return DEFAULT_DIFF_OPTIONS;
+    return getSessionStore(activeCompareId).getState().diffOptions;
+  };
+  const setActiveDiffOptions = (next: DiffOptions): void => {
+    if (!activeCompareId) return;
+    getSessionStore(activeCompareId).getState().setDiffOptions(next);
+  };
+
   return (
     <div className="awapi-app">
       <Tabs
@@ -123,6 +134,7 @@ export function App(): JSX.Element {
                   tabId={tab.id}
                   isActive={active}
                   onOpenRules={() => setRulesEditorOpen(true)}
+                  onOpenDiffOptions={() => setDiffOptionsOpen(true)}
                 />
               ) : (
                 <FileDiffTab
@@ -148,6 +160,21 @@ export function App(): JSX.Element {
             }
           }}
           onClose={() => setRulesEditorOpen(false)}
+        />
+      ) : null}
+      {diffOptionsOpen ? (
+        <DiffOptionsDialog
+          value={getActiveDiffOptions()}
+          onSave={(next) => {
+            setActiveDiffOptions(next);
+            setDiffOptionsOpen(false);
+          }}
+          onClose={() => setDiffOptionsOpen(false)}
+          onOpenRules={() => {
+            setDiffOptionsOpen(false);
+            setRulesScope('session');
+            setRulesEditorOpen(true);
+          }}
         />
       ) : null}
     </div>

@@ -4,6 +4,10 @@ AwapiCompare uses [picomatch](https://github.com/micromatch/picomatch)
 glob syntax for include/exclude rules. Rules filter the entries that
 appear in the diff after a folder scan.
 
+> Rules sit *above* the comparison engine. The engine itself is
+> configured by [`DiffOptions`](./diff-options.md) (file-pairing rules,
+> attribute checks, content-comparison strategy).
+
 ## Rule shape
 
 Every rule has:

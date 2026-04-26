@@ -1,7 +1,7 @@
 import { Volume } from 'memfs';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { FsScanRequest, Rule } from '@awapi/shared';
+import { mergeDiffOptions, type FsScanRequest, type Rule } from '@awapi/shared';
 
 import { NotImplementedError } from './errors.js';
 import { FsService } from './fsService.js';
@@ -51,11 +51,32 @@ describe('FsService.scan', () => {
 
   it('uses SHA-256 in thorough mode and reports hashes on identical files', async () => {
     const fs = makeFs({ '/l/a.txt': 'same', '/r/a.txt': 'same' });
-    const r = await svc(fs).scan(req({ leftRoot: '/l', rightRoot: '/r', mode: 'thorough' }));
+    // Disable the attribute-skip optimisation so the engine actually
+    // reaches the hash branch and reports the digests.
+    const r = await svc(fs).scan(
+      req({
+        leftRoot: '/l',
+        rightRoot: '/r',
+        mode: 'thorough',
+        diffOptions: mergeDiffOptions({
+          content: { skipWhenAttributesMatch: false },
+        }),
+      }),
+    );
     const p = r.pairs.find((x) => x.relPath === 'a.txt');
     expect(p?.status).toBe('identical');
     expect(p?.leftHash).toBeDefined();
     expect(p?.leftHash).toBe(p?.rightHash);
+  });
+
+  it('skips content read in thorough mode when attributes already match (default)', async () => {
+    const fs = makeFs({ '/l/a.txt': 'same', '/r/a.txt': 'same' });
+    const r = await svc(fs).scan(req({ leftRoot: '/l', rightRoot: '/r', mode: 'thorough' }));
+    const p = r.pairs.find((x) => x.relPath === 'a.txt');
+    expect(p?.status).toBe('identical');
+    // No hashes because the engine short-circuited.
+    expect(p?.leftHash).toBeUndefined();
+    expect(p?.rightHash).toBeUndefined();
   });
 
   it('short-circuits on size mismatch without hashing in thorough mode', async () => {
@@ -88,6 +109,43 @@ describe('FsService.scan', () => {
     const fs = makeFs({ '/l/a': 'x' });
     const r = await svc(fs).scan(req({ leftRoot: '/l', rightRoot: '/missing' }));
     expect(r.pairs.some((p) => p.status === 'error')).toBe(true);
+  });
+});
+
+describe('FsService.scan — DiffOptions pairing', () => {
+  it('case-insensitive pairing matches Foo.txt on the left with foo.txt on the right', async () => {
+    const fs = makeFs({ '/l/Foo.txt': 'hello', '/r/foo.txt': 'hello' });
+    const r = await svc(fs).scan(
+      req({
+        leftRoot: '/l',
+        rightRoot: '/r',
+        diffOptions: mergeDiffOptions({ pairing: { caseSensitive: false } }),
+      }),
+    );
+    const paired = r.pairs.find((p) => p.left && p.right);
+    expect(paired).toBeDefined();
+    expect(paired?.status).toBe('identical');
+  });
+
+  it('case-sensitive pairing (default) reports the same files as left/right-only', async () => {
+    const fs = makeFs({ '/l/Foo.txt': 'hello', '/r/foo.txt': 'hello' });
+    const r = await svc(fs).scan(req({ leftRoot: '/l', rightRoot: '/r' }));
+    const statuses = r.pairs.map((p) => p.status).sort();
+    expect(statuses).toEqual(['left-only', 'right-only']);
+  });
+
+  it('ignoreExtension pairing matches foo.ts on the left with foo.js on the right', async () => {
+    const fs = makeFs({ '/l/foo.ts': 'x', '/r/foo.js': 'x' });
+    const r = await svc(fs).scan(
+      req({
+        leftRoot: '/l',
+        rightRoot: '/r',
+        diffOptions: mergeDiffOptions({ pairing: { ignoreExtension: true } }),
+      }),
+    );
+    const paired = r.pairs.find((p) => p.left && p.right);
+    expect(paired?.left?.name).toBe('foo.ts');
+    expect(paired?.right?.name).toBe('foo.js');
   });
 });
 

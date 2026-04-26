@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ComparedPair, Rule } from '@awapi/shared';
+import {
+  DEFAULT_DIFF_OPTIONS,
+  cloneDiffOptions,
+  mergeDiffOptions,
+  type ComparedPair,
+  type Rule,
+} from '@awapi/shared';
 import {
   createEmptySnapshot,
   createSessionStore,
@@ -29,6 +35,7 @@ describe('createEmptySnapshot', () => {
       rightRoot: '',
       mode: 'quick',
       rules: [],
+      diffOptions: cloneDiffOptions(DEFAULT_DIFF_OPTIONS),
       createdAt: 42,
       updatedAt: 42,
     });
@@ -125,6 +132,7 @@ describe('sessionStore', () => {
       rightRoot: '/y',
       mode: 'binary',
       rules: [],
+      diffOptions: cloneDiffOptions(DEFAULT_DIFF_OPTIONS),
       createdAt: 1,
       updatedAt: 2,
     });
@@ -183,12 +191,22 @@ describe('sessionStore', () => {
     ]);
   });
 
-  it('markSame and excludePath are no-ops when the path is unknown', () => {
-    const store = makeStore();
+  it('markSame and excludePath are no-ops when the path is unknown', () => {    const store = makeStore();
     const before: ComparedPair[] = [{ relPath: 'a', status: 'different' }];
     store.getState().setPairs(before);
     store.getState().markSame('zzz');
     store.getState().excludePath('zzz');
     expect(store.getState().pairs).toEqual(before);
+  });
+
+  it('setDiffOptions replaces the policy and bumps updatedAt', () => {
+    let t = 1000;
+    const store = createSessionStore({ generateId: () => 'id', now: () => t });
+    expect(store.getState().diffOptions.attributes.size).toBe(true);
+    t = 2000;
+    const next = mergeDiffOptions({ attributes: { size: false } });
+    store.getState().setDiffOptions(next);
+    expect(store.getState().diffOptions.attributes.size).toBe(false);
+    expect(store.getState().updatedAt).toBe(2000);
   });
 });

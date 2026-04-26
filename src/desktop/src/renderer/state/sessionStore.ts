@@ -1,10 +1,13 @@
 import { create } from 'zustand';
-import type {
-  ComparedPair,
-  CompareMode,
-  Rule,
-  ScanProgress,
-  Session,
+import {
+  DEFAULT_DIFF_OPTIONS,
+  cloneDiffOptions,
+  type ComparedPair,
+  type CompareMode,
+  type DiffOptions,
+  type Rule,
+  type ScanProgress,
+  type Session,
 } from '@awapi/shared';
 
 /**
@@ -19,6 +22,8 @@ export interface SessionSnapshot {
   rightRoot: string;
   mode: CompareMode;
   rules: Rule[];
+  /** Per-session match policy (Phase 6.5). */
+  diffOptions: DiffOptions;
   createdAt: number;
   updatedAt: number;
 }
@@ -39,6 +44,7 @@ export interface SessionState extends SessionSnapshot {
   setRightRoot(value: string): void;
   setMode(mode: CompareMode): void;
   setRules(rules: Rule[]): void;
+  setDiffOptions(diffOptions: DiffOptions): void;
   setName(name: string | undefined): void;
   setPairs(pairs: ComparedPair[]): void;
   setScanning(scanning: boolean): void;
@@ -84,6 +90,7 @@ export function createEmptySnapshot(
     rightRoot: '',
     mode: 'quick',
     rules: [],
+    diffOptions: cloneDiffOptions(DEFAULT_DIFF_OPTIONS),
     createdAt: ts,
     updatedAt: ts,
   };
@@ -122,6 +129,7 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
       set({ rightRoot: value, pairs: [], selectedPath: null, updatedAt: now() }),
     setMode: (mode) => set({ mode, pairs: [], selectedPath: null, updatedAt: now() }),
     setRules: (rules) => set({ rules, updatedAt: now() }),
+    setDiffOptions: (diffOptions) => set({ diffOptions, updatedAt: now() }),
     setName: (name) => set({ name, updatedAt: now() }),
     setPairs: (pairs) => set({ pairs, selectedPath: null }),
     setScanning: (scanning) => set({ scanning }),
@@ -162,6 +170,7 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
         rightRoot: s.rightRoot,
         mode: s.mode,
         rules: s.rules,
+        diffOptions: s.diffOptions,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
       };
@@ -176,6 +185,7 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
         rightRoot: s.rightRoot,
         mode: s.mode,
         rules: s.rules,
+        diffOptions: s.diffOptions,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
       };

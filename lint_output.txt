@@ -1,0 +1,34 @@
+
+> awapi-compare-root@0.0.0 lint /Users/omeryesil/projects/github.awapi/awapi-compare
+> eslint .
+
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/samples/folderA/src/index.ts
+  6:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/samples/folderA/src/server.ts
+  5:35  error  'opts' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/samples/folderB/src/index.ts
+  9:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/samples/folderB/src/metrics.ts
+  2:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/samples/folderB/src/server.ts
+  9:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/src/desktop/src/main/index.ts
+  65:5  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+  90:5  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/src/desktop/src/main/services/dialogService.ts
+  92:9  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-require-imports' or '@typescript-eslint/no-var-requires')
+
+/Users/omeryesil/projects/github.awapi/awapi-compare/src/desktop/src/renderer/components/CompareTabBody.tsx
+  148:5  error  Definition for rule 'react-hooks/exhaustive-deps' was not found  react-hooks/exhaustive-deps
+
+✖ 9 problems (2 errors, 7 warnings)
+  0 errors and 3 warnings potentially fixable with the `--fix` option.
+
+ ELIFECYCLE  Command failed with exit code 1.

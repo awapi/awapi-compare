@@ -1,6 +1,7 @@
 import type {
   ComparedPair,
   CompareMode,
+  DiffOptions,
   LicenseStatus,
   Rule,
   RuleVerdict,
@@ -48,6 +49,11 @@ export interface FsScanRequest {
   mode: CompareMode;
   rules: Rule[];
   followSymlinks?: boolean;
+  /**
+   * Per-session match policy. When omitted, the main process derives
+   * defaults from {@link CompareMode} via `diffOptionsFromMode(mode)`.
+   */
+  diffOptions?: DiffOptions;
 }
 
 export interface FsScanResult {

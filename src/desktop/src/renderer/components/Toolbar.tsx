@@ -17,6 +17,7 @@ export interface ToolbarProps {
   onOpenRules(): void;
   onPickLeftFolder?(): void;
   onPickRightFolder?(): void;
+  onOpenDiffOptions?(): void;
 }
 
 const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
@@ -79,6 +80,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onOpenRules,
     onPickLeftFolder,
     onPickRightFolder,
+    onOpenDiffOptions,
   } = props;
 
   const canCompare = !scanning && leftRoot.trim() !== '' && rightRoot.trim() !== '';
@@ -141,6 +143,13 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         </div>
         <div className="awapi-toolbar__spacer" />
         <div className="awapi-toolbar__group">
+          <IconBtn
+            glyph="⚖"
+            label="Match"
+            ariaLabel="Open diff options"
+            disabled={!onOpenDiffOptions}
+            onClick={onOpenDiffOptions}
+          />
           <IconBtn
             glyph="⚙"
             label="Rules"

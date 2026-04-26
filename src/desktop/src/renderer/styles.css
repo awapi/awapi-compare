@@ -865,3 +865,108 @@ body,
   font-size: 11px;
   color: var(--awapi-text-muted);
 }
+
+/* ---- Diff options dialog ----------------------------------------- */
+
+.awapi-diffopts {
+  width: min(720px, 92vw);
+  height: min(560px, 85vh);
+}
+
+.awapi-diffopts__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 8px;
+  background: var(--awapi-panel-alt);
+  border-bottom: 1px solid var(--awapi-border);
+  flex: 0 0 auto;
+}
+
+.awapi-diffopts__tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+  cursor: pointer;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+.awapi-diffopts__tab:hover {
+  color: var(--awapi-text);
+}
+
+.awapi-diffopts__tab--active {
+  background: var(--awapi-panel);
+  color: var(--awapi-text);
+  border-color: var(--awapi-border);
+  position: relative;
+  top: 1px;
+}
+
+.awapi-diffopts__body {
+  padding: 16px;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+
+.awapi-diffopts__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.awapi-diffopts__section h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.awapi-diffopts__hint {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-diffopts__hint--inline {
+  display: inline;
+}
+
+.awapi-diffopts__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.awapi-diffopts__row input[type='number'] {
+  width: 64px;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.awapi-diffopts__sub {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 24px;
+  padding: 6px 0 0;
+  border: none;
+}
+
+.awapi-diffopts__sub[disabled] {
+  opacity: 0.55;
+}
+
+.awapi-diffopts__radios {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: none;
+  padding: 0;
+  margin: 0;
+}

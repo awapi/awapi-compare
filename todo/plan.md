@@ -72,6 +72,25 @@ Build **AwapiCompare**, a cross-platform (Windows/macOS/Linux) Beyond Compare al
 - [x] Unit tests: full glob matrix, negation precedence, ordering, size/mtime predicates
 - [x] Write `docs/rules-syntax.md`
 
+## Phase 6.5 — Diff options (per-session match policy)
+
+A configurable policy that controls how files are paired across sides
+and which attributes count as "the same" — the engine layer underneath
+the existing rules filter. Modeled conceptually on the per-view
+"comparison" settings other folder-compare tools expose, but with an
+original API surface (`DiffOptions`) and original UI naming.
+
+- [x] `DiffOptions` types + `DEFAULT_DIFF_OPTIONS` in `src/shared/src/types.ts` (attributes: size, mtime+tolerance+DST+timezone; pairing: case, extension, Unicode normalization; content: mode + skip-when-attributes-match + override)
+- [x] Pure helpers in `src/shared/src/diffOptions.ts` (`mergeDiffOptions`, `diffOptionsFromMode`, `mtimeDeltaWithinTolerance`) with 100% test coverage
+- [x] Pure pairing key in `src/desktop/src/main/services/pairing.ts` (`pairingKey(relPath, options)`) with full test matrix
+- [x] `classifyPair` accepts `DiffOptions`; `MTIME_EPSILON_MS` becomes a default fed into options; existing tests preserved
+- [x] `FsService.scan` threads `DiffOptions` through (back-compat: derived from `req.mode` when omitted) and uses `pairingKey` to bucket entries
+- [x] Extend `FsScanRequest` and `Session` with optional `diffOptions`; preload bridge passes through
+- [x] Per-tab session store holds `diffOptions` (persisted via `toSnapshot` / `loadSnapshot`)
+- [x] `DiffOptionsDialog` modal component with tabs (Match · Pairing · Content · Filters · Misc); opened from a new toolbar button
+- [x] RTL component test for the dialog (default values, edits propagate, tab switching)
+- [x] `docs/diff-options.md` + cross-link from `docs/rules-syntax.md` and `docs/architecture.md`
+
 ## Phase 7 — File compare views
 
 - [ ] Text diff via Monaco `DiffEditor` with syntax highlighting

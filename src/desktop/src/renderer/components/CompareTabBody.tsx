@@ -37,6 +37,8 @@ export interface CompareTabBodyProps {
   isActive: boolean;
   /** Open the global rules editor scoped to this session. */
   onOpenRules(): void;
+  /** Open the diff-options dialog scoped to this session. */
+  onOpenDiffOptions(): void;
 }
 
 function basename(p: string): string {
@@ -49,6 +51,7 @@ export function CompareTabBody({
   tabId,
   isActive,
   onOpenRules,
+  onOpenDiffOptions,
 }: CompareTabBodyProps): JSX.Element {
   // Per-tab session store (lazy created/cached in the registry).
   const useSession = useMemo(() => getSessionStore(tabId), [tabId]);
@@ -62,6 +65,7 @@ export function CompareTabBody({
   const progress = useSession((s) => s.progress);
   const error = useSession((s) => s.error);
   const sessionRules = useSession((s) => s.rules);
+  const diffOptions = useSession((s) => s.diffOptions);
   const setLeftRoot = useSession((s) => s.setLeftRoot);
   const setRightRoot = useSession((s) => s.setRightRoot);
   const setMode = useSession((s) => s.setMode);
@@ -112,6 +116,7 @@ export function CompareTabBody({
         rightRoot,
         mode,
         rules: [...globalRules, ...sessionRules],
+        diffOptions,
       });
       setPairs(result.pairs);
     } catch (err) {
@@ -125,6 +130,7 @@ export function CompareTabBody({
     mode,
     globalRules,
     sessionRules,
+    diffOptions,
     setScanning,
     setError,
     setProgress,
@@ -140,7 +146,7 @@ export function CompareTabBody({
     }, 400);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leftRoot, rightRoot, mode, globalRules, sessionRules]);
+  }, [leftRoot, rightRoot, mode, globalRules, sessionRules, diffOptions]);
 
   const summary = useMemo(
     () => (pairs.length === 0 ? emptyDiffSummary() : summarize(pairs)),
@@ -240,6 +246,7 @@ export function CompareTabBody({
         onRefresh={runCompare}
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules}
+        onOpenDiffOptions={onOpenDiffOptions}
         onPickLeftFolder={async () => {
           if (!window.awapi?.dialog) return;
           const picked = await window.awapi.dialog.pickFolder({
