@@ -5,12 +5,14 @@ import {
   classifyFile,
   type ComparedPair,
   type CompareMode,
+  type DiffStatus,
 } from '@awapi/shared';
-import { formatMtime, formatSize } from '../format.js';
 import { useFileDiffData } from '../useFileDiffData.js';
 import { joinPath, extname } from '../paths.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
 import { useThemeStore } from '../state/stores.js';
+import type { ThemeName } from '../state/themeStore.js';
+import { getPalette, statusLabel } from '../theme.js';
 import { Toolbar } from './Toolbar.js';
 import { TextDiffView } from './TextDiffView.js';
 import { HexDiffView } from './HexDiffView.js';
@@ -234,26 +236,24 @@ function FileDiffBody({
         ) : (
           <FileDiffViewSwitcher
             relPath={relPath}
-            initialPair={initialPair}
             data={data}
             saveError={saveError}
             onSave={handleSave}
           />
         )}
       </div>
+      <FileDiffLegend status={pair?.status} theme={theme} />
     </section>
   );
 }
 
 function FileDiffViewSwitcher({
   relPath,
-  initialPair,
   data,
   saveError,
   onSave,
 }: {
   relPath: string;
-  initialPair?: ComparedPair;
   data: ReturnType<typeof useFileDiffData>;
   saveError: string | null;
   onSave: (side: 'left' | 'right', value: string) => Promise<void>;
@@ -313,7 +313,6 @@ function FileDiffViewSwitcher({
       ) : (
         <HexDiffView left={left} right={right} />
       )}
-      <SideMetaSummary initialPair={initialPair} data={data} />
     </>
   );
 }
@@ -328,70 +327,51 @@ function unconfirmedOrTooLarge(
   return null;
 }
 
-function basename(path: string): string {
-  if (!path) return '';
-  const cleaned = path.replace(/[\\/]+$/u, '');
-  const parts = cleaned.split(/[\\/]/u).filter(Boolean);
-  return parts.length === 0 ? cleaned : (parts[parts.length - 1] ?? cleaned);
-}
+/**
+ * Statuses meaningful for a single file pair. `excluded` only applies
+ * during a folder scan, so it's omitted from the legend here.
+ */
+const FILE_LEGEND_ORDER: readonly DiffStatus[] = [
+  'identical',
+  'different',
+  'newer-left',
+  'newer-right',
+  'left-only',
+  'right-only',
+  'error',
+];
 
-function SideMetaSummary({
-  initialPair,
-  data,
+function FileDiffLegend({
+  status,
+  theme,
 }: {
-  initialPair?: ComparedPair;
-  data: ReturnType<typeof useFileDiffData>;
+  status?: DiffStatus;
+  theme: ThemeName;
 }): JSX.Element {
+  const palette = getPalette(theme);
   return (
-    <div className="awapi-file-diff__panes">
-      <SideMetaPane
-        ariaLabel="Left side"
-        side={data.left}
-        seed={initialPair?.left}
-      />
-      <SideMetaPane
-        ariaLabel="Right side"
-        side={data.right}
-        seed={initialPair?.right}
-      />
-    </div>
-  );
-}
-
-function SideMetaPane({
-  ariaLabel,
-  side,
-  seed,
-}: {
-  ariaLabel: string;
-  side: ReturnType<typeof useFileDiffData>['left'];
-  seed?: ComparedPair['left'];
-}): JSX.Element {
-  // Prefer fresh values from the loaded file; fall back to the seed
-  // pair (folder-scan metadata) before the file finishes loading.
-  const path = side.path ?? null;
-  const name = path ? basename(path) : seed?.name;
-  const size = side.size ?? seed?.size;
-  const mtimeMs = side.mtimeMs ?? seed?.mtimeMs;
-  const type = seed?.type ?? (path ? 'file' : undefined);
-  const absent = !path && !seed;
-
-  return (
-    <div className="awapi-file-diff__pane" aria-label={ariaLabel}>
-      {absent ? (
-        <p>(absent)</p>
-      ) : (
-        <dl>
-          <dt>Name</dt>
-          <dd>{name ?? '—'}</dd>
-          <dt>Size</dt>
-          <dd>{typeof size === 'number' ? formatSize(size) : '—'}</dd>
-          <dt>Modified</dt>
-          <dd>{typeof mtimeMs === 'number' ? formatMtime(mtimeMs) : '—'}</dd>
-          <dt>Type</dt>
-          <dd>{type ?? '—'}</dd>
-        </dl>
-      )}
-    </div>
+    <footer
+      className="awapi-statusbar awapi-file-diff__legend"
+      role="status"
+      aria-label="Diff status legend"
+    >
+      {FILE_LEGEND_ORDER.map((s) => {
+        const active = s === status;
+        return (
+          <span
+            key={s}
+            className={`awapi-statusbar__chip${active ? ' awapi-statusbar__chip--active' : ''}`}
+            title={statusLabel(s)}
+          >
+            <span
+              className="awapi-statusbar__dot"
+              style={{ backgroundColor: palette.status[s] }}
+              aria-hidden="true"
+            />
+            {statusLabel(s)}
+          </span>
+        );
+      })}
+    </footer>
   );
 }

@@ -25,19 +25,14 @@ const PAIR: ComparedPair = {
 };
 
 describe('<FileDiffTab />', () => {
-  it('renders both panes with metadata when both sides exist', () => {
+  it('renders the diff region and the status legend when both sides exist', () => {
     render(<FileDiffTab relPath="src/foo.ts" pair={PAIR} />);
     expect(
       screen.getByRole('region', { name: 'File diff for src/foo.ts' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Left side')).toHaveTextContent('foo.ts');
-    expect(screen.getByLabelText('Right side')).toHaveTextContent('foo.ts');
-  });
-
-  it('marks absent sides with "(absent)"', () => {
-    const leftOnly: ComparedPair = { ...PAIR, status: 'left-only', right: undefined };
-    render(<FileDiffTab relPath="src/foo.ts" pair={leftOnly} />);
-    expect(screen.getByLabelText('Right side')).toHaveTextContent(/absent/i);
+    expect(
+      screen.getByRole('status', { name: /diff status legend/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders a friendly fallback when the pair is missing', () => {

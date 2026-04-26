@@ -461,6 +461,11 @@ body,
   gap: 5px;
 }
 
+.awapi-statusbar__chip--active {
+  color: var(--awapi-text);
+  font-weight: 600;
+}
+
 .awapi-statusbar__dot {
   width: 9px;
   height: 9px;
@@ -538,8 +543,10 @@ body,
 .awapi-file-diff__content {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   padding: 12px 16px;
+  overflow: hidden;
 }
 
 .awapi-file-diff__header {
@@ -771,11 +778,11 @@ body,
 .awapi-textdiff {
   display: flex;
   flex-direction: column;
-  height: 60vh;
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--awapi-border);
   border-radius: 4px;
   background: var(--awapi-panel);
-  margin-bottom: 12px;
 }
 
 .awapi-textdiff__toolbar {
