@@ -1,0 +1,3 @@
+Plain text notes for folderA.
+Line 2: identical in both folders.
+Line 3: only in folderA.

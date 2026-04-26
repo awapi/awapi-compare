@@ -1,6 +1,6 @@
 import type { BrowserWindow, IpcMain } from 'electron';
 
-import { IpcChannel } from '@awapi/shared';
+import { IpcChannel, type InitialCompareSession } from '@awapi/shared';
 
 import { NotImplementedError } from './errors.js';
 import { CliService } from './cliService.js';
@@ -27,6 +27,12 @@ export interface Services {
   updater: UpdaterService;
   cli: CliService;
   dialog: DialogService;
+  /**
+   * Initial compare session injected from CLI args / env vars at
+   * launch. The renderer reads this once on startup. `null` when the
+   * app was launched without a folder pair.
+   */
+  initialCompare: InitialCompareSession | null;
 }
 
 export interface CreateServicesOptions {
@@ -34,6 +40,8 @@ export interface CreateServicesOptions {
   rules?: RulesServiceDeps;
   /** Optional overrides for the native dialog service (used by tests). */
   dialog?: DialogServiceDeps;
+  /** Initial compare session from CLI parsing. */
+  initialCompare?: InitialCompareSession | null;
 }
 
 export function createServices(options: CreateServicesOptions = {}): Services {
@@ -48,6 +56,7 @@ export function createServices(options: CreateServicesOptions = {}): Services {
     updater: new UpdaterService(),
     cli: new CliService(),
     dialog: new DialogService(options.dialog),
+    initialCompare: options.initialCompare ?? null,
   };
 }
 
@@ -107,6 +116,8 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.DialogPickFolder, (_e, req) =>
     wrap(() => services.dialog.pickFolder(req)),
   );
+
+  ipcMain.handle(IpcChannel.AppGetInitialCompare, () => services.initialCompare);
 }
 
 /**

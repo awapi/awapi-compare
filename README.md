@@ -14,7 +14,8 @@ A cross-platform (Windows, macOS, Linux) Beyond Compare alternative by
 - Include/exclude rules with wildcards (`*`, `**`, `?`, negation)
 - Inline text editing and save
 - Session save/load
-- CLI entry: `awapi-compare <left> <right>`
+- CLI / launch flags: `awapi-compare --type folder --left <a> --right <b> [--mode quick|thorough|binary]`
+  (see [`docs/user-guide.md`](docs/user-guide.md#command-line--launch-flags))
 - Auto-updates via `electron-updater`
 - 14-day free trial, then paid activation
 

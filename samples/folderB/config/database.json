@@ -1,0 +1,22 @@
+{
+  "connections": {
+    "primary": {
+      "host": "db.internal",
+      "port": 5432,
+      "user": "alpha",
+      "pool": {
+        "min": 5,
+        "max": 25
+      }
+    },
+    "replica": {
+      "host": "db-replica.internal",
+      "port": 5432,
+      "user": "alpha_ro"
+    }
+  },
+  "migrations": {
+    "directory": "./migrations",
+    "tableName": "schema_migrations"
+  }
+}

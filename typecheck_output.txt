@@ -2,5 +2,8 @@
 > awapi-compare-root@0.0.0 typecheck /Users/omeryesil/projects/github.awapi/awapi-compare
 > tsc -b
 
-src/desktop/src/preload/index.ts(56,3): error TS2353: Object literal may only specify known properties, and 'app' does not exist in type '{ check(): Promise<{ available: boolean; version?: string | undefined; }>; download(): Promise<void>; install(): Promise<void>; }'.
+src/desktop/src/preload/index.ts(51,3): error TS2741: Property 'getInitialCompare' is missing in type '{ status: () => Promise<LicenseStatus>; activate: (req: LicenseActivateRequest) => Promise<LicenseStatus>; deactivate: () => Promise<void>; }' but required in type '{ getInitialCompare(): Promise<InitialCompareSession | null>; status(): Promise<LicenseStatus>; activate(req: LicenseActivateRequest): Promise<...>; deactivate(): Promise<...>; }'.
+src/desktop/src/preload/index.ts(69,5): error TS2353: Object literal may only specify known properties, and 'getInitialCompare' does not exist in type '{ onMenuAction(cb: (action: MenuAction) => void): () => void; }'.
+src/desktop/src/renderer/App.tsx(53,31): error TS2339: Property 'getInitialCompare' does not exist on type '{ onMenuAction(cb: (action: MenuAction) => void): () => void; }'.
+src/desktop/src/renderer/App.tsx(55,48): error TS2339: Property 'getInitialCompare' does not exist on type '{ onMenuAction(cb: (action: MenuAction) => void): () => void; }'.
  ELIFECYCLE  Command failed with exit code 1.

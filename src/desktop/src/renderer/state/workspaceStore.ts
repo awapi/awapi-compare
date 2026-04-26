@@ -14,10 +14,21 @@ export interface FileDiffTab {
   title: string;
   /** Pair-key (relPath) the tab is bound to. */
   relPath: string;
+  /**
+   * Id of the compare tab whose scan opened this file-diff. The
+   * file-diff component reads its pair from that tab's session store.
+   */
+  parentCompareTabId?: string;
 }
 
 export type WorkspaceTab = CompareTab | FileDiffTab;
 
+/**
+ * Stable id for the **initial** compare tab created on app launch.
+ * Additional compare tabs get generated ids. This constant remains
+ * exported for tests and for menu shortcuts that target "the first
+ * session".
+ */
 export const COMPARE_TAB_ID = 'compare';
 
 export interface WorkspaceState {
@@ -29,10 +40,26 @@ export interface WorkspaceState {
    * Open (or focus) a file-diff tab for the given pair. Tabs are
    * de-duplicated by `relPath`. Returns the tab id.
    */
-  openFileDiffTab(relPath: string, title?: string): string;
+  openFileDiffTab(
+    relPath: string,
+    title?: string,
+    parentCompareTabId?: string,
+  ): string;
+  /**
+   * Open a brand-new (empty) compare tab and focus it. Returns the new
+   * tab id. The actual compare-session state lives in the session
+   * registry, keyed by this id.
+   */
+  openCompareTab(title?: string): string;
+  /**
+   * Update the displayed title of a tab. Used by compare tabs to
+   * reflect the chosen folder pair (e.g. `left ↔ right`) once both
+   * paths are filled in.
+   */
+  setTabTitle(id: string, title: string): void;
   closeTab(id: string): void;
   /**
-   * Close every tab except the always-present compare tab.
+   * Close every tab except the always-present (first) compare tab.
    */
   closeAllFileDiffTabs(): void;
 }
@@ -41,6 +68,11 @@ export interface CreateWorkspaceStoreOptions {
   generateId?: () => string;
   initialTabs?: WorkspaceTab[];
   initialActiveTabId?: string;
+  /**
+   * Hook invoked when a tab is closed. The renderer wires this to the
+   * session registry so per-tab compare-session stores are released.
+   */
+  onTabClosed?: (tab: WorkspaceTab) => void;
 }
 
 function defaultGenerateId(): string {
@@ -58,6 +90,7 @@ function defaultTitleFor(relPath: string): string {
 
 export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
   const generateId = opts.generateId ?? defaultGenerateId;
+  const onTabClosed = opts.onTabClosed;
   const initialTabs: WorkspaceTab[] =
     opts.initialTabs ?? [{ id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' }];
   const initialActiveTabId = opts.initialActiveTabId ?? initialTabs[0]?.id ?? COMPARE_TAB_ID;
@@ -72,7 +105,7 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
       set({ activeTabId: id });
     },
 
-    openFileDiffTab: (relPath, title) => {
+    openFileDiffTab: (relPath, title, parentCompareTabId) => {
       const existing = get().tabs.find(
         (t): t is FileDiffTab => t.kind === 'fileDiff' && t.relPath === relPath,
       );
@@ -86,31 +119,64 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
         kind: 'fileDiff',
         relPath,
         title: title ?? defaultTitleFor(relPath),
+        parentCompareTabId,
       };
       set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }));
       return id;
     },
 
+    openCompareTab: (title) => {
+      const id = generateId();
+      const compareCount = get().tabs.filter((t) => t.kind === 'compare').length;
+      const tab: CompareTab = {
+        id,
+        kind: 'compare',
+        title: title ?? `Compare ${compareCount + 1}`,
+      };
+      set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }));
+      return id;
+    },
+
+    setTabTitle: (id, title) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)),
+      })),
+
     closeTab: (id) => {
-      if (id === COMPARE_TAB_ID) return;
       const { tabs, activeTabId } = get();
       const idx = tabs.findIndex((t) => t.id === id);
       if (idx === -1) return;
+      const tab = tabs[idx];
+      if (!tab) return;
+      // Refuse to close the last remaining compare tab — there must
+      // always be at least one compare workspace.
+      if (tab.kind === 'compare') {
+        const compareCount = tabs.filter((t) => t.kind === 'compare').length;
+        if (compareCount <= 1) return;
+      }
       const next = tabs.filter((t) => t.id !== id);
       let nextActive = activeTabId;
       if (activeTabId === id) {
-        // Prefer the previous tab; fall back to the compare tab.
+        // Prefer the previous tab; fall back to the first tab.
         const fallback = next[idx - 1] ?? next[idx] ?? next[0];
-        nextActive = fallback?.id ?? COMPARE_TAB_ID;
+        nextActive = fallback?.id ?? next[0]?.id ?? COMPARE_TAB_ID;
       }
       set({ tabs: next, activeTabId: nextActive });
+      onTabClosed?.(tab);
     },
 
-    closeAllFileDiffTabs: () =>
-      set((s) => ({
-        tabs: s.tabs.filter((t) => t.kind === 'compare'),
-        activeTabId: COMPARE_TAB_ID,
-      })),
+    closeAllFileDiffTabs: () => {
+      const closed = get().tabs.filter((t) => t.kind === 'fileDiff');
+      set((s) => {
+        const remainingCompare = s.tabs.filter((t) => t.kind === 'compare');
+        const firstCompareId = remainingCompare[0]?.id ?? COMPARE_TAB_ID;
+        return {
+          tabs: remainingCompare,
+          activeTabId: firstCompareId,
+        };
+      });
+      for (const t of closed) onTabClosed?.(t);
+    },
   }));
 }
 

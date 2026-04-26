@@ -22,8 +22,31 @@ clean:
 # ---- dev ----------------------------------------------------------------
 
 # Run the desktop app in dev mode with HMR.
-dev:
-    pnpm --filter @awapi/desktop dev
+# Defaults pre-load the bundled sample folder pair into the first compare
+# tab so debugging doesn't require manual folder-picking. Override with:
+#   just dev ./left ./right [mode]
+#   just dev "" ""               # start with no preloaded session
+# `mode` defaults to "quick" (one of: quick | thorough | binary).
+dev left="./samples/folderA" right="./samples/folderB" mode="quick":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Resolve paths against the repo root (where `just` was invoked) so
+    # they don't get re-resolved against `src/desktop` once pnpm cd's
+    # into the desktop workspace. Skip resolution when an empty string
+    # was passed (the documented "no preloaded session" form).
+    abspath() {
+        if [[ -z "$1" ]]; then
+            echo ""
+        elif [[ "$1" = /* ]]; then
+            echo "$1"
+        else
+            echo "$(cd "$(dirname "$1")" 2>/dev/null && pwd)/$(basename "$1")"
+        fi
+    }
+    AWAPI_LEFT="$(abspath "{{left}}")" \
+    AWAPI_RIGHT="$(abspath "{{right}}")" \
+    AWAPI_MODE="{{mode}}" \
+        pnpm --filter @awapi/desktop dev
 
 # ---- quality ------------------------------------------------------------
 

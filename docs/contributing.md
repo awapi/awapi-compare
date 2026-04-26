@@ -12,6 +12,18 @@ just install
 just dev
 ```
 
+To launch the app pre-loaded with a folder pair (handy when iterating
+on diff/scan code):
+
+```bash
+just dev ./samples/left ./samples/right            # quick mode (default)
+just dev ./samples/left ./samples/right thorough   # quick | thorough | binary
+```
+
+See [`docs/user-guide.md`](user-guide.md#command-line--launch-flags)
+for the full launch-flag contract; the parser lives in
+`src/desktop/src/main/cliArgs.ts`.
+
 ## Workflow
 
 1. Pick the next unchecked item in [`todo/plan.md`](../todo/plan.md).

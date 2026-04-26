@@ -1,5 +1,49 @@
+import { statSync } from 'node:fs';
+import { dirname, isAbsolute, resolve } from 'node:path';
+
 import type { BrowserWindow } from 'electron';
 import type { DialogPickFolderRequest } from '@awapi/shared';
+
+/**
+ * Subset of `node:fs` we need at runtime. Lifted to an interface so
+ * tests can supply an in-memory shim without `memfs`.
+ */
+export interface DialogFsStat {
+  (path: string): { isDirectory(): boolean };
+}
+
+/**
+ * Normalize a user-supplied folder path into something Electron's
+ * `showOpenDialog` will actually honor on macOS:
+ *
+ * - Trim surrounding whitespace.
+ * - Resolve relative paths against the current working directory.
+ * - Walk up to the nearest existing ancestor directory; Electron
+ *   silently ignores `defaultPath` when the path does not exist.
+ *
+ * Returns `undefined` when no usable path can be derived.
+ */
+export function resolveDefaultPath(
+  raw: string | undefined,
+  stat: DialogFsStat,
+): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  let candidate = isAbsolute(trimmed) ? trimmed : resolve(trimmed);
+  // Cap iterations defensively so a pathological input cannot loop.
+  for (let i = 0; i < 64; i += 1) {
+    try {
+      if (stat(candidate).isDirectory()) return candidate;
+    } catch {
+      // fallthrough: walk up
+    }
+    const parent = dirname(candidate);
+    if (parent === candidate) return undefined;
+    candidate = parent;
+  }
+  return undefined;
+}
 
 /**
  * Subset of Electron's `dialog.showOpenDialog` we depend on. Defined
@@ -21,6 +65,8 @@ export interface DialogServiceDeps {
   getTargetWindow?: () => BrowserWindow | null;
   /** Injected for tests; defaults to Electron's `dialog.showOpenDialog`. */
   showOpenDialog?: ShowOpenDialogFn;
+  /** Injected for tests; defaults to `fs.statSync`. */
+  stat?: DialogFsStat;
 }
 
 /**
@@ -31,9 +77,13 @@ export interface DialogServiceDeps {
 export class DialogService {
   private readonly getTargetWindow: () => BrowserWindow | null;
   private readonly showOpenDialog: ShowOpenDialogFn;
+  private readonly stat: DialogFsStat;
 
   constructor(deps: DialogServiceDeps = {}) {
     this.getTargetWindow = deps.getTargetWindow ?? ((): BrowserWindow | null => null);
+    this.stat =
+      deps.stat ??
+      ((path: string) => statSync(path));
     // Lazy-resolve Electron only when no override is supplied, so the
     // service stays importable from tests that don't ship Electron.
     this.showOpenDialog =
@@ -50,7 +100,7 @@ export class DialogService {
   async pickFolder(req: DialogPickFolderRequest = {}): Promise<string | null> {
     const result = await this.showOpenDialog(this.getTargetWindow(), {
       title: req.title,
-      defaultPath: req.defaultPath,
+      defaultPath: resolveDefaultPath(req.defaultPath, this.stat),
       properties: ['openDirectory', 'createDirectory', 'dontAddToRecent'],
     });
     if (result.canceled) return null;

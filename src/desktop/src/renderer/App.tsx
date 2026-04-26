@@ -1,77 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
-import { Toolbar } from './components/Toolbar.js';
-import { StatusBar } from './components/StatusBar.js';
-import { DiffTable } from './components/DiffTable.js';
-import { Tabs } from './components/Tabs.js';
+import { CompareTabBody } from './components/CompareTabBody.js';
 import { FileDiffTab } from './components/FileDiffTab.js';
-import { ContextMenu } from './components/ContextMenu.js';
+import { Tabs } from './components/Tabs.js';
 import { RulesEditor, type RulesScope } from './components/RulesEditor.js';
-import { emptyDiffSummary, summarize } from './diffSummary.js';
-import { createSessionStore } from './state/sessionStore.js';
-import { createThemeStore } from './state/themeStore.js';
-import { createWorkspaceStore, COMPARE_TAB_ID } from './state/workspaceStore.js';
-import { createRulesStore } from './state/rulesStore.js';
-import { buildRowMenuItems, isActionEnabled } from './actions.js';
-import type { RowAction } from './actions.js';
-import { useHotkeys } from './useHotkeys.js';
-import type { MenuAction, Rule } from '@awapi/shared';
-
-const useSession = createSessionStore();
-const useTheme = createThemeStore();
-const useWorkspace = createWorkspaceStore();
-const useRules = createRulesStore();
-
-const MENU_TO_ROW: Partial<Record<MenuAction, RowAction>> = {
-  'compare.copyLeftToRight': 'copyLeftToRight',
-  'compare.copyRightToLeft': 'copyRightToLeft',
-  'compare.markSame': 'markSame',
-  'compare.exclude': 'exclude',
-};
-
-interface ContextMenuState {
-  x: number;
-  y: number;
-  relPath: string;
-}
+import { useRulesStore, useThemeStore, useWorkspaceStore } from './state/stores.js';
+import { getSessionStore } from './state/sessionRegistry.js';
+import type { Rule } from '@awapi/shared';
 
 export function App(): JSX.Element {
-  const leftRoot = useSession((s) => s.leftRoot);
-  const rightRoot = useSession((s) => s.rightRoot);
-  const mode = useSession((s) => s.mode);
-  const pairs = useSession((s) => s.pairs);
-  const selected = useSession((s) => s.selectedPath);
-  const scanning = useSession((s) => s.scanning);
-  const progress = useSession((s) => s.progress);
-  const error = useSession((s) => s.error);
-  const setLeftRoot = useSession((s) => s.setLeftRoot);
-  const setRightRoot = useSession((s) => s.setRightRoot);
-  const setMode = useSession((s) => s.setMode);
-  const setPairs = useSession((s) => s.setPairs);
-  const setScanning = useSession((s) => s.setScanning);
-  const setProgress = useSession((s) => s.setProgress);
-  const setSelectedPath = useSession((s) => s.setSelectedPath);
-  const setError = useSession((s) => s.setError);
-  const markSame = useSession((s) => s.markSame);
-  const excludePath = useSession((s) => s.excludePath);
+  const theme = useThemeStore((s) => s.theme);
 
-  const theme = useTheme((s) => s.theme);
-  const toggleTheme = useTheme((s) => s.toggleTheme);
+  const tabs = useWorkspaceStore((s) => s.tabs);
+  const activeTabId = useWorkspaceStore((s) => s.activeTabId);
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
+  const closeTab = useWorkspaceStore((s) => s.closeTab);
+  const openCompareTab = useWorkspaceStore((s) => s.openCompareTab);
 
-  const tabs = useWorkspace((s) => s.tabs);
-  const activeTabId = useWorkspace((s) => s.activeTabId);
-  const setActiveTab = useWorkspace((s) => s.setActiveTab);
-  const openFileDiffTab = useWorkspace((s) => s.openFileDiffTab);
-  const closeTab = useWorkspace((s) => s.closeTab);
+  const globalRules = useRulesStore((s) => s.rules);
+  const setGlobalRules = useRulesStore((s) => s.setRules);
+  const rulesLoaded = useRulesStore((s) => s.loaded);
+  const markRulesLoaded = useRulesStore((s) => s.markLoaded);
 
-  const globalRules = useRules((s) => s.rules);
-  const setGlobalRules = useRules((s) => s.setRules);
-  const rulesLoaded = useRules((s) => s.loaded);
-  const markRulesLoaded = useRules((s) => s.markLoaded);
-  const sessionRules = useSession((s) => s.rules);
-  const setSessionRules = useSession((s) => s.setRules);
-
-  const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const [rulesScope, setRulesScope] = useState<RulesScope>('global');
 
@@ -81,9 +31,6 @@ export function App(): JSX.Element {
     void (async () => {
       try {
         if (!window.awapi) {
-          // The preload script didn't run (dev server started before
-          // Phase 6 main/preload changes were rebuilt). Surface this so
-          // it's obvious in devtools instead of silently failing.
           console.warn(
             '[awapi] window.awapi is undefined — restart `just dev` to pick up preload/main changes.',
           );
@@ -97,228 +44,107 @@ export function App(): JSX.Element {
     })();
   }, [rulesLoaded, setGlobalRules, markRulesLoaded]);
 
+  // Pre-populate the first compare tab from CLI args / env vars at
+  // launch (e.g. `awapi-compare --type folder --left ./a --right ./b`).
+  // Runs exactly once per renderer instance.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!window.awapi?.app?.getInitialCompare) return;
+      try {
+        const initial = await window.awapi.app.getInitialCompare();
+        if (cancelled || !initial) return;
+        const firstCompareTab = useWorkspaceStore
+          .getState()
+          .tabs.find((t) => t.kind === 'compare');
+        if (!firstCompareTab) return;
+        const session = getSessionStore(firstCompareTab.id).getState();
+        // Don't clobber an in-progress edit (e.g. HMR re-mount).
+        if (session.leftRoot || session.rightRoot) return;
+        session.setLeftRoot(initial.leftRoot);
+        session.setRightRoot(initial.rightRoot);
+        session.setMode(initial.mode);
+      } catch (err) {
+        console.warn('[awapi] failed to read initial compare:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', theme);
     }
   }, [theme]);
 
-  useEffect(() => {
-    const off = window.awapi?.fs.onScanProgress((p) => setProgress(p));
-    return () => off?.();
-  }, [setProgress]);
-
-  const runCompare = useCallback(async () => {
-    if (!window.awapi) return;
-    setScanning(true);
-    setError(null);
-    setProgress(null);
-    try {
-      const result = await window.awapi.fs.scan({
-        leftRoot,
-        rightRoot,
-        mode,
-        // Global rules apply to every session; session rules layer on top
-        // and may override (last-match-wins per Phase 6 semantics).
-        rules: [...globalRules, ...sessionRules],
-      });
-      setPairs(result.pairs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setScanning(false);
-    }
-  }, [leftRoot, rightRoot, mode, globalRules, sessionRules, setScanning, setError, setProgress, setPairs]);
-
-  const summary = useMemo(
-    () => (pairs.length === 0 ? emptyDiffSummary() : summarize(pairs)),
-    [pairs],
-  );
-
-  // Auto-compare when both folder paths are set or change. Debounced so
-  // typing into the path inputs doesn't fire a scan on every keystroke;
-  // picking via the folder dialog feels effectively instant.
-  useEffect(() => {
-    if (!leftRoot.trim() || !rightRoot.trim()) return;
-    if (scanning) return;
-    const handle = setTimeout(() => {
-      void runCompare();
-    }, 400);
-    return () => clearTimeout(handle);
-    // We intentionally exclude `scanning` from deps: we only want to
-    // (re)schedule when the inputs to the comparison actually change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leftRoot, rightRoot, mode, globalRules, sessionRules]);
-
-  const openSelected = useCallback(
-    (relPath: string) => {
-      const pair = pairs.find((p) => p.relPath === relPath);
-      if (!pair) return;
-      // Only open file-diff tabs for file pairs.
-      const looksLikeFile =
-        (pair.left?.type ?? pair.right?.type ?? 'file') === 'file';
-      if (!looksLikeFile) return;
-      openFileDiffTab(relPath);
-    },
-    [pairs, openFileDiffTab],
-  );
-
-  const dispatchAction = useCallback(
-    async (action: RowAction, relPath?: string) => {
-      const targetPath = relPath ?? selected ?? null;
-      const pair = targetPath ? pairs.find((p) => p.relPath === targetPath) : undefined;
-      if (!isActionEnabled(action, { pair })) return;
-      switch (action) {
-        case 'compare':
-          await runCompare();
-          return;
-        case 'open':
-          if (targetPath) openSelected(targetPath);
-          return;
-        case 'markSame':
-          if (targetPath) markSame(targetPath);
-          return;
-        case 'exclude':
-          if (targetPath) excludePath(targetPath);
-          return;
-        case 'copyLeftToRight':
-        case 'copyRightToLeft':
-        case 'delete':
-          // The underlying IPC handlers throw `NotImplementedError` until
-          // Phase 7. Surface a friendly message instead of a stack trace.
-          setError(`"${action}" is not implemented yet (lands in Phase 7).`);
-          return;
-      }
-    },
-    [pairs, selected, runCompare, openSelected, markSame, excludePath, setError],
-  );
-
-  useHotkeys({
-    onAction: (action) => {
-      void dispatchAction(action);
-    },
-  });
-
-  // App-menu actions from main process. Map the subset that overlaps with
-  // row actions; the rest (session.*, view.*, help.*) are wired in later
-  // phases.
-  useEffect(() => {
-    const off = window.awapi?.app.onMenuAction((menuAction) => {
-      if (menuAction === 'session.refresh') {
-        void runCompare();
-        return;
-      }
-      if (menuAction === 'view.toggleTheme') {
-        toggleTheme();
-        return;
-      }
-      if (menuAction === 'session.closeTab') {
-        if (activeTabId !== COMPARE_TAB_ID) closeTab(activeTabId);
-        return;
-      }
-      const rowAction = MENU_TO_ROW[menuAction];
-      if (rowAction) void dispatchAction(rowAction);
-    });
-    return () => off?.();
-  }, [runCompare, toggleTheme, activeTabId, closeTab, dispatchAction]);
-
-  const handleContextMenu = useCallback((relPath: string, x: number, y: number) => {
-    setMenu({ relPath, x, y });
-  }, []);
-
-  const closeContextMenu = useCallback(() => setMenu(null), []);
-
-  const menuItems = useMemo(() => {
-    if (!menu) return [];
-    const pair = pairs.find((p) => p.relPath === menu.relPath);
-    return buildRowMenuItems({ pair });
-  }, [menu, pairs]);
-
+  // The Rules editor's "session" scope edits the active compare tab's
+  // session-rules. We grab that session store imperatively (only when
+  // the editor is open) so App.tsx itself doesn't subscribe to per-tab
+  // state.
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  const activeCompareId =
+    activeTab?.kind === 'compare'
+      ? activeTab.id
+      : tabs.find((t) => t.kind === 'compare')?.id ?? null;
+
+  const getActiveSessionRules = (): Rule[] => {
+    if (!activeCompareId) return [];
+    return getSessionStore(activeCompareId).getState().rules;
+  };
+  const setActiveSessionRules = (next: Rule[]): void => {
+    if (!activeCompareId) return;
+    getSessionStore(activeCompareId).getState().setRules(next);
+  };
 
   return (
     <div className="awapi-app">
-      <Toolbar
-        leftRoot={leftRoot}
-        rightRoot={rightRoot}
-        mode={mode}
-        scanning={scanning}
-        theme={theme}
-        onLeftRootChange={setLeftRoot}
-        onRightRootChange={setRightRoot}
-        onModeChange={setMode}
-        onCompare={runCompare}
-        onRefresh={runCompare}
-        onToggleTheme={toggleTheme}
-        onOpenRules={() => setRulesEditorOpen(true)}
-        onPickLeftFolder={async () => {
-          if (!window.awapi?.dialog) return;
-          const picked = await window.awapi.dialog.pickFolder({
-            defaultPath: leftRoot || undefined,
-            title: 'Select left folder',
-          });
-          if (picked) setLeftRoot(picked);
-        }}
-        onPickRightFolder={async () => {
-          if (!window.awapi?.dialog) return;
-          const picked = await window.awapi.dialog.pickFolder({
-            defaultPath: rightRoot || undefined,
-            title: 'Select right folder',
-          });
-          if (picked) setRightRoot(picked);
-        }}
-      />
       <Tabs
         tabs={tabs}
         activeTabId={activeTabId}
         onSelect={setActiveTab}
         onClose={closeTab}
+        onNewCompareTab={() => openCompareTab()}
       />
-      {activeTab?.kind === 'fileDiff' ? (
-        <FileDiffTab
-          relPath={activeTab.relPath}
-          pair={pairs.find((p) => p.relPath === activeTab.relPath)}
-        />
-      ) : (
-        <DiffTable
-          pairs={pairs}
-          selectedPath={selected}
-          theme={theme}
-          onSelect={setSelectedPath}
-          onActivate={openSelected}
-          onContextMenu={handleContextMenu}
-        />
-      )}
-      <StatusBar summary={summary} progress={progress} scanning={scanning} theme={theme} />
-      {menu ? (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={menuItems}
-          onSelect={(action) => {
-            const target = menu.relPath;
-            closeContextMenu();
-            void dispatchAction(action, target);
-          }}
-          onClose={closeContextMenu}
-        />
-      ) : null}
-      {error ? (
-        <div role="alert" style={{ padding: 8, background: '#5a1f1f', color: '#fff' }}>
-          {error}
-        </div>
-      ) : null}
+      <main className="awapi-app__body">
+        {tabs.map((tab) => {
+          const active = tab.id === activeTabId;
+          return (
+            <div
+              key={tab.id}
+              className={`awapi-tab-panel${active ? ' awapi-tab-panel--active' : ''}`}
+              role="tabpanel"
+              hidden={!active}
+              aria-hidden={!active}
+            >
+              {tab.kind === 'compare' ? (
+                <CompareTabBody
+                  tabId={tab.id}
+                  isActive={active}
+                  onOpenRules={() => setRulesEditorOpen(true)}
+                />
+              ) : (
+                <FileDiffTab
+                  relPath={tab.relPath}
+                  parentCompareTabId={tab.parentCompareTabId}
+                />
+              )}
+            </div>
+          );
+        })}
+      </main>
       {rulesEditorOpen ? (
         <RulesEditor
           scope={rulesScope}
           onScopeChange={setRulesScope}
-          rules={rulesScope === 'global' ? globalRules : sessionRules}
+          rules={rulesScope === 'global' ? globalRules : getActiveSessionRules()}
           onSave={async (next: Rule[]) => {
             if (rulesScope === 'global') {
               setGlobalRules(next);
               await window.awapi?.rules.set(next);
             } else {
-              setSessionRules(next);
+              setActiveSessionRules(next);
             }
           }}
           onClose={() => setRulesEditorOpen(false)}

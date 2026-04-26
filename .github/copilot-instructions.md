@@ -78,6 +78,22 @@ When adding a new main ↔ renderer capability:
 5. Wire it through the preload bridge.
 6. Only then call it from the renderer.
 
+## Launch arguments (CLI / env vars)
+
+User-facing contract is documented in
+[`docs/user-guide.md`](../docs/user-guide.md#command-line--launch-flags).
+The parser is `src/desktop/src/main/cliArgs.ts` (pure, electron-free,
+exhaustively unit-tested). When adding a new launch flag:
+
+1. Update `parseDesktopArgs` and add a unit test in `cliArgs.test.ts`.
+2. If the flag affects the renderer, extend `InitialCompareSession` (or
+   add a new payload) in `src/shared/src/ipc.ts` rather than inventing
+   a parallel channel.
+3. Update both `docs/user-guide.md` (user-facing) and
+   `docs/architecture.md` (internal flow).
+4. If the flag is also accepted via env var, document the
+   `AWAPI_*` name alongside the flag.
+
 ## Testing expectations
 
 - **Every new module requires unit tests.** PRs without tests will be

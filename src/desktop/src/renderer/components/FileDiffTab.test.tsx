@@ -27,9 +27,9 @@ const PAIR: ComparedPair = {
 describe('<FileDiffTab />', () => {
   it('renders both panes with metadata when both sides exist', () => {
     render(<FileDiffTab relPath="src/foo.ts" pair={PAIR} />);
-    expect(screen.getByRole('tabpanel')).toHaveAccessibleName(
-      'File diff for src/foo.ts',
-    );
+    expect(
+      screen.getByRole('region', { name: 'File diff for src/foo.ts' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('src/foo.ts');
     expect(screen.getByLabelText('Left side')).toHaveTextContent('foo.ts');
     expect(screen.getByLabelText('Right side')).toHaveTextContent('foo.ts');
@@ -43,7 +43,8 @@ describe('<FileDiffTab />', () => {
 
   it('renders a friendly fallback when the pair is missing', () => {
     render(<FileDiffTab relPath="src/missing.ts" />);
-    expect(screen.getByRole('tabpanel')).toHaveTextContent(/no matching pair/i);
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('src/missing.ts');
+    const region = screen.getByLabelText('File diff for src/missing.ts');
+    expect(region).toHaveTextContent(/no matching pair/i);
+    expect(region).toHaveTextContent('src/missing.ts');
   });
 });

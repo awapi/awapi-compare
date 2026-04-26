@@ -1,13 +1,39 @@
+import { useMemo } from 'react';
 import type { JSX } from 'react';
 import type { ComparedPair } from '@awapi/shared';
 import { formatMtime, formatSize, statusGlyph } from '../format.js';
 import { statusLabel } from '../theme.js';
+import { getSessionStore } from '../state/sessionRegistry.js';
 
 export interface FileDiffTabProps {
   /** Pair-key (relPath) the tab is bound to. */
   relPath: string;
-  /** The compared pair, if still present in the current scan result. */
+  /**
+   * The compared pair, if known. If omitted, the component will look
+   * the pair up in the parent compare-session's store.
+   */
   pair?: ComparedPair;
+  /**
+   * Id of the compare tab whose scan produced this file diff. Used to
+   * resolve `pair` from the per-tab session registry.
+   */
+  parentCompareTabId?: string;
+}
+
+/**
+ * Inner subscriber: only mounted when we actually have a parent compare
+ * tab to read from. Keeps the hook call unconditional.
+ */
+function FromParentSession({
+  tabId,
+  relPath,
+}: {
+  tabId: string;
+  relPath: string;
+}): JSX.Element {
+  const useStore = useMemo(() => getSessionStore(tabId), [tabId]);
+  const pair = useStore((s) => s.pairs.find((p) => p.relPath === relPath));
+  return <FileDiffBody relPath={relPath} pair={pair} />;
 }
 
 /**
@@ -15,12 +41,28 @@ export interface FileDiffTabProps {
  * diff, hex view, and image diff land in Phase 7. For now we render a
  * read-only summary so the tabbed-workspace plumbing can be exercised.
  */
-export function FileDiffTab({ relPath, pair }: FileDiffTabProps): JSX.Element {
+export function FileDiffTab({
+  relPath,
+  pair: pairProp,
+  parentCompareTabId,
+}: FileDiffTabProps): JSX.Element {
+  if (pairProp || !parentCompareTabId) {
+    return <FileDiffBody relPath={relPath} pair={pairProp} />;
+  }
+  return <FromParentSession tabId={parentCompareTabId} relPath={relPath} />;
+}
+
+function FileDiffBody({
+  relPath,
+  pair,
+}: {
+  relPath: string;
+  pair?: ComparedPair;
+}): JSX.Element {
   if (!pair) {
     return (
       <section
         className="awapi-file-diff awapi-file-diff--missing"
-        role="tabpanel"
         aria-label={`File diff for ${relPath}`}
       >
         <p>
@@ -33,7 +75,6 @@ export function FileDiffTab({ relPath, pair }: FileDiffTabProps): JSX.Element {
   return (
     <section
       className="awapi-file-diff"
-      role="tabpanel"
       aria-label={`File diff for ${relPath}`}
     >
       <header className="awapi-file-diff__header">
@@ -88,3 +129,4 @@ export function FileDiffTab({ relPath, pair }: FileDiffTabProps): JSX.Element {
     </section>
   );
 }
+

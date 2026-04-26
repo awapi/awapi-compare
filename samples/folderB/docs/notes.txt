@@ -1,0 +1,4 @@
+Plain text notes for folderB.
+Line 2: identical in both folders.
+Line 3: only in folderB.
+Line 4: extra trailing line.

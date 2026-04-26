@@ -34,6 +34,7 @@ export const IpcChannel = {
   UpdaterInstall: 'updater.install',
   SftpConnect: 'sftp.connect',
   AppMenuAction: 'app.menuAction',
+  AppGetInitialCompare: 'app.getInitialCompare',
   DialogPickFolder: 'dialog.pickFolder',
 } as const;
 
@@ -97,6 +98,21 @@ export interface DialogPickFolderRequest {
 export interface DialogPickFolderResult {
   /** Absolute path to the selected folder, or `null` if cancelled. */
   path: string | null;
+}
+
+/**
+ * Initial compare session injected at app launch from CLI args or env
+ * vars (e.g. `awapi-compare --type folder --left ./a --right ./b`).
+ * The renderer fetches this once on startup and pre-populates the
+ * first compare tab. `null` means "no CLI session — open empty".
+ */
+export interface InitialCompareSession {
+  type: 'folder';
+  /** Absolute path. */
+  leftRoot: string;
+  /** Absolute path. */
+  rightRoot: string;
+  mode: CompareMode;
 }
 
 /**
@@ -197,6 +213,12 @@ export interface AwapiApi {
      * process. Returns an unsubscribe function.
      */
     onMenuAction(cb: (action: MenuAction) => void): () => void;
+    /**
+     * Read the initial compare session passed to the app via CLI args
+     * or env vars. Resolves to `null` when the app was launched with
+     * no folder pair.
+     */
+    getInitialCompare(): Promise<InitialCompareSession | null>;
   };
   dialog: {
     /**

@@ -3,6 +3,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, Menu, app, ipcMain } from 'electron';
 
+import type { InitialCompareSession } from '@awapi/shared';
+
+import { parseDesktopArgs } from './cliArgs.js';
 import {
   attachProgressBridge,
   createServices,
@@ -44,6 +47,24 @@ function createMainWindow(services: Services): BrowserWindow {
 
 void app.whenReady().then(async () => {
   const rulesFile = join(app.getPath('userData'), 'rules.json');
+  let initialCompare: InitialCompareSession | null = null;
+  try {
+    // Skip the executable + script paths in `process.argv`. In packaged
+    // builds argv[0] is the Electron binary and argv[1+] are user args;
+    // in `electron-vite dev` the same shape holds.
+    initialCompare = parseDesktopArgs(process.argv.slice(1));
+    if (initialCompare) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[awapi] launching with ${initialCompare.type} compare: ` +
+          `${initialCompare.leftRoot} ↔ ${initialCompare.rightRoot} (${initialCompare.mode})`,
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.error(`[awapi] CLI argument error: ${msg}`);
+  }
   const services = createServices({
     rules: {
       filePath: rulesFile,
@@ -54,10 +75,21 @@ void app.whenReady().then(async () => {
       getTargetWindow: () =>
         BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null,
     },
+    initialCompare,
   });
-  // Surface load errors via console; the service falls back to empty.
-  await services.rules.get();
+  // Register IPC handlers BEFORE any potentially-failing async work so a
+  // bad rules.json on disk can never leave handlers un-registered (which
+  // would surface to the renderer as "No handler registered for ...").
   registerIpcHandlers(ipcMain, services);
+  // eslint-disable-next-line no-console
+  console.log('[awapi] IPC handlers registered');
+  // Best-effort: warm the rules cache. Failures here are non-fatal.
+  try {
+    await services.rules.get();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[awapi] rules.get() failed on startup:', err);
+  }
   installApplicationMenu(
     {
       Menu,

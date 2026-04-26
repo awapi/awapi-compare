@@ -29,3 +29,17 @@
 3. Main `fsService` streams entries on both sides, applies rules, classifies.
 4. Progress is pushed back via `fs.scan.progress` events.
 5. Result is rendered as a twin virtualized tree.
+
+## Launch arguments
+
+CLI flags / env vars passed to the Electron binary
+(`--type folder --left … --right … [--mode …]`, or `AWAPI_LEFT` /
+`AWAPI_RIGHT` / `AWAPI_MODE` / `AWAPI_TYPE`) are parsed in
+`src/desktop/src/main/cliArgs.ts` (pure, electron-free, fully
+unit-tested). The result is stashed on the `Services` object as
+`initialCompare` and exposed to the renderer via the
+`app.getInitialCompare` IPC channel. The renderer reads it once on
+mount in `App.tsx` and pre-populates the first compare tab. See
+[`docs/user-guide.md`](user-guide.md#command-line--launch-flags) for the
+user-facing contract.
+

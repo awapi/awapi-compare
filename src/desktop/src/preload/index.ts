@@ -8,6 +8,7 @@ import type {
   FsScanRequest,
   FsScanResult,
   FsWriteRequest,
+  InitialCompareSession,
   LicenseActivateRequest,
   LicenseStatus,
   MenuAction,
@@ -65,6 +66,8 @@ const api: AwapiApi = {
       ipcRenderer.on(IpcChannel.AppMenuAction, listener);
       return () => ipcRenderer.removeListener(IpcChannel.AppMenuAction, listener);
     },
+    getInitialCompare: (): Promise<InitialCompareSession | null> =>
+      ipcRenderer.invoke(IpcChannel.AppGetInitialCompare),
   },
   dialog: {
     pickFolder: (req?: DialogPickFolderRequest): Promise<string | null> =>

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { COMPARE_TAB_ID, createWorkspaceStore } from './workspaceStore.js';
 
 let nextId = 0;
@@ -44,7 +44,7 @@ describe('workspaceStore', () => {
     expect(useStore.getState().tabs[1]?.title).toBe('Custom');
   });
 
-  it('refuses to close the compare tab', () => {
+  it('refuses to close the last remaining compare tab', () => {
     const useStore = createWorkspaceStore({ generateId });
     useStore.getState().closeTab(COMPARE_TAB_ID);
     expect(useStore.getState().tabs).toHaveLength(1);
@@ -71,7 +71,7 @@ describe('workspaceStore', () => {
     expect(useStore.getState().activeTabId).toBe(id2);
   });
 
-  it('closeAllFileDiffTabs leaves only the compare tab', () => {
+  it('closeAllFileDiffTabs leaves only the compare tab(s)', () => {
     let n = 0;
     const useStore = createWorkspaceStore({ generateId: () => `g${++n}` });
     useStore.getState().openFileDiffTab('a');
@@ -87,5 +87,51 @@ describe('workspaceStore', () => {
     const useStore = createWorkspaceStore({ generateId });
     useStore.getState().setActiveTab('nope');
     expect(useStore.getState().activeTabId).toBe(COMPARE_TAB_ID);
+  });
+
+  it('openCompareTab adds a new compare tab and focuses it', () => {
+    const useStore = createWorkspaceStore({ generateId: () => 'c2' });
+    const id = useStore.getState().openCompareTab();
+    const s = useStore.getState();
+    expect(id).toBe('c2');
+    expect(s.tabs).toHaveLength(2);
+    expect(s.tabs[1]).toMatchObject({ id: 'c2', kind: 'compare', title: 'Compare 2' });
+    expect(s.activeTabId).toBe('c2');
+  });
+
+  it('allows closing a compare tab once more than one exists', () => {
+    const useStore = createWorkspaceStore({ generateId: () => 'c2' });
+    const id = useStore.getState().openCompareTab();
+    useStore.getState().closeTab(id);
+    expect(useStore.getState().tabs).toEqual([
+      { id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' },
+    ]);
+    expect(useStore.getState().activeTabId).toBe(COMPARE_TAB_ID);
+  });
+
+  it('setTabTitle renames a tab', () => {
+    const useStore = createWorkspaceStore({ generateId });
+    useStore.getState().setTabTitle(COMPARE_TAB_ID, 'left ↔ right');
+    expect(useStore.getState().tabs[0]?.title).toBe('left ↔ right');
+  });
+
+  it('invokes onTabClosed when a tab is closed', () => {
+    const onTabClosed = vi.fn();
+    const useStore = createWorkspaceStore({
+      generateId: () => 'c2',
+      onTabClosed,
+    });
+    const id = useStore.getState().openCompareTab();
+    useStore.getState().closeTab(id);
+    expect(onTabClosed).toHaveBeenCalledWith(
+      expect.objectContaining({ id, kind: 'compare' }),
+    );
+  });
+
+  it('does not invoke onTabClosed when refusing to close the last compare', () => {
+    const onTabClosed = vi.fn();
+    const useStore = createWorkspaceStore({ generateId, onTabClosed });
+    useStore.getState().closeTab(COMPARE_TAB_ID);
+    expect(onTabClosed).not.toHaveBeenCalled();
   });
 });
