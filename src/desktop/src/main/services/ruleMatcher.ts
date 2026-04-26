@@ -1,37 +1,47 @@
 import picomatch from 'picomatch';
 
-import type { FsEntry, Rule, RuleVerdict } from '@awapi/shared';
+import type { EntryType, FsEntry, Rule, RuleScope, RuleVerdict } from '@awapi/shared';
 
 export type { RuleVerdict };
 
 /**
- * Ordered rule evaluation (Phase 6).
+ * Ordered rule evaluation (Phase 6 + Phase 6.1).
  *
  * Semantics — modelled loosely on `.gitignore`:
  *
- * 1. If the rule set contains at least one enabled `include` rule, the
- *    filter switches to **whitelist mode** and the default verdict for an
- *    entry that matches no rule becomes `'excluded'`. Otherwise, the
- *    default is `'kept'`.
- * 2. Rules are evaluated **in order**. For every rule whose pattern AND
- *    predicates match the entry, the verdict is updated to that rule's
- *    `kind` (`include` → kept, `exclude` → excluded). The **last matching
- *    rule wins**, so users can express overrides (`exclude **`,
- *    `include src/**`).
- * 3. Disabled rules are ignored.
+ * 1. A rule's optional `scope` (`'file'` | `'folder'` | `'any'`)
+ *    controls which entry kinds it applies to. `scope: 'file'` rules
+ *    are skipped entirely for directory entries and vice versa.
+ * 2. **Whitelist mode is evaluated per scope.** If the rule set
+ *    contains at least one enabled `include` rule whose scope applies
+ *    to the entry, the default verdict for an entry that matches no
+ *    rule becomes `'excluded'`. Otherwise, the default is `'kept'`.
+ *    This means a Simple-view rule set that filters files
+ *    (`include files: *.ts`) does not accidentally drop every folder.
+ * 3. Rules are evaluated **in order**. For every rule whose pattern,
+ *    scope, and predicates match the entry, the verdict is updated to
+ *    that rule's `kind`. The **last matching rule wins**, so users can
+ *    express overrides (`exclude **`, `include src/**`).
+ * 4. Disabled rules are ignored.
  *
  * Pattern matching uses [picomatch][1]. Negation patterns (`!pattern`)
  * are supported natively by picomatch; combined with the `kind` field
  * they let users express the common cases either via order
- * (`exclude *.log` then `include important.log`) or via a single negated
- * pattern (`exclude !important.log`).
+ * (`exclude *.log` then `include important.log`) or via a single
+ * negated pattern (`exclude !important.log`).
  *
  * [1]: https://github.com/micromatch/picomatch
  */
 interface CompiledRule {
   rule: Rule;
+  scope: RuleScope;
   /** Returns true when the rule's pattern + predicates match the entry. */
-  test: (entry: { relPath: string; name: string; size?: number; mtimeMs?: number }) => boolean;
+  test: (entry: {
+    relPath: string;
+    name: string;
+    size?: number;
+    mtimeMs?: number;
+  }) => boolean;
 }
 
 function compile(rule: Rule): CompiledRule {
@@ -42,6 +52,7 @@ function compile(rule: Rule): CompiledRule {
   const target = rule.target ?? 'path';
   return {
     rule,
+    scope: rule.scope ?? 'any',
     test: (entry) => {
       const subject = target === 'name' ? entry.name : entry.relPath;
       if (!matcher(subject)) return false;
@@ -75,6 +86,22 @@ function predicatesMatch(
 }
 
 /**
+ * Map an `EntryType` to the {@link RuleScope} value that addresses it.
+ * Symlinks are treated as files for scope purposes — a Simple-view
+ * "exclude files: *.lnk" rule should still drop a symlink named that
+ * way. Directory-pointing symlinks would be reported as `'symlink'`
+ * here too; today the scanner doesn't follow them by default, so the
+ * file-scope mapping is the safer default.
+ */
+function entryScope(type: EntryType | undefined): RuleScope {
+  return type === 'dir' ? 'folder' : 'file';
+}
+
+function scopeApplies(ruleScope: RuleScope, entryScopeValue: RuleScope): boolean {
+  return ruleScope === 'any' || ruleScope === entryScopeValue;
+}
+
+/**
  * Evaluate a compiled rule set against a single entry. Pure; no IO.
  *
  * Accepts either a full {@link FsEntry} (used by the scanner) or a
@@ -82,7 +109,15 @@ function predicatesMatch(
  */
 export function evaluate(
   compiled: CompiledRule[],
-  entry: FsEntry | { relPath: string; name?: string; size?: number; mtimeMs?: number },
+  entry:
+    | FsEntry
+    | {
+        relPath: string;
+        name?: string;
+        type?: EntryType;
+        size?: number;
+        mtimeMs?: number;
+      },
 ): RuleVerdict {
   if (compiled.length === 0) return 'kept';
 
@@ -92,10 +127,16 @@ export function evaluate(
     size: 'size' in entry ? entry.size : undefined,
     mtimeMs: 'mtimeMs' in entry ? entry.mtimeMs : undefined,
   };
+  const eScope = entryScope('type' in entry ? entry.type : undefined);
 
-  const hasInclude = compiled.some((c) => c.rule.kind === 'include');
-  let kept = !hasInclude; // whitelist mode starts excluded
+  // Per-scope whitelist mode: only flip if at least one include rule
+  // would actually apply to this entry's scope.
+  const hasIncludeForScope = compiled.some(
+    (c) => c.rule.kind === 'include' && scopeApplies(c.scope, eScope),
+  );
+  let kept = !hasIncludeForScope;
   for (const c of compiled) {
+    if (!scopeApplies(c.scope, eScope)) continue;
     if (!c.test(subject)) continue;
     kept = c.rule.kind === 'include';
   }
@@ -111,6 +152,7 @@ export function evaluateAll(
   samples: ReadonlyArray<{
     relPath: string;
     name?: string;
+    type?: EntryType;
     size?: number;
     mtimeMs?: number;
   }>,

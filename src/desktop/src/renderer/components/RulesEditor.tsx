@@ -2,10 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, JSX } from 'react';
 
 import type { Rule, RuleKind, RuleTarget, RuleVerdict } from '@awapi/shared';
+import {
+  EMPTY_SIMPLE_RULES,
+  SIMPLE_INCLUDE_FILES_DEFAULT,
+  SIMPLE_INCLUDE_FOLDERS_DEFAULT,
+  compileSimpleRules,
+  tryDecompileToSimpleRules,
+  type SimpleRulesPayload,
+} from '@awapi/shared';
 
 import { DEFAULT_SAMPLE_PATHS, previewVerdicts } from '../state/rulesStore.js';
 
 export type RulesScope = 'global' | 'session';
+export type RulesEditorTab = 'simple' | 'advanced';
 
 export interface RulesEditorProps {
   /** Currently active rule scope; controls which list is being edited. */
@@ -71,6 +80,19 @@ export function RulesEditor(props: RulesEditorProps): JSX.Element {
   const [verdicts, setVerdicts] = useState<RuleVerdict[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  // Tabbed shell (Phase 6.1). The Simple tab is the default; we only
+  // fall through to Advanced on first mount when the existing rules
+  // already use features the Simple view can't represent.
+  const initialDecompile = useMemo(
+    () => tryDecompileToSimpleRules(rules),
+    // Intentional: only computed for the initial tab choice. We don't
+    // want a later prop change to silently bounce the user between tabs.
+    [],
+  );
+  const [tab, setTab] = useState<RulesEditorTab>(
+    initialDecompile === null ? 'advanced' : 'simple',
+  );
 
   // Reset drafts when the underlying scope/list changes.
   useEffect(() => {
@@ -180,42 +202,55 @@ export function RulesEditor(props: RulesEditorProps): JSX.Element {
           </button>
         </header>
 
-        <div className="awapi-rules-editor__body">
-          <section
-            className="awapi-rules-editor__list"
-            aria-label="Rule list"
+        <div
+          className="awapi-rules-editor__tabs"
+          role="tablist"
+          aria-label="Rules editor mode"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'simple'}
+            className={
+              tab === 'simple'
+                ? 'awapi-rules-editor__tab awapi-rules-editor__tab--active'
+                : 'awapi-rules-editor__tab'
+            }
+            onClick={() => setTab('simple')}
           >
-            <div className="awapi-rules-editor__list-header">
-              <span>Rules are evaluated top-to-bottom; the last match wins.</span>
-              <button
-                type="button"
-                onClick={() => setDrafts((arr) => [...arr, newRule()])}
-              >
-                + Add rule
-              </button>
-            </div>
-            {drafts.length === 0 ? (
-              <p className="awapi-rules-editor__empty">
-                No rules. Everything will be included.
-              </p>
-            ) : (
-              <ol className="awapi-rules-editor__rows">
-                {drafts.map((d, i) => (
-                  <RuleRow
-                    key={d._key}
-                    draft={d}
-                    index={i}
-                    canMoveUp={i > 0}
-                    canMoveDown={i < drafts.length - 1}
-                    onChange={(patch) => updateDraft(d._key, patch)}
-                    onRemove={() => removeDraft(d._key)}
-                    onMoveUp={() => move(d._key, -1)}
-                    onMoveDown={() => move(d._key, 1)}
-                  />
-                ))}
-              </ol>
-            )}
-          </section>
+            Simple
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'advanced'}
+            className={
+              tab === 'advanced'
+                ? 'awapi-rules-editor__tab awapi-rules-editor__tab--active'
+                : 'awapi-rules-editor__tab'
+            }
+            onClick={() => setTab('advanced')}
+          >
+            Advanced
+          </button>
+        </div>
+
+        <div className="awapi-rules-editor__body">
+          {tab === 'simple' ? (
+            <SimpleView
+              drafts={drafts}
+              setDrafts={setDrafts}
+              onSwitchToAdvanced={() => setTab('advanced')}
+            />
+          ) : (
+            <AdvancedView
+              drafts={drafts}
+              setDrafts={setDrafts}
+              updateDraft={updateDraft}
+              removeDraft={removeDraft}
+              move={move}
+            />
+          )}
 
           <section
             className="awapi-rules-editor__preview"
@@ -430,4 +465,233 @@ function collapseRange<T extends Record<string, number | undefined>>(
 ): T | undefined {
   const hasAny = Object.values(range).some((v) => v !== undefined);
   return hasAny ? range : undefined;
+}
+
+interface AdvancedViewProps {
+  drafts: DraftRule[];
+  setDrafts: (updater: (arr: DraftRule[]) => DraftRule[]) => void;
+  updateDraft(key: string, patch: Partial<DraftRule>): void;
+  removeDraft(key: string): void;
+  move(key: string, delta: -1 | 1): void;
+}
+
+function AdvancedView(props: AdvancedViewProps): JSX.Element {
+  const { drafts, setDrafts, updateDraft, removeDraft, move } = props;
+  return (
+    <section className="awapi-rules-editor__list" aria-label="Rule list">
+      <div className="awapi-rules-editor__list-header">
+        <span>Rules are evaluated top-to-bottom; the last match wins.</span>
+        <button
+          type="button"
+          onClick={() => setDrafts((arr) => [...arr, newRule()])}
+        >
+          + Add rule
+        </button>
+      </div>
+      {drafts.length === 0 ? (
+        <p className="awapi-rules-editor__empty">
+          No rules. Everything will be included.
+        </p>
+      ) : (
+        <ol className="awapi-rules-editor__rows">
+          {drafts.map((d, i) => (
+            <RuleRow
+              key={d._key}
+              draft={d}
+              index={i}
+              canMoveUp={i > 0}
+              canMoveDown={i < drafts.length - 1}
+              onChange={(patch) => updateDraft(d._key, patch)}
+              onRemove={() => removeDraft(d._key)}
+              onMoveUp={() => move(d._key, -1)}
+              onMoveDown={() => move(d._key, 1)}
+            />
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+interface SimpleViewProps {
+  drafts: DraftRule[];
+  setDrafts: (updater: (arr: DraftRule[]) => DraftRule[]) => void;
+  onSwitchToAdvanced(): void;
+}
+
+/**
+ * Beyond-Compare-style four-box editor (Phase 6.1). Treats the
+ * underlying ordered rule list as a derived value: textareas are the
+ * source of truth while the user is on this tab; every change
+ * recompiles the whole rule list via {@link compileSimpleRules}. When
+ * the rule list contains shapes the simple view can't represent, the
+ * banner forces the user into the Advanced tab.
+ */
+function SimpleView(props: SimpleViewProps): JSX.Element {
+  const { drafts, setDrafts, onSwitchToAdvanced } = props;
+
+  // Rule list as it would appear without React keys.
+  const ruleList = useMemo<Rule[]>(() => drafts.map(fromDraft), [drafts]);
+  const decompiled = useMemo(() => tryDecompileToSimpleRules(ruleList), [ruleList]);
+
+  // Local text state so the user can type freely (blank lines etc.)
+  // without each keystroke pruning their input. Synced only when the
+  // decompile target changes structurally.
+  const [text, setText] = useState<{
+    incFiles: string;
+    excFiles: string;
+    incFolders: string;
+    excFolders: string;
+  }>(() => payloadToText(decompiled ?? EMPTY_SIMPLE_RULES));
+  const [hydratedFor, setHydratedFor] = useState<SimpleRulesPayload | null>(
+    decompiled,
+  );
+
+  // When the decompiled payload changes from outside (e.g. the user
+  // switched scopes), refresh the textareas — but never overwrite
+  // edits the user is in the middle of making on this tab.
+  useEffect(() => {
+    if (decompiled === null) return;
+    if (samePayload(decompiled, hydratedFor)) return;
+    setText(payloadToText(decompiled));
+    setHydratedFor(decompiled);
+  }, [decompiled, hydratedFor]);
+
+  const commit = (next: typeof text): void => {
+    setText(next);
+    const payload: SimpleRulesPayload = {
+      includeFiles: textToList(next.incFiles, SIMPLE_INCLUDE_FILES_DEFAULT),
+      excludeFiles: textToList(next.excFiles, null),
+      includeFolders: textToList(next.incFolders, SIMPLE_INCLUDE_FOLDERS_DEFAULT),
+      excludeFolders: textToList(next.excFolders, null),
+    };
+    const compiled = compileSimpleRules(payload);
+    setDrafts(() => compiled.map(toDraft));
+    setHydratedFor(payload);
+  };
+
+  if (decompiled === null) {
+    return (
+      <section
+        className="awapi-rules-editor__simple awapi-rules-editor__simple--unavailable"
+        aria-label="Simple rules editor"
+      >
+        <p
+          className="awapi-rules-editor__banner"
+          role="status"
+          data-testid="simple-unavailable-banner"
+        >
+          This rule set uses advanced features (custom ordering,
+          size/mtime predicates, or rule shapes the four-box view can't
+          represent).{' '}
+          <button type="button" onClick={onSwitchToAdvanced}>
+            Edit in the Advanced tab
+          </button>
+          .
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="awapi-rules-editor__simple" aria-label="Simple rules editor">
+      <p className="awapi-rules-editor__hint">
+        One glob per line. Folder excludes drop the folder and
+        everything beneath it.
+      </p>
+      <div className="awapi-rules-editor__simple-grid">
+        <SimpleBox
+          label="Include files"
+          ariaLabel="Include files"
+          placeholder={SIMPLE_INCLUDE_FILES_DEFAULT}
+          value={text.incFiles}
+          onChange={(v) => commit({ ...text, incFiles: v })}
+        />
+        <SimpleBox
+          label="Exclude files"
+          ariaLabel="Exclude files"
+          placeholder="*.log"
+          value={text.excFiles}
+          onChange={(v) => commit({ ...text, excFiles: v })}
+        />
+        <SimpleBox
+          label="Include folders"
+          ariaLabel="Include folders"
+          placeholder={SIMPLE_INCLUDE_FOLDERS_DEFAULT}
+          value={text.incFolders}
+          onChange={(v) => commit({ ...text, incFolders: v })}
+        />
+        <SimpleBox
+          label="Exclude folders"
+          ariaLabel="Exclude folders"
+          placeholder=".git"
+          value={text.excFolders}
+          onChange={(v) => commit({ ...text, excFolders: v })}
+        />
+      </div>
+    </section>
+  );
+}
+
+interface SimpleBoxProps {
+  label: string;
+  ariaLabel: string;
+  placeholder: string;
+  value: string;
+  onChange(next: string): void;
+}
+
+function SimpleBox(props: SimpleBoxProps): JSX.Element {
+  const { label, ariaLabel, placeholder, value, onChange } = props;
+  return (
+    <label className="awapi-rules-editor__simple-box">
+      <span>{label}</span>
+      <textarea
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        rows={6}
+        value={value}
+        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+function payloadToText(payload: SimpleRulesPayload): {
+  incFiles: string;
+  excFiles: string;
+  incFolders: string;
+  excFolders: string;
+} {
+  return {
+    incFiles: payload.includeFiles.join('\n'),
+    excFiles: payload.excludeFiles.join('\n'),
+    incFolders: payload.includeFolders.join('\n'),
+    excFolders: payload.excludeFolders.join('\n'),
+  };
+}
+
+function textToList(raw: string, fallback: string | null): string[] {
+  const lines = raw
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (lines.length === 0 && fallback !== null) return [fallback];
+  return lines;
+}
+
+function samePayload(
+  a: SimpleRulesPayload | null,
+  b: SimpleRulesPayload | null,
+): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  const eq = (x: string[], y: string[]): boolean =>
+    x.length === y.length && x.every((v, i) => v === y[i]);
+  return (
+    eq(a.includeFiles, b.includeFiles) &&
+    eq(a.excludeFiles, b.excludeFiles) &&
+    eq(a.includeFolders, b.includeFolders) &&
+    eq(a.excludeFolders, b.excludeFolders)
+  );
 }

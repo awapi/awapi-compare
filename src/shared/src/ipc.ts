@@ -2,6 +2,7 @@ import type {
   ComparedPair,
   CompareMode,
   DiffOptions,
+  EntryType,
   LicenseStatus,
   Rule,
   RuleVerdict,
@@ -130,6 +131,11 @@ export interface RuleTestSample {
   relPath: string;
   /** Basename used by `target: 'name'` patterns. Defaults to last `/` segment. */
   name?: string;
+  /**
+   * Entry kind, used by rule `scope` matching. Defaults to `'file'`
+   * when omitted (preserves the v0 preview behaviour).
+   */
+  type?: EntryType;
   /** Size in bytes; required for `size` predicates. */
   size?: number;
   /** Modification time (epoch ms); required for `mtime` predicates. */

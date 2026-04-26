@@ -51,6 +51,23 @@ export type RuleKind = 'include' | 'exclude';
  */
 export type RuleTarget = 'name' | 'path';
 
+/**
+ * Which kinds of entries a rule applies to.
+ *
+ * - `'file'`   — rule only matches file entries (`type === 'file'`).
+ * - `'folder'` — rule only matches directory entries (`type === 'dir'`
+ *                or a directory-pointing symlink).
+ * - `'any'`    — rule matches any entry. This is the default and
+ *                preserves the v0 behaviour.
+ *
+ * Whitelist mode is evaluated **per scope**: an entry only flips into
+ * "default-excluded" when the rule set contains an enabled `include`
+ * rule whose `scope` applies to that entry. So a Simple-view rule set
+ * that filters files (e.g. `include files: *.ts`) does not
+ * accidentally drop every folder.
+ */
+export type RuleScope = 'file' | 'folder' | 'any';
+
 export interface Rule {
   id: string;
   kind: RuleKind;
@@ -58,6 +75,8 @@ export interface Rule {
   pattern: string;
   /** What the pattern matches against. Defaults to `'path'`. */
   target?: RuleTarget;
+  /** Which entry kinds the rule applies to. Defaults to `'any'`. */
+  scope?: RuleScope;
   /** Optional size filter in bytes, e.g. { gt: 1024 }. */
   size?: { gt?: number; lt?: number };
   /** Optional mtime filter, epoch ms. */
