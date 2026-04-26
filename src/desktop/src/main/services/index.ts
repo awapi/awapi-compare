@@ -4,6 +4,7 @@ import { IpcChannel } from '@awapi/shared';
 
 import { NotImplementedError } from './errors.js';
 import { CliService } from './cliService.js';
+import { DialogService, type DialogServiceDeps } from './dialogService.js';
 import { DiffService } from './diffService.js';
 import { FsService } from './fsService.js';
 import { HashService } from './hashService.js';
@@ -25,11 +26,14 @@ export interface Services {
   license: LicenseService;
   updater: UpdaterService;
   cli: CliService;
+  dialog: DialogService;
 }
 
 export interface CreateServicesOptions {
   /** Persistence options for the global rules store. */
   rules?: RulesServiceDeps;
+  /** Optional overrides for the native dialog service (used by tests). */
+  dialog?: DialogServiceDeps;
 }
 
 export function createServices(options: CreateServicesOptions = {}): Services {
@@ -43,6 +47,7 @@ export function createServices(options: CreateServicesOptions = {}): Services {
     license: new LicenseService(),
     updater: new UpdaterService(),
     cli: new CliService(),
+    dialog: new DialogService(options.dialog),
   };
 }
 
@@ -97,6 +102,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   // SFTP deferred to v1.1 — reserve channel, reject cleanly.
   ipcMain.handle(IpcChannel.SftpConnect, (_e, req) =>
     wrap(() => services.sftp.connect(req)),
+  );
+
+  ipcMain.handle(IpcChannel.DialogPickFolder, (_e, req) =>
+    wrap(() => services.dialog.pickFolder(req)),
   );
 }
 

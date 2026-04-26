@@ -50,6 +50,10 @@ void app.whenReady().then(async () => {
       dirPath: dirname(rulesFile),
       fs: fsPromises,
     },
+    dialog: {
+      getTargetWindow: () =>
+        BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null,
+    },
   });
   // Surface load errors via console; the service falls back to empty.
   await services.rules.get();

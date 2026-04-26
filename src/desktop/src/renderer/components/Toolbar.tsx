@@ -15,6 +15,8 @@ export interface ToolbarProps {
   onRefresh(): void;
   onToggleTheme(): void;
   onOpenRules(): void;
+  onPickLeftFolder?(): void;
+  onPickRightFolder?(): void;
 }
 
 const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
@@ -75,6 +77,8 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onRefresh,
     onToggleTheme,
     onOpenRules,
+    onPickLeftFolder,
+    onPickRightFolder,
   } = props;
 
   const canCompare = !scanning && leftRoot.trim() !== '' && rightRoot.trim() !== '';
@@ -107,7 +111,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           <IconBtn
             glyph="↻"
             label="Refresh"
-            disabled={scanning}
+            disabled={!canCompare}
             onClick={onRefresh}
           />
           <IconBtn
@@ -164,6 +168,16 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
               onLeftRootChange(e.target.value)
             }
           />
+          <button
+            type="button"
+            className="awapi-pathbar__pick"
+            aria-label="Browse for left folder"
+            title="Browse for folder"
+            disabled={!onPickLeftFolder}
+            onClick={onPickLeftFolder}
+          >
+            <span aria-hidden="true">📁</span>
+          </button>
         </div>
         <div className="awapi-pathbar__side">
           <input
@@ -175,6 +189,16 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
               onRightRootChange(e.target.value)
             }
           />
+          <button
+            type="button"
+            className="awapi-pathbar__pick"
+            aria-label="Browse for right folder"
+            title="Browse for folder"
+            disabled={!onPickRightFolder}
+            onClick={onPickRightFolder}
+          >
+            <span aria-hidden="true">📁</span>
+          </button>
         </div>
       </div>
     </>

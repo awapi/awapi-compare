@@ -34,6 +34,7 @@ export const IpcChannel = {
   UpdaterInstall: 'updater.install',
   SftpConnect: 'sftp.connect',
   AppMenuAction: 'app.menuAction',
+  DialogPickFolder: 'dialog.pickFolder',
 } as const;
 
 export type IpcChannelId = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -80,6 +81,22 @@ export interface FsWriteRequest {
 
 export interface LicenseActivateRequest {
   key: string;
+}
+
+/**
+ * Request payload for {@link AwapiApi.dialog.pickFolder}. Both fields are
+ * optional; the main process resolves a sensible default if omitted.
+ */
+export interface DialogPickFolderRequest {
+  /** Pre-populate the dialog at this directory if it exists. */
+  defaultPath?: string;
+  /** Optional dialog title (some platforms ignore this). */
+  title?: string;
+}
+
+export interface DialogPickFolderResult {
+  /** Absolute path to the selected folder, or `null` if cancelled. */
+  path: string | null;
 }
 
 /**
@@ -180,6 +197,13 @@ export interface AwapiApi {
      * process. Returns an unsubscribe function.
      */
     onMenuAction(cb: (action: MenuAction) => void): () => void;
+  };
+  dialog: {
+    /**
+     * Show a native folder-picker dialog. Resolves with the selected
+     * absolute path, or `null` if the user cancelled.
+     */
+    pickFolder(req?: DialogPickFolderRequest): Promise<string | null>;
   };
 }
 

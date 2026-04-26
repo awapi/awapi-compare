@@ -3,24 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js"
     },
     "./ipc": {
       "types": "./dist/ipc.d.ts",
-      "import": "./dist/ipc.js"
+      "import": "./dist/ipc.js",
+      "require": "./dist/cjs/ipc.js"
     },
     "./types": {
       "types": "./dist/types.d.ts",
-      "import": "./dist/types.js"
+      "import": "./dist/types.js",
+      "require": "./dist/cjs/types.js"
     }
   },
   "scripts": {
-    "build": "tsc -b",
-    "clean": "rm -rf dist"
+    "build": "tsc -b && tsc -p tsconfig.cjs.json --noCheck && node -e \"require('node:fs').writeFileSync('dist/cjs/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\"",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
   }
 }

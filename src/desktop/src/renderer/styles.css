@@ -225,6 +225,39 @@ body,
   outline: 1px solid var(--awapi-accent);
 }
 
+.awapi-pathbar__pick {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  margin-left: 4px;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.awapi-pathbar__pick:hover:not(:disabled) {
+  background: var(--awapi-panel);
+  border-color: var(--awapi-accent);
+}
+
+.awapi-pathbar__pick:focus-visible {
+  outline: 1px solid var(--awapi-accent);
+  outline-offset: 1px;
+}
+
+.awapi-pathbar__pick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ---- Diff table ---------------------------------------------------- */
 
 .awapi-diff-wrap {

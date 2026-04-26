@@ -135,6 +135,21 @@ export function App(): JSX.Element {
     [pairs],
   );
 
+  // Auto-compare when both folder paths are set or change. Debounced so
+  // typing into the path inputs doesn't fire a scan on every keystroke;
+  // picking via the folder dialog feels effectively instant.
+  useEffect(() => {
+    if (!leftRoot.trim() || !rightRoot.trim()) return;
+    if (scanning) return;
+    const handle = setTimeout(() => {
+      void runCompare();
+    }, 400);
+    return () => clearTimeout(handle);
+    // We intentionally exclude `scanning` from deps: we only want to
+    // (re)schedule when the inputs to the comparison actually change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leftRoot, rightRoot, mode, globalRules, sessionRules]);
+
   const openSelected = useCallback(
     (relPath: string) => {
       const pair = pairs.find((p) => p.relPath === relPath);
@@ -236,6 +251,22 @@ export function App(): JSX.Element {
         onRefresh={runCompare}
         onToggleTheme={toggleTheme}
         onOpenRules={() => setRulesEditorOpen(true)}
+        onPickLeftFolder={async () => {
+          if (!window.awapi?.dialog) return;
+          const picked = await window.awapi.dialog.pickFolder({
+            defaultPath: leftRoot || undefined,
+            title: 'Select left folder',
+          });
+          if (picked) setLeftRoot(picked);
+        }}
+        onPickRightFolder={async () => {
+          if (!window.awapi?.dialog) return;
+          const picked = await window.awapi.dialog.pickFolder({
+            defaultPath: rightRoot || undefined,
+            title: 'Select right folder',
+          });
+          if (picked) setRightRoot(picked);
+        }}
       />
       <Tabs
         tabs={tabs}
