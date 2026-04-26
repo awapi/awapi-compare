@@ -145,7 +145,6 @@ export function CompareTabBody({
       void runCompare();
     }, 400);
     return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leftRoot, rightRoot, mode, globalRules, sessionRules, diffOptions]);
 
   const summary = useMemo(
