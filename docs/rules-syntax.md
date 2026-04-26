@@ -18,15 +18,19 @@ Every rule has:
 | `kind`    | `'include'` \| `'exclude'`    | Whether matching entries are kept or dropped.                        |
 | `pattern` | string                        | Picomatch glob (see below).                                          |
 | `target`  | `'name'` \| `'path'` (default `'path'`) | Whether the glob matches the basename or the full relative path. |
+| `scope`   | `'file'` \| `'folder'` \| `'any'` (default `'any'`) | Which entry kinds the rule applies to. |
 | `size`    | `{ gt?: number; lt?: number }` | Optional byte-size predicate. Both bounds are exclusive.            |
 | `mtime`   | `{ after?: number; before?: number }` | Optional modification-time predicate (epoch ms, exclusive). |
 | `enabled` | boolean                       | Disabled rules are ignored entirely.                                 |
 
 A rule matches an entry when **all** of the following hold:
 
-1. Its `pattern` matches the chosen `target` string.
-2. Its `size` predicate (if any) matches the entry's byte size.
-3. Its `mtime` predicate (if any) matches the entry's modification time.
+1. Its `scope` covers the entry kind (`'any'` covers everything;
+   `'file'` skips directories; `'folder'` skips files; symlinks are
+   treated as files).
+2. Its `pattern` matches the chosen `target` string.
+3. Its `size` predicate (if any) matches the entry's byte size.
+4. Its `mtime` predicate (if any) matches the entry's modification time.
 
 ## Wildcards
 
@@ -54,13 +58,19 @@ Dotfiles match `*` and `**` (the matcher uses `dot: true`).
 
 Rules are evaluated **in order**, top to bottom:
 
-1. If the rule set contains at least one enabled `include` rule, the
-   filter switches to **whitelist mode**: entries that match no rule are
-   excluded by default. Without any include rule the default is to keep
-   everything.
-2. For every rule whose pattern *and* predicates match the entry, the
-   verdict is updated to that rule's `kind`. The **last matching rule
-   wins**, so users can express overrides cleanly:
+1. **Whitelist mode is per scope.** If the rule set contains at least
+   one enabled `include` rule whose `scope` covers the entry being
+   tested, the filter switches to whitelist mode for that entry: it
+   defaults to *excluded* unless a rule re-admits it. An entry whose
+   scope is not covered by any include rule keeps the default *kept*.
+
+   This means a rule list like `include files: *.ts` does **not**
+   accidentally drop every folder — folder entries aren't in scope for
+   any include rule, so they stay kept.
+
+2. For every rule whose pattern, scope, and predicates match the entry,
+   the verdict is updated to that rule's `kind`. The **last matching
+   rule wins**, so users can express overrides cleanly:
 
    ```text
    exclude **                       # drop everything…
@@ -70,6 +80,30 @@ Rules are evaluated **in order**, top to bottom:
 
 3. Disabled rules are skipped entirely and do not flip the engine into
    whitelist mode.
+
+## Simple vs Advanced views
+
+The Rules editor has two tabs over the same underlying engine:
+
+| View       | Surface                                                                                                       | Best for                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Simple     | Four boxes: Include files / Exclude files / Include folders / Exclude folders. One glob per line.             | Beyond Compare-style "hide `.git` and `*.log`" filtering. |
+| Advanced   | Ordered list with `kind` × `target` × `scope` × `pattern` plus optional `size` / `mtime` predicates.          | Custom ordering, predicates, anything outside the four boxes. |
+
+Simple → Advanced compilation (`compileSimpleRules`):
+
+| Simple input        | Compiled rules                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------- |
+| `Exclude folders: G` | `{ exclude, name, scope: folder, pattern: G }` *and* `{ exclude, path, pattern: '**/G/**' }`              |
+| `Exclude files: G`   | `{ exclude, name, scope: file, pattern: G }`                                                              |
+| `Include files: G`   | `{ include, name, scope: file, pattern: G }` — only emitted when the user changed the default of `**`.    |
+| `Include folders: G` | `{ include, name, scope: folder, pattern: G }` — only emitted when the user changed the default of `*`.   |
+
+The inverse (`tryDecompileToSimpleRules`) returns `null` when a rule
+list uses anything outside that canonical shape (predicates, custom
+ordering, mixed scopes, disabled rules). The Simple tab then shows a
+banner pointing the user to the Advanced tab; saved rules are never
+silently reshaped.
 
 ## Size and mtime predicates
 

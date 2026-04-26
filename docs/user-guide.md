@@ -70,3 +70,34 @@ just dev ./samples/left ./samples/right            # quick mode
 just dev ./samples/left ./samples/right thorough   # quick | thorough | binary
 ```
 
+## Filters (include / exclude rules)
+
+The toolbar's **Rules** button opens the Rules editor. It has two tabs:
+
+- **Simple** (default) — four boxes, mirroring Beyond Compare's Name
+  Filters dialog. One glob per line.
+
+  | Box              | What it does                                                       | Default |
+  | ---------------- | ------------------------------------------------------------------ | ------- |
+  | Include files    | Whitelists file basenames. Custom value flips files into whitelist. | `**`    |
+  | Exclude files    | Blacklists file basenames.                                          | (empty) |
+  | Include folders  | Whitelists folder names.                                            | `*`     |
+  | Exclude folders  | Drops the folder **and** everything beneath it.                     | (empty) |
+
+  Defaults are intentionally permissive — typing nothing keeps every
+  entry. Whitelist mode is per-scope: an "include files" filter never
+  drops folders, and vice versa.
+
+- **Advanced** — the full ordered, last-match-wins editor with
+  `kind` × `target` × `scope` × `pattern` plus optional `size` /
+  `mtime` predicates. See [Rules Syntax](./rules-syntax.md) for the
+  underlying model.
+
+When a rule set uses features the Simple view can't represent
+(custom ordering, predicates, or rule shapes outside the four-box
+model), the Simple tab shows a banner with a one-click escape to the
+Advanced tab.
+
+The live-preview pane on the right works from both tabs and uses the
+exact same matcher the scanner will use.
+

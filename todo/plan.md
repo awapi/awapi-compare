@@ -89,33 +89,33 @@ behind an **Advanced** tab. Round-trips losslessly; rule sets that use
 features the simple view can't express (size/mtime predicates, custom
 ordering, mixed file/folder targets) show a banner and force Advanced.
 
-- [ ] Extend `Rule` in `src/shared/src/types.ts` with optional
+- [x] Extend `Rule` in `src/shared/src/types.ts` with optional
   `scope: 'file' | 'folder' | 'any'` (default `'any'` for back-compat)
   and document semantics in `docs/rules-syntax.md`
-- [ ] Update the matcher in `src/shared/src/` (and any scanner usage in
+- [x] Update the matcher in `src/shared/src/` (and any scanner usage in
   `src/desktop/src/main/services/`) to honour `scope` — `'file'` rules
   only match file entries, `'folder'` rules only match directories
-- [ ] Add `compileSimpleRules({ includeFiles, excludeFiles,
+- [x] Add `compileSimpleRules({ includeFiles, excludeFiles,
   includeFolders, excludeFolders })` pure helper in `src/shared/src/`
   that emits the canonical ordered rule list
   (excludeFolders → excludeFiles → includeFolders → includeFiles,
   with default `**` / `*` includes only emitted when the user changed
   them) — 100% unit-test coverage
-- [ ] Add `tryDecompileToSimpleRules(rules)` inverse helper that
+- [x] Add `tryDecompileToSimpleRules(rules)` inverse helper that
   returns either the four-box payload or `null` when the rule set uses
   advanced features (predicates, reordering, negation in unsupported
   positions, mixed scopes) — full test matrix
-- [ ] Renderer: rules editor gets a tabbed shell with **Simple**
+- [x] Renderer: rules editor gets a tabbed shell with **Simple**
   (default) and **Advanced** (today's editor) tabs; Simple shows four
   textareas mirroring BC's Name Filters layout
-- [ ] Banner in Simple tab when `tryDecompileToSimpleRules` returns
+- [x] Banner in Simple tab when `tryDecompileToSimpleRules` returns
   `null`: "this rule set uses advanced features — edit in Advanced tab"
-- [ ] Live preview pane (`rules.test` IPC) works from both tabs
+- [x] Live preview pane (`rules.test` IPC) works from both tabs
   unchanged
-- [ ] RTL component tests: editing each box updates the compiled rule
+- [x] RTL component tests: editing each box updates the compiled rule
   list; switching tabs preserves edits; banner appears for advanced
   rule sets
-- [ ] Update `docs/rules-syntax.md` and `docs/user-guide.md` with the
+- [x] Update `docs/rules-syntax.md` and `docs/user-guide.md` with the
   Simple ↔ Advanced mapping table
 
 ## Phase 6.5 — Diff options (per-session match policy)

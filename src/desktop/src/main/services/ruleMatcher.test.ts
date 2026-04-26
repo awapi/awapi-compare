@@ -228,3 +228,51 @@ describe('evaluateAll', () => {
     ]);
   });
 });
+
+describe('ruleMatcher — scope (Phase 6.1)', () => {
+  it("a `scope: 'file'` rule does not match folder entries", () => {
+    const rules = [
+      rule({ kind: 'exclude', pattern: '*', target: 'name', scope: 'file' }),
+    ];
+    const c = compileRules(rules);
+    expect(evaluate(c, entry('foo.log', { type: 'file' }))).toBe('excluded');
+    expect(evaluate(c, entry('subdir', { type: 'dir' }))).toBe('kept');
+  });
+
+  it("a `scope: 'folder'` rule does not match file entries", () => {
+    const rules = [
+      rule({ kind: 'exclude', pattern: '.git', target: 'name', scope: 'folder' }),
+    ];
+    const c = compileRules(rules);
+    expect(evaluate(c, entry('.git', { type: 'dir' }))).toBe('excluded');
+    expect(evaluate(c, entry('.git', { type: 'file' }))).toBe('kept');
+  });
+
+  it('whitelist mode is per-scope: file-scoped includes do not exclude folders', () => {
+    const rules = [
+      rule({ kind: 'include', pattern: '*.ts', target: 'name', scope: 'file' }),
+    ];
+    const c = compileRules(rules);
+    // A .ts file matches the include → kept.
+    expect(evaluate(c, entry('a.ts', { type: 'file' }))).toBe('kept');
+    // A .js file is in whitelist mode for the file scope → excluded.
+    expect(evaluate(c, entry('a.js', { type: 'file' }))).toBe('excluded');
+    // A folder is NOT subject to the file-scoped include → still kept.
+    expect(evaluate(c, entry('src', { type: 'dir' }))).toBe('kept');
+  });
+
+  it("`scope: 'any'` (default) keeps the legacy behaviour", () => {
+    const rules = [rule({ kind: 'exclude', pattern: '**/*.log' })];
+    const c = compileRules(rules);
+    expect(evaluate(c, entry('build/out.log', { type: 'file' }))).toBe('excluded');
+    expect(evaluate(c, entry('build/out.log', { type: 'dir' }))).toBe('excluded');
+  });
+
+  it('symlinks are treated as files for scope purposes', () => {
+    const rules = [
+      rule({ kind: 'exclude', pattern: '*', target: 'name', scope: 'file' }),
+    ];
+    const c = compileRules(rules);
+    expect(evaluate(c, entry('link', { type: 'symlink' }))).toBe('excluded');
+  });
+});

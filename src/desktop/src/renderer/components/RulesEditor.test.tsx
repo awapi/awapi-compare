@@ -42,15 +42,20 @@ function renderEditor(overrides: Partial<Parameters<typeof RulesEditor>[0]> = {}
   return { onSave, onClose, onScopeChange };
 }
 
+async function switchToAdvanced(): Promise<void> {
+  await userEvent.click(screen.getByRole('tab', { name: /advanced/i }));
+}
+
 describe('<RulesEditor />', () => {
-  it('renders an empty-state hint when there are no rules', () => {
+  it('renders an empty-state hint when there are no rules', async () => {
     renderEditor();
+    await switchToAdvanced();
     expect(
       screen.getByText(/no rules\. everything will be included\./i),
     ).toBeInTheDocument();
   });
 
-  it('lists existing rules with their pattern, kind, and target', () => {
+  it('lists existing rules with their pattern, kind, and target', async () => {
     const rules: Rule[] = [
       {
         id: 'r1',
@@ -61,6 +66,7 @@ describe('<RulesEditor />', () => {
       },
     ];
     renderEditor({ rules });
+    // Mixed scopes / non-canonical shape ⇒ Advanced is the initial tab.
     const row = screen.getByLabelText('Rule 1');
     expect(within(row).getByLabelText(/pattern/i)).toHaveValue('**/*.log');
     expect(within(row).getByLabelText(/kind/i)).toHaveValue('exclude');
@@ -69,6 +75,7 @@ describe('<RulesEditor />', () => {
 
   it('adds a new draft rule on "Add rule" without saving immediately', async () => {
     const { onSave } = renderEditor();
+    await switchToAdvanced();
     await userEvent.click(screen.getByRole('button', { name: /add rule/i }));
     expect(screen.getByLabelText('Rule 1')).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
@@ -76,6 +83,7 @@ describe('<RulesEditor />', () => {
 
   it('saves the edited rule list', async () => {
     const { onSave } = renderEditor();
+    await switchToAdvanced();
     await userEvent.click(screen.getByRole('button', { name: /add rule/i }));
 
     const row = screen.getByLabelText('Rule 1');
@@ -97,6 +105,7 @@ describe('<RulesEditor />', () => {
       { id: 'r2', kind: 'exclude', pattern: 'second', enabled: true },
     ];
     const { onSave } = renderEditor({ rules });
+    await switchToAdvanced();
 
     await userEvent.click(
       screen.getByRole('button', { name: /move rule 2 up/i }),
@@ -112,6 +121,7 @@ describe('<RulesEditor />', () => {
       { id: 'r1', kind: 'exclude', pattern: 'gone', enabled: true },
     ];
     const { onSave } = renderEditor({ rules });
+    await switchToAdvanced();
     await userEvent.click(screen.getByRole('button', { name: /delete rule 1/i }));
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
     const saved = onSave.mock.calls[0]?.[0] as Rule[];
@@ -145,5 +155,100 @@ describe('<RulesEditor />', () => {
       screen.getByRole('button', { name: /close rules editor/i }),
     );
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('<RulesEditor /> — Simple tab (Phase 6.1)', () => {
+  it('opens on the Simple tab by default for an empty rule set', () => {
+    renderEditor();
+    expect(screen.getByRole('tab', { name: /simple/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByLabelText(/include files/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/exclude files/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/include folders/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/exclude folders/i)).toBeInTheDocument();
+  });
+
+  it('typing in Exclude folders compiles to a name+path pair on Save', async () => {
+    const { onSave } = renderEditor();
+    const box = screen.getByLabelText(/exclude folders/i);
+    await userEvent.clear(box);
+    await userEvent.type(box, '.git');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    const saved = onSave.mock.calls[0]?.[0] as Rule[];
+    expect(saved).toHaveLength(2);
+    expect(saved[0]).toMatchObject({
+      kind: 'exclude',
+      target: 'name',
+      scope: 'folder',
+      pattern: '.git',
+    });
+    expect(saved[1]).toMatchObject({
+      kind: 'exclude',
+      target: 'path',
+      pattern: '**/.git/**',
+    });
+  });
+
+  it('typing in Exclude files compiles to a single file-scoped rule on Save', async () => {
+    const { onSave } = renderEditor();
+    const box = screen.getByLabelText(/exclude files/i);
+    await userEvent.type(box, '*.log');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    const saved = onSave.mock.calls[0]?.[0] as Rule[];
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+      kind: 'exclude',
+      target: 'name',
+      scope: 'file',
+      pattern: '*.log',
+    });
+  });
+
+  it('switching to Advanced preserves edits made in Simple', async () => {
+    const { onSave } = renderEditor();
+    await userEvent.type(screen.getByLabelText(/exclude files/i), '*.log');
+    await switchToAdvanced();
+
+    const row = screen.getByLabelText('Rule 1');
+    expect(within(row).getByLabelText(/pattern/i)).toHaveValue('*.log');
+
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    const saved = onSave.mock.calls[0]?.[0] as Rule[];
+    expect(saved[0]?.pattern).toBe('*.log');
+  });
+
+  it('shows the "edit in Advanced" banner for rule sets that use advanced features', async () => {
+    const rules: Rule[] = [
+      {
+        id: 'r1',
+        kind: 'exclude',
+        pattern: '**/*.log',
+        target: 'path',
+        size: { gt: 1024 },
+        enabled: true,
+      },
+    ];
+    renderEditor({ rules });
+    // Initial tab is Advanced because the rule set is not representable.
+    await userEvent.click(screen.getByRole('tab', { name: /^simple$/i }));
+    expect(
+      screen.getByTestId('simple-unavailable-banner'),
+    ).toBeInTheDocument();
+    // The banner offers a one-click escape hatch back to Advanced.
+    await userEvent.click(
+      within(screen.getByTestId('simple-unavailable-banner')).getByRole(
+        'button',
+        { name: /advanced/i },
+      ),
+    );
+    expect(screen.getByRole('tab', { name: /advanced/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
   });
 });
