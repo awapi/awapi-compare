@@ -108,4 +108,16 @@ describe('<Toolbar />', () => {
       screen.getByRole('button', { name: /browse for right folder/i }),
     ).toBeDisabled();
   });
+
+  it('switches the path-bar labels to "file" when pathLabel="file"', () => {
+    renderToolbar({ pathLabel: 'file' });
+    expect(screen.getByLabelText('Left file')).toBeInTheDocument();
+    expect(screen.getByLabelText('Right file')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /browse for left file/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /browse for right file/i }),
+    ).toBeInTheDocument();
+  });
 });

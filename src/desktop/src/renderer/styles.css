@@ -525,13 +525,21 @@ body,
 /* ---- File-diff tab placeholder -------------------------------------- */
 
 .awapi-file-diff {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
-  padding: 12px 16px;
+  overflow: hidden;
   background: var(--awapi-bg);
   color: var(--awapi-text);
+}
+
+.awapi-file-diff__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
 }
 
 .awapi-file-diff__header {
@@ -546,14 +554,13 @@ body,
 .awapi-file-diff__panes {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 14px;
 }
 
 .awapi-file-diff__pane {
   background: var(--awapi-panel);
   border: 1px solid var(--awapi-border);
-  border-radius: 4px;
-  padding: 10px 12px;
+  padding: 6px 12px;
 }
 
 .awapi-file-diff__pane dl {

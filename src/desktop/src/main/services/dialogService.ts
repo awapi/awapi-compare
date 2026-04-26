@@ -2,7 +2,7 @@ import { statSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 
 import type { BrowserWindow } from 'electron';
-import type { DialogPickFolderRequest } from '@awapi/shared';
+import type { DialogPickFileRequest, DialogPickFolderRequest } from '@awapi/shared';
 
 /**
  * Subset of `node:fs` we need at runtime. Lifted to an interface so
@@ -55,7 +55,9 @@ export interface ShowOpenDialogFn {
     options: {
       title?: string;
       defaultPath?: string;
-      properties: Array<'openDirectory' | 'createDirectory' | 'dontAddToRecent'>;
+      properties: Array<
+        'openDirectory' | 'openFile' | 'createDirectory' | 'dontAddToRecent'
+      >;
     },
   ): Promise<{ canceled: boolean; filePaths: string[] }>;
 }
@@ -102,6 +104,17 @@ export class DialogService {
       title: req.title,
       defaultPath: resolveDefaultPath(req.defaultPath, this.stat),
       properties: ['openDirectory', 'createDirectory', 'dontAddToRecent'],
+    });
+    if (result.canceled) return null;
+    const [first] = result.filePaths;
+    return first ?? null;
+  }
+
+  async pickFile(req: DialogPickFileRequest = {}): Promise<string | null> {
+    const result = await this.showOpenDialog(this.getTargetWindow(), {
+      title: req.title,
+      defaultPath: resolveDefaultPath(req.defaultPath, this.stat),
+      properties: ['openFile', 'dontAddToRecent'],
     });
     if (result.canceled) return null;
     const [first] = result.filePaths;

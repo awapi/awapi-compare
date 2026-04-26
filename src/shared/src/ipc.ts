@@ -40,6 +40,7 @@ export const IpcChannel = {
   AppMenuAction: 'app.menuAction',
   AppGetInitialCompare: 'app.getInitialCompare',
   DialogPickFolder: 'dialog.pickFolder',
+  DialogPickFile: 'dialog.pickFile',
 } as const;
 
 export type IpcChannelId = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -160,6 +161,27 @@ export interface DialogPickFolderRequest {
 
 export interface DialogPickFolderResult {
   /** Absolute path to the selected folder, or `null` if cancelled. */
+  path: string | null;
+}
+
+/**
+ * Request payload for {@link AwapiApi.dialog.pickFile}. Both fields are
+ * optional; the main process resolves a sensible default if omitted.
+ */
+export interface DialogPickFileRequest {
+  /**
+   * Pre-populate the dialog at this path. If it points to a file, the
+   * picker opens its containing directory; if it points to a folder,
+   * that folder is used; non-existent paths walk up to the nearest
+   * existing ancestor.
+   */
+  defaultPath?: string;
+  /** Optional dialog title (some platforms ignore this). */
+  title?: string;
+}
+
+export interface DialogPickFileResult {
+  /** Absolute path to the selected file, or `null` if cancelled. */
   path: string | null;
 }
 
@@ -296,6 +318,11 @@ export interface AwapiApi {
      * absolute path, or `null` if the user cancelled.
      */
     pickFolder(req?: DialogPickFolderRequest): Promise<string | null>;
+    /**
+     * Show a native file-picker dialog. Resolves with the selected
+     * absolute path, or `null` if the user cancelled.
+     */
+    pickFile(req?: DialogPickFileRequest): Promise<string | null>;
   };
 }
 

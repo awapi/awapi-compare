@@ -4,12 +4,14 @@ import {
   FS_ERROR_EXTERNAL_MODIFICATION,
   classifyFile,
   type ComparedPair,
+  type CompareMode,
 } from '@awapi/shared';
-import { formatMtime, formatSize, statusGlyph } from '../format.js';
-import { statusLabel } from '../theme.js';
+import { formatMtime, formatSize } from '../format.js';
 import { useFileDiffData } from '../useFileDiffData.js';
 import { joinPath, extname } from '../paths.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
+import { useThemeStore } from '../state/stores.js';
+import { Toolbar } from './Toolbar.js';
 import { TextDiffView } from './TextDiffView.js';
 import { HexDiffView } from './HexDiffView.js';
 import { ImageDiffView } from './ImageDiffView.js';
@@ -18,12 +20,16 @@ export interface FileDiffTabProps {
   /** Pair-key (relPath) the tab is bound to. */
   relPath: string;
   /**
-   * The compared pair, if known. If omitted, the component will look
-   * the pair up in the parent compare-session's store.
+   * The compared pair, if known. Used to seed the initial paths and
+   * the bottom summary panes when the file has not finished loading.
    */
   pair?: ComparedPair;
   /** Id of the compare tab whose scan produced this file diff. */
   parentCompareTabId?: string;
+  /** Open the global rules editor (toolbar `Rules` button). */
+  onOpenRules?: () => void;
+  /** Open the diff-options dialog (toolbar `Match` button). */
+  onOpenDiffOptions?: () => void;
 }
 
 interface RootPair {
@@ -32,23 +38,37 @@ interface RootPair {
 }
 
 /**
- * File-diff tab. Phase 7 wiring: chooses a text / hex / image viewer
- * based on the file's content kind and surfaces an inline-edit + save
- * flow with external-modification detection.
+ * File-diff tab. Renders the same toolbar / path-bar chrome as the
+ * folder-compare tab, with editable absolute paths so the user can
+ * repoint either side to a different file. Underneath, picks a text /
+ * hex / image viewer based on the file's content kind and surfaces an
+ * inline-edit + save flow with external-modification detection.
  */
 export function FileDiffTab({
   relPath,
   pair: pairProp,
   parentCompareTabId,
+  onOpenRules,
+  onOpenDiffOptions,
 }: FileDiffTabProps): JSX.Element {
   if (!parentCompareTabId) {
-    return <FileDiffBody relPath={relPath} pair={pairProp} roots={null} />;
+    return (
+      <FileDiffBody
+        relPath={relPath}
+        initialPair={pairProp}
+        roots={null}
+        onOpenRules={onOpenRules}
+        onOpenDiffOptions={onOpenDiffOptions}
+      />
+    );
   }
   return (
     <SessionBoundFileDiffBody
       relPath={relPath}
       pairProp={pairProp}
       parentCompareTabId={parentCompareTabId}
+      onOpenRules={onOpenRules}
+      onOpenDiffOptions={onOpenDiffOptions}
     />
   );
 }
@@ -57,14 +77,18 @@ function SessionBoundFileDiffBody({
   relPath,
   pairProp,
   parentCompareTabId,
+  onOpenRules,
+  onOpenDiffOptions,
 }: {
   relPath: string;
   pairProp?: ComparedPair;
   parentCompareTabId: string;
+  onOpenRules?: () => void;
+  onOpenDiffOptions?: () => void;
 }): JSX.Element {
-  // Subscribe to the parent compare session so the file-diff tab
-  // refreshes when a new scan lands. The store is keyed by tab id;
-  // `useMemo` keeps the hook stable across re-renders.
+  // Subscribe to the parent compare session so the file-diff tab can
+  // seed its initial paths from the most recent scan. The store is
+  // keyed by tab id; `useMemo` keeps the hook stable across renders.
   const useSession = useMemo(() => getSessionStore(parentCompareTabId), [parentCompareTabId]);
   const leftRoot = useSession((s) => s.leftRoot);
   const rightRoot = useSession((s) => s.rightRoot);
@@ -73,28 +97,61 @@ function SessionBoundFileDiffBody({
     () => pairs.find((p) => p.relPath === relPath),
     [pairs, relPath],
   );
-  const pair = pairProp ?? lookedUpPair;
+  const initialPair = pairProp ?? lookedUpPair;
   const roots: RootPair | null = leftRoot || rightRoot ? { leftRoot, rightRoot } : null;
-  return <FileDiffBody relPath={relPath} pair={pair} roots={roots} />;
+  return (
+    <FileDiffBody
+      relPath={relPath}
+      initialPair={initialPair}
+      roots={roots}
+      onOpenRules={onOpenRules}
+      onOpenDiffOptions={onOpenDiffOptions}
+    />
+  );
 }
 
 function FileDiffBody({
   relPath,
-  pair,
+  initialPair,
   roots,
+  onOpenRules,
+  onOpenDiffOptions,
 }: {
   relPath: string;
-  pair?: ComparedPair;
+  initialPair?: ComparedPair;
   roots: RootPair | null;
+  onOpenRules?: () => void;
+  onOpenDiffOptions?: () => void;
 }): JSX.Element {
-  const leftPath = pair?.left && roots ? joinPath(roots.leftRoot, pair.left.relPath) : null;
-  const rightPath = pair?.right && roots ? joinPath(roots.rightRoot, pair.right.relPath) : null;
-  const data = useFileDiffData({
-    leftPath,
-    rightPath,
-    extensionHint: extname(relPath),
-  });
+  // Compute the initial absolute paths exactly once. Subsequent edits
+  // (via the path inputs / Swap button / Browse) are owned by local
+  // state, so the file tab is independent of the parent session.
+  const [seededLeft] = useState<string>(() =>
+    initialPair?.left && roots ? joinPath(roots.leftRoot, initialPair.left.relPath) : '',
+  );
+  const [seededRight] = useState<string>(() =>
+    initialPair?.right && roots ? joinPath(roots.rightRoot, initialPair.right.relPath) : '',
+  );
+
+  const [leftPath, setLeftPath] = useState<string>(seededLeft);
+  const [rightPath, setRightPath] = useState<string>(seededRight);
+  const [mode, setMode] = useState<CompareMode>('quick');
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+
+  const data = useFileDiffData({
+    leftPath: leftPath.trim() ? leftPath : null,
+    rightPath: rightPath.trim() ? rightPath : null,
+    extensionHint: extname(leftPath || rightPath || relPath),
+  });
+
+  // True iff the user has not changed paths since the tab opened, in
+  // which case the parent-session-supplied `pair` (with its status
+  // verdict) still corresponds to the file shown.
+  const pathsMatchInitial = leftPath === seededLeft && rightPath === seededRight;
+  const pair = pathsMatchInitial ? initialPair : undefined;
 
   const handleSave = useCallback(
     async (side: 'left' | 'right', value: string) => {
@@ -126,47 +183,77 @@ function FileDiffBody({
     [data],
   );
 
+  const reload = useCallback(() => data.reload(), [data]);
+
+  const onPickLeftFile = useCallback(async () => {
+    if (!window.awapi?.dialog?.pickFile) return;
+    const picked = await window.awapi.dialog.pickFile({
+      defaultPath: leftPath || rightPath || undefined,
+      title: 'Select left file',
+    });
+    if (picked) setLeftPath(picked);
+  }, [leftPath, rightPath]);
+
+  const onPickRightFile = useCallback(async () => {
+    if (!window.awapi?.dialog?.pickFile) return;
+    const picked = await window.awapi.dialog.pickFile({
+      defaultPath: rightPath || leftPath || undefined,
+      title: 'Select right file',
+    });
+    if (picked) setRightPath(picked);
+  }, [leftPath, rightPath]);
+
+  const scanning = data.left.state === 'loading' || data.right.state === 'loading';
+
   return (
     <section className="awapi-file-diff" aria-label={`File diff for ${relPath}`}>
-      <header className="awapi-file-diff__header">
-        <h2>{relPath}</h2>
-        {pair ? (
-          <span
-            className="awapi-file-diff__status"
-            title={statusLabel(pair.status)}
-            aria-label={statusLabel(pair.status)}
-          >
-            {statusGlyph(pair.status)} {statusLabel(pair.status)}
-          </span>
-        ) : null}
-      </header>
-      {!pair ? (
-        <p className="awapi-file-diff__notice">
-          No matching pair for <code>{relPath}</code> in the current scan result. Re-run
-          Compare to refresh.
-        </p>
-      ) : (
-        <FileDiffViewSwitcher
-          relPath={relPath}
-          pair={pair}
-          data={data}
-          saveError={saveError}
-          onSave={handleSave}
-        />
-      )}
+      <Toolbar
+        leftRoot={leftPath}
+        rightRoot={rightPath}
+        mode={mode}
+        scanning={scanning}
+        theme={theme}
+        onLeftRootChange={setLeftPath}
+        onRightRootChange={setRightPath}
+        onModeChange={setMode}
+        onCompare={reload}
+        onRefresh={reload}
+        onToggleTheme={toggleTheme}
+        onOpenRules={onOpenRules ?? (() => undefined)}
+        onOpenDiffOptions={onOpenDiffOptions}
+        onPickLeftFolder={onPickLeftFile}
+        onPickRightFolder={onPickRightFile}
+        pathLabel="file"
+      />
+      <div className="awapi-file-diff__content">
+        {!pair && !leftPath && !rightPath ? (
+          <p className="awapi-file-diff__notice">
+            No matching pair for <code>{relPath}</code> in the current scan result. Re-run
+            Compare to refresh.
+          </p>
+        ) : (
+          <FileDiffViewSwitcher
+            relPath={relPath}
+            initialPair={initialPair}
+            data={data}
+            saveError={saveError}
+            onSave={handleSave}
+          />
+        )}
+      </div>
     </section>
   );
 }
 
 function FileDiffViewSwitcher({
   relPath,
-  pair,
+  initialPair,
   data,
   saveError,
   onSave,
 }: {
   relPath: string;
-  pair: ComparedPair;
+  initialPair?: ComparedPair;
   data: ReturnType<typeof useFileDiffData>;
   saveError: string | null;
   onSave: (side: 'left' | 'right', value: string) => Promise<void>;
@@ -226,7 +313,7 @@ function FileDiffViewSwitcher({
       ) : (
         <HexDiffView left={left} right={right} />
       )}
-      <PairMetaSummary pair={pair} />
+      <SideMetaSummary initialPair={initialPair} data={data} />
     </>
   );
 }
@@ -241,43 +328,70 @@ function unconfirmedOrTooLarge(
   return null;
 }
 
-function PairMetaSummary({ pair }: { pair: ComparedPair }): JSX.Element {
+function basename(path: string): string {
+  if (!path) return '';
+  const cleaned = path.replace(/[\\/]+$/u, '');
+  const parts = cleaned.split(/[\\/]/u).filter(Boolean);
+  return parts.length === 0 ? cleaned : (parts[parts.length - 1] ?? cleaned);
+}
+
+function SideMetaSummary({
+  initialPair,
+  data,
+}: {
+  initialPair?: ComparedPair;
+  data: ReturnType<typeof useFileDiffData>;
+}): JSX.Element {
   return (
     <div className="awapi-file-diff__panes">
-      <div className="awapi-file-diff__pane" aria-label="Left side">
-        <h3>Left</h3>
-        {pair.left ? (
-          <dl>
-            <dt>Name</dt>
-            <dd>{pair.left.name}</dd>
-            <dt>Size</dt>
-            <dd>{formatSize(pair.left.size)}</dd>
-            <dt>Modified</dt>
-            <dd>{formatMtime(pair.left.mtimeMs)}</dd>
-            <dt>Type</dt>
-            <dd>{pair.left.type}</dd>
-          </dl>
-        ) : (
-          <p>(absent)</p>
-        )}
-      </div>
-      <div className="awapi-file-diff__pane" aria-label="Right side">
-        <h3>Right</h3>
-        {pair.right ? (
-          <dl>
-            <dt>Name</dt>
-            <dd>{pair.right.name}</dd>
-            <dt>Size</dt>
-            <dd>{formatSize(pair.right.size)}</dd>
-            <dt>Modified</dt>
-            <dd>{formatMtime(pair.right.mtimeMs)}</dd>
-            <dt>Type</dt>
-            <dd>{pair.right.type}</dd>
-          </dl>
-        ) : (
-          <p>(absent)</p>
-        )}
-      </div>
+      <SideMetaPane
+        ariaLabel="Left side"
+        side={data.left}
+        seed={initialPair?.left}
+      />
+      <SideMetaPane
+        ariaLabel="Right side"
+        side={data.right}
+        seed={initialPair?.right}
+      />
+    </div>
+  );
+}
+
+function SideMetaPane({
+  ariaLabel,
+  side,
+  seed,
+}: {
+  ariaLabel: string;
+  side: ReturnType<typeof useFileDiffData>['left'];
+  seed?: ComparedPair['left'];
+}): JSX.Element {
+  // Prefer fresh values from the loaded file; fall back to the seed
+  // pair (folder-scan metadata) before the file finishes loading.
+  const path = side.path ?? null;
+  const name = path ? basename(path) : seed?.name;
+  const size = side.size ?? seed?.size;
+  const mtimeMs = side.mtimeMs ?? seed?.mtimeMs;
+  const type = seed?.type ?? (path ? 'file' : undefined);
+  const absent = !path && !seed;
+
+  return (
+    <div className="awapi-file-diff__pane" aria-label={ariaLabel}>
+      {absent ? (
+        <p>(absent)</p>
+      ) : (
+        <dl>
+          <dt>Name</dt>
+          <dd>{name ?? '—'}</dd>
+          <dt>Size</dt>
+          <dd>{typeof size === 'number' ? formatSize(size) : '—'}</dd>
+          <dt>Modified</dt>
+          <dd>{typeof mtimeMs === 'number' ? formatMtime(mtimeMs) : '—'}</dd>
+          <dt>Type</dt>
+          <dd>{type ?? '—'}</dd>
+        </dl>
+      )}
     </div>
   );
 }

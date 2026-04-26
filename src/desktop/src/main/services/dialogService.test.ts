@@ -87,7 +87,34 @@ describe('DialogService', () => {
     const [, options] = calls[0]!;
     expect(options.defaultPath).toBeUndefined();
   });
-});
+  describe('pickFile', () => {
+    it('returns the first selected file path when the user confirms', async () => {
+      const { fn, calls } = makeShowOpenDialog({
+        canceled: false,
+        filePaths: ['/tmp/foo.txt'],
+      });
+      const svc = new DialogService({ showOpenDialog: fn });
+      await expect(svc.pickFile()).resolves.toBe('/tmp/foo.txt');
+      const [, options] = calls[0]!;
+      expect(options.properties).toContain('openFile');
+      expect(options.properties).not.toContain('openDirectory');
+    });
+
+    it('returns null when the user cancels the file picker', async () => {
+      const { fn } = makeShowOpenDialog({ canceled: true, filePaths: [] });
+      const svc = new DialogService({ showOpenDialog: fn });
+      await expect(svc.pickFile()).resolves.toBeNull();
+    });
+
+    it('forwards title and resolves defaultPath via the stat seam', async () => {
+      const { fn, calls } = makeShowOpenDialog({ canceled: true, filePaths: [] });
+      const svc = new DialogService({ showOpenDialog: fn, stat: dirStat });
+      await svc.pickFile({ defaultPath: '/home', title: 'Pick file' });
+      const [, options] = calls[0]!;
+      expect(options.title).toBe('Pick file');
+      expect(options.defaultPath).toBe('/home');
+    });
+  });});
 
 describe('resolveDefaultPath', () => {
   it('returns undefined for empty / whitespace input', () => {

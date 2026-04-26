@@ -147,6 +147,7 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
           automaticLayout: true,
           readOnly: !editableRight,
           originalEditable: editableLeft === true,
+          minimap: { enabled: false },
         });
         editor.setModel({ original, modified });
         editorRef.current = editor;

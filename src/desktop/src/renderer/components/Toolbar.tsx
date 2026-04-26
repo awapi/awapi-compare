@@ -18,6 +18,13 @@ export interface ToolbarProps {
   onPickLeftFolder?(): void;
   onPickRightFolder?(): void;
   onOpenDiffOptions?(): void;
+  /**
+   * Whether the path inputs represent folder roots (default) or
+   * single file paths. Only affects placeholder, aria-label and
+   * browse-button titles — the actual path values are still passed
+   * through `leftRoot`/`rightRoot`.
+   */
+  pathLabel?: 'folder' | 'file';
 }
 
 const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
@@ -81,9 +88,15 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onPickLeftFolder,
     onPickRightFolder,
     onOpenDiffOptions,
+    pathLabel = 'folder',
   } = props;
 
   const canCompare = !scanning && leftRoot.trim() !== '' && rightRoot.trim() !== '';
+  const leftLabel = pathLabel === 'file' ? 'Left file' : 'Left folder';
+  const rightLabel = pathLabel === 'file' ? 'Right file' : 'Right folder';
+  const leftPlaceholder = pathLabel === 'file' ? 'Left file\u2026' : 'Left folder\u2026';
+  const rightPlaceholder = pathLabel === 'file' ? 'Right file\u2026' : 'Right folder\u2026';
+  const browseTitle = pathLabel === 'file' ? 'Browse for file' : 'Browse for folder';
 
   return (
     <>
@@ -166,12 +179,12 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           />
         </div>
       </header>
-      <div className="awapi-pathbar" role="group" aria-label="Folder paths">
+      <div className="awapi-pathbar" role="group" aria-label={pathLabel === 'file' ? 'File paths' : 'Folder paths'}>
         <div className="awapi-pathbar__side">
           <input
             type="text"
-            placeholder="Left folder…"
-            aria-label="Left folder"
+            placeholder={leftPlaceholder}
+            aria-label={leftLabel}
             value={leftRoot}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               onLeftRootChange(e.target.value)
@@ -180,8 +193,8 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           <button
             type="button"
             className="awapi-pathbar__pick"
-            aria-label="Browse for left folder"
-            title="Browse for folder"
+            aria-label={`Browse for ${leftLabel.toLowerCase()}`}
+            title={browseTitle}
             disabled={!onPickLeftFolder}
             onClick={onPickLeftFolder}
           >
@@ -191,8 +204,8 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         <div className="awapi-pathbar__side">
           <input
             type="text"
-            placeholder="Right folder…"
-            aria-label="Right folder"
+            placeholder={rightPlaceholder}
+            aria-label={rightLabel}
             value={rightRoot}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               onRightRootChange(e.target.value)
@@ -201,8 +214,8 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           <button
             type="button"
             className="awapi-pathbar__pick"
-            aria-label="Browse for right folder"
-            title="Browse for folder"
+            aria-label={`Browse for ${rightLabel.toLowerCase()}`}
+            title={browseTitle}
             disabled={!onPickRightFolder}
             onClick={onPickRightFolder}
           >

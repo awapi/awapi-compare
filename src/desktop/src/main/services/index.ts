@@ -128,6 +128,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
     wrap(() => services.dialog.pickFolder(req)),
   );
 
+  ipcMain.handle(IpcChannel.DialogPickFile, (_e, req) =>
+    wrap(() => services.dialog.pickFile(req)),
+  );
+
   ipcMain.handle(IpcChannel.AppGetInitialCompare, () => services.initialCompare);
 }
 

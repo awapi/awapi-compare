@@ -140,6 +140,8 @@ export function App(): JSX.Element {
                 <FileDiffTab
                   relPath={tab.relPath}
                   parentCompareTabId={tab.parentCompareTabId}
+                  onOpenRules={() => setRulesEditorOpen(true)}
+                  onOpenDiffOptions={() => setDiffOptionsOpen(true)}
                 />
               )}
             </div>

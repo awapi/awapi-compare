@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AwapiApi,
+  DialogPickFileRequest,
   DialogPickFolderRequest,
   FsCopyRequest,
   FsCopyResult,
@@ -80,6 +81,8 @@ const api: AwapiApi = {
   dialog: {
     pickFolder: (req?: DialogPickFolderRequest): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.DialogPickFolder, req ?? {}),
+    pickFile: (req?: DialogPickFileRequest): Promise<string | null> =>
+      ipcRenderer.invoke(IpcChannel.DialogPickFile, req ?? {}),
   },
 };
 

@@ -30,7 +30,6 @@ describe('<FileDiffTab />', () => {
     expect(
       screen.getByRole('region', { name: 'File diff for src/foo.ts' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('src/foo.ts');
     expect(screen.getByLabelText('Left side')).toHaveTextContent('foo.ts');
     expect(screen.getByLabelText('Right side')).toHaveTextContent('foo.ts');
   });
@@ -46,5 +45,15 @@ describe('<FileDiffTab />', () => {
     const region = screen.getByLabelText('File diff for src/missing.ts');
     expect(region).toHaveTextContent(/no matching pair/i);
     expect(region).toHaveTextContent('src/missing.ts');
+  });
+
+  it('renders the toolbar with file-mode path inputs', () => {
+    render(<FileDiffTab relPath="src/foo.ts" pair={PAIR} />);
+    expect(screen.getByRole('toolbar', { name: /compare toolbar/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Left file')).toBeInTheDocument();
+    expect(screen.getByLabelText('Right file')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /browse for left file/i }),
+    ).toBeInTheDocument();
   });
 });
