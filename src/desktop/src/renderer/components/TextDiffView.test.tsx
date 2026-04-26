@@ -4,6 +4,7 @@ import { FS_ERROR_EXTERNAL_MODIFICATION } from '@awapi/shared';
 import {
   TextDiffView,
   type MonacoDiffEditor,
+  type MonacoEditorInstance,
   type MonacoLike,
   type MonacoModel,
 } from './TextDiffView.js';
@@ -26,16 +27,34 @@ function makeModel(initial: string): FakeModel {
     },
     dispose: () => undefined,
     fire: () => listeners.forEach((cb) => cb()),
+    // Return the full value for test simplicity (range is ignored).
+    getValueInRange: (_range) => value,
+    pushEditOperations: (_before, ops, _cursor) => {
+      const op = ops[0];
+      if (op != null) {
+        value = op.text ?? '';
+        listeners.forEach((cb) => cb());
+      }
+      return null;
+    },
   };
 }
 
 function makeMonaco(models: { l: FakeModel; r: FakeModel }): MonacoLike {
+  const noop: MonacoEditorInstance = {
+    addAction: () => ({ dispose: () => undefined }),
+    getSelection: () => null,
+  };
   const editor: MonacoDiffEditor = {
     setModel: () => undefined,
     layout: () => undefined,
     dispose: () => undefined,
+    getOriginalEditor: () => noop,
+    getModifiedEditor: () => noop,
   };
   return {
+    KeyMod: { Alt: 512 },
+    KeyCode: { RightArrow: 17, LeftArrow: 15 },
     editor: {
       createDiffEditor: () => editor,
       // The component creates two models in order: original then modified.
@@ -114,5 +133,170 @@ describe('<TextDiffView /> save flow', () => {
     });
     expect(inner).toHaveBeenCalledWith('right', 'right2');
     expect(seen).toEqual([err]);
+  });
+});
+
+describe('<TextDiffView /> re-sync models on prop change', () => {
+  it('clears the original model when leftText becomes "" (absent side after swap)', async () => {
+    const l = makeModel('left content');
+    const r = makeModel('');
+    const { rerender } = render(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText="left content"
+        rightText=""
+        monacoLoader={async () => makeMonaco({ l, r })}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
+    // Swap: left becomes absent ('' passed by FileDiffViewSwitcher), right receives the content.
+    rerender(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText=""
+        rightText="left content"
+        monacoLoader={async () => makeMonaco({ l, r })}
+      />,
+    );
+    expect(l.getValue()).toBe('');
+    expect(r.getValue()).toBe('left content');
+  });
+
+  it('does NOT clear a model when its text is null (still loading)', async () => {
+    const l = makeModel('existing content');
+    const r = makeModel('');
+    const { rerender } = render(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText="existing content"
+        rightText=""
+        monacoLoader={async () => makeMonaco({ l, r })}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
+    // null means "still loading" — model must not be cleared.
+    rerender(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText={null}
+        rightText=""
+        monacoLoader={async () => makeMonaco({ l, r })}
+      />,
+    );
+    expect(l.getValue()).toBe('existing content');
+  });
+});
+
+describe('<TextDiffView /> copy context-menu actions', () => {
+  function makeMonacoWithActionCapture(models: { l: FakeModel; r: FakeModel }): {
+    monaco: MonacoLike;
+    origEditor: MonacoEditorInstance & { capturedActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> };
+    modEditor: MonacoEditorInstance & { capturedActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> };
+  } {
+    const origActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> = [];
+    const modActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> = [];
+
+    const origEditor: MonacoEditorInstance & { capturedActions: typeof origActions } = {
+      capturedActions: origActions,
+      addAction: (desc) => { origActions.push(desc); return { dispose: () => undefined }; },
+      getSelection: () => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 }),
+    };
+    const modEditor: MonacoEditorInstance & { capturedActions: typeof modActions } = {
+      capturedActions: modActions,
+      addAction: (desc) => { modActions.push(desc); return { dispose: () => undefined }; },
+      getSelection: () => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 }),
+    };
+
+    const editor: MonacoDiffEditor = {
+      setModel: () => undefined,
+      layout: () => undefined,
+      dispose: () => undefined,
+      getOriginalEditor: () => origEditor,
+      getModifiedEditor: () => modEditor,
+    };
+    const monaco: MonacoLike = {
+      KeyMod: { Alt: 512 },
+      KeyCode: { RightArrow: 17, LeftArrow: 15 },
+      editor: {
+        createDiffEditor: () => editor,
+        createModel: vi
+          .fn<(value: string, language?: string) => FakeModel>()
+          .mockImplementationOnce(() => models.l)
+          .mockImplementationOnce(() => models.r),
+      },
+    };
+    return { monaco, origEditor, modEditor };
+  }
+
+  it('Copy to Right transfers selected content from original to modified model', async () => {
+    const l = makeModel('hello');
+    const r = makeModel('world');
+    const { monaco, origEditor } = makeMonacoWithActionCapture({ l, r });
+
+    render(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText="hello"
+        rightText="world"
+        editableLeft
+        editableRight
+        monacoLoader={async () => monaco}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
+
+    const action = origEditor.capturedActions.find((a) => a.id === 'awapi.copySelectionToRight');
+    expect(action).toBeDefined();
+    act(() => { action!.run(origEditor); });
+
+    expect(r.getValue()).toBe('hello');
+  });
+
+  it('Copy to Left transfers selected content from modified to original model', async () => {
+    const l = makeModel('hello');
+    const r = makeModel('world');
+    const { monaco, modEditor } = makeMonacoWithActionCapture({ l, r });
+
+    render(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText="hello"
+        rightText="world"
+        editableLeft
+        editableRight
+        monacoLoader={async () => monaco}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
+
+    const action = modEditor.capturedActions.find((a) => a.id === 'awapi.copySelectionToLeft');
+    expect(action).toBeDefined();
+    act(() => { action!.run(modEditor); });
+
+    expect(l.getValue()).toBe('world');
+  });
+
+  it('Copy to Right is a no-op when editableRight is false', async () => {
+    const l = makeModel('hello');
+    const r = makeModel('world');
+    const { monaco, origEditor } = makeMonacoWithActionCapture({ l, r });
+
+    render(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText="hello"
+        rightText="world"
+        editableRight={false}
+        monacoLoader={async () => monaco}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
+
+    const action = origEditor.capturedActions.find((a) => a.id === 'awapi.copySelectionToRight');
+    expect(action).toBeDefined();
+    act(() => { action!.run(origEditor); });
+
+    // Right model must remain unchanged.
+    expect(r.getValue()).toBe('world');
   });
 });

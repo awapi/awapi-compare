@@ -8,6 +8,10 @@ import { languageFromPath } from '@awapi/shared';
  * pulling Monaco's web-worker bundle into jsdom.
  */
 export interface MonacoLike {
+  /** `monaco.KeyMod.Alt` bitmask value. */
+  KeyMod: { Alt: number };
+  /** Subset of `monaco.KeyCode` values needed for copy keybindings. */
+  KeyCode: { RightArrow: number; LeftArrow: number };
   editor: {
     createDiffEditor(
       container: HTMLElement,
@@ -17,10 +21,40 @@ export interface MonacoLike {
   };
 }
 
+/** A line+column range within a Monaco model. */
+export interface MonacoRange {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+}
+
+/** A single text-replacement operation for `pushEditOperations`. */
+export interface MonacoSingleEditOperation {
+  range: MonacoRange;
+  /** Replacement text; `null` deletes the range. */
+  text: string | null;
+}
+
+/** Minimal surface of an individual Monaco editor (original or modified side). */
+export interface MonacoEditorInstance {
+  addAction(descriptor: {
+    id: string;
+    label: string;
+    keybindings?: number[];
+    contextMenuGroupId?: string;
+    contextMenuOrder?: number;
+    run(editor: MonacoEditorInstance): void;
+  }): { dispose(): void };
+  getSelection(): MonacoRange | null;
+}
+
 export interface MonacoDiffEditor {
   setModel(model: { original: MonacoModel; modified: MonacoModel }): void;
   layout(): void;
   dispose(): void;
+  getOriginalEditor(): MonacoEditorInstance;
+  getModifiedEditor(): MonacoEditorInstance;
 }
 
 export interface MonacoModel {
@@ -28,6 +62,12 @@ export interface MonacoModel {
   setValue(value: string): void;
   onDidChangeContent(cb: () => void): { dispose(): void };
   dispose(): void;
+  getValueInRange(range: MonacoRange): string;
+  pushEditOperations(
+    beforeCursorState: unknown,
+    editOperations: MonacoSingleEditOperation[],
+    cursorStateComputer: unknown,
+  ): unknown;
 }
 
 export type MonacoLoader = () => Promise<MonacoLike>;
@@ -118,6 +158,11 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   const monacoRef = useRef<MonacoLike | null>(null);
   const modelsRef = useRef<{ original: MonacoModel; modified: MonacoModel } | null>(null);
   const subscriptionsRef = useRef<Array<{ dispose(): void }>>([]);
+  // Track editability for context-menu actions registered once at mount.
+  const editableRightRef = useRef(editableRight);
+  editableRightRef.current = editableRight;
+  const editableLeftRef = useRef(editableLeft);
+  editableLeftRef.current = editableLeft;
   const [editorState, setEditorState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [editorError, setEditorError] = useState<string | null>(null);
   const [leftDirty, setLeftDirty] = useState(false);
@@ -158,6 +203,41 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
         const subL = original.onDidChangeContent(() => setLeftDirty(true));
         const subR = modified.onDidChangeContent(() => setRightDirty(true));
         subscriptionsRef.current.push(subL, subR);
+
+        // Context-menu actions: "Copy → Right" (from original) and
+        // "Copy ← Left" (from modified), mirroring the folder-compare
+        // context menu. Keybindings (Alt+→ / Alt+←) are registered
+        // through Monaco so they also work when focus is inside the editor.
+        const subCopyRight = editor.getOriginalEditor().addAction({
+          id: 'awapi.copySelectionToRight',
+          label: 'Copy \u2192 Right',
+          keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.RightArrow],
+          contextMenuGroupId: 'awapi',
+          contextMenuOrder: 1,
+          run(ed) {
+            if (!editableRightRef.current || !modelsRef.current) return;
+            const sel = ed.getSelection();
+            if (!sel) return;
+            const text = modelsRef.current.original.getValueInRange(sel);
+            modelsRef.current.modified.pushEditOperations([], [{ range: sel, text }], () => null);
+          },
+        });
+        const subCopyLeft = editor.getModifiedEditor().addAction({
+          id: 'awapi.copySelectionToLeft',
+          label: 'Copy \u2190 Left',
+          keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.LeftArrow],
+          contextMenuGroupId: 'awapi',
+          contextMenuOrder: 1,
+          run(ed) {
+            if (!editableLeftRef.current || !modelsRef.current) return;
+            const sel = ed.getSelection();
+            if (!sel) return;
+            const text = modelsRef.current.modified.getValueInRange(sel);
+            modelsRef.current.original.pushEditOperations([], [{ range: sel, text }], () => null);
+          },
+        });
+        subscriptionsRef.current.push(subCopyRight, subCopyLeft);
+
         setEditorState('ready');
       } catch (err) {
         if (cancelled) return;

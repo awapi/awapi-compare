@@ -241,7 +241,6 @@ export function CompareTabBody({
         onLeftRootChange={setLeftRoot}
         onRightRootChange={setRightRoot}
         onModeChange={setMode}
-        onCompare={runCompare}
         onRefresh={runCompare}
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules}

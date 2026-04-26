@@ -11,7 +11,6 @@ export interface ToolbarProps {
   onLeftRootChange(value: string): void;
   onRightRootChange(value: string): void;
   onModeChange(mode: CompareMode): void;
-  onCompare(): void;
   onRefresh(): void;
   onToggleTheme(): void;
   onOpenRules(): void;
@@ -81,7 +80,6 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onLeftRootChange,
     onRightRootChange,
     onModeChange,
-    onCompare,
     onRefresh,
     onToggleTheme,
     onOpenRules,
@@ -117,15 +115,9 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         <div className="awapi-toolbar__group">
           <IconBtn glyph="📄" label="Files" disabled title="Coming soon" />
           <IconBtn
-            glyph="▶"
-            label={scanning ? 'Scanning…' : 'Compare'}
-            ariaLabel={scanning ? 'Scanning' : 'Compare'}
-            disabled={!canCompare}
-            onClick={onCompare}
-          />
-          <IconBtn
             glyph="↻"
-            label="Refresh"
+            label={scanning ? 'Scanning…' : 'Refresh'}
+            ariaLabel={scanning ? 'Scanning' : 'Refresh'}
             disabled={!canCompare}
             onClick={onRefresh}
           />

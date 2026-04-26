@@ -8,7 +8,6 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
     onLeftRootChange: vi.fn(),
     onRightRootChange: vi.fn(),
     onModeChange: vi.fn(),
-    onCompare: vi.fn(),
     onRefresh: vi.fn(),
     onToggleTheme: vi.fn(),
     onOpenRules: vi.fn(),
@@ -30,20 +29,19 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
 }
 
 describe('<Toolbar />', () => {
-  it('disables Compare while paths are empty', () => {
+  it('disables Refresh while paths are empty', () => {
     renderToolbar();
-    expect(screen.getByRole('button', { name: /^compare$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^refresh$/i })).toBeDisabled();
   });
 
-  it('enables Compare once both paths are set', () => {
+  it('enables Refresh once both paths are set', () => {
     renderToolbar({ leftRoot: '/a', rightRoot: '/b' });
-    expect(screen.getByRole('button', { name: /^compare$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^refresh$/i })).toBeEnabled();
   });
 
   it('shows "Scanning…" while a scan is in flight', () => {
     renderToolbar({ leftRoot: '/a', rightRoot: '/b', scanning: true });
     expect(screen.getByRole('button', { name: /scanning/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeDisabled();
   });
 
   it('forwards typing into the left/right inputs', async () => {
@@ -54,10 +52,10 @@ describe('<Toolbar />', () => {
     expect(handlers.onRightRootChange).toHaveBeenCalled();
   });
 
-  it('clicking Compare invokes onCompare', async () => {
+  it('clicking Refresh invokes onRefresh', async () => {
     const handlers = renderToolbar({ leftRoot: '/a', rightRoot: '/b' });
-    await userEvent.click(screen.getByRole('button', { name: /^compare$/i }));
-    expect(handlers.onCompare).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /^refresh$/i }));
+    expect(handlers.onRefresh).toHaveBeenCalled();
   });
 
   it('toggle-theme button reflects current theme', async () => {
@@ -95,7 +93,6 @@ describe('<Toolbar />', () => {
         onLeftRootChange={vi.fn()}
         onRightRootChange={vi.fn()}
         onModeChange={vi.fn()}
-        onCompare={vi.fn()}
         onRefresh={vi.fn()}
         onToggleTheme={vi.fn()}
         onOpenRules={vi.fn()}

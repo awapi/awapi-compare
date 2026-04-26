@@ -58,4 +58,23 @@ describe('useFileDiffData', () => {
     await waitFor(() => expect(result.current.left.state).toBe('error'));
     expect(result.current.left.error).toMatch(/ENOENT/);
   });
+
+  it('re-decodes text when paths swap between two text files (kind unchanged)', async () => {
+    const fsApi = makeFsApi({
+      '/a.txt': { data: new TextEncoder().encode('alpha'), mtimeMs: 1 },
+      '/b.txt': { data: new TextEncoder().encode('beta'), mtimeMs: 2 },
+    });
+    const { result, rerender } = renderHook(
+      (props: { leftPath: string; rightPath: string }) =>
+        useFileDiffData({ leftPath: props.leftPath, rightPath: props.rightPath, fsApi }),
+      { initialProps: { leftPath: '/a.txt', rightPath: '/b.txt' } },
+    );
+    await waitFor(() => expect(result.current.left.text).toBe('alpha'));
+    expect(result.current.right.text).toBe('beta');
+
+    // Swap.
+    rerender({ leftPath: '/b.txt', rightPath: '/a.txt' });
+    await waitFor(() => expect(result.current.left.text).toBe('beta'));
+    expect(result.current.right.text).toBe('alpha');
+  });
 });

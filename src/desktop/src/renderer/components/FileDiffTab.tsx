@@ -218,7 +218,6 @@ function FileDiffBody({
         onLeftRootChange={setLeftPath}
         onRightRootChange={setRightPath}
         onModeChange={setMode}
-        onCompare={reload}
         onRefresh={reload}
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules ?? (() => undefined)}
@@ -230,8 +229,8 @@ function FileDiffBody({
       <div className="awapi-file-diff__content">
         {!pair && !leftPath && !rightPath ? (
           <p className="awapi-file-diff__notice">
-            No matching pair for <code>{relPath}</code> in the current scan result. Re-run
-            Compare to refresh.
+            No matching pair for <code>{relPath}</code> in the current scan result. Click
+            Refresh to re-run the comparison.
           </p>
         ) : (
           <FileDiffViewSwitcher
@@ -302,8 +301,8 @@ function FileDiffViewSwitcher({
       {kind === 'text' ? (
         <TextDiffView
           relPath={relPath}
-          leftText={data.left.text ?? null}
-          rightText={data.right.text ?? null}
+          leftText={data.left.state === 'absent' ? '' : (data.left.text ?? null)}
+          rightText={data.right.state === 'absent' ? '' : (data.right.text ?? null)}
           editableLeft={data.left.state === 'ready'}
           editableRight={data.right.state === 'ready'}
           onSave={onSave}

@@ -122,11 +122,17 @@ export function useFileDiffData(options: UseFileDiffDataOptions): FileDiffData {
         loadSide(rightPath, api, largeFileBytes, confirmedLarge),
       ]);
       if (cancelled) return;
-      setLeft(l);
-      setRight(r);
       const sniffSource = pickSniffSource(l, r);
       const ext = extensionHint ?? extnameOfFirst(leftPath, rightPath);
-      setKind(sniffSource ? classifyFile(sniffSource, ext).kind : null);
+      const nextKind = sniffSource ? classifyFile(sniffSource, ext).kind : null;
+      // Decode text eagerly when the kind is 'text', so swapping
+      // between two already-text files (kind unchanged) still
+      // refreshes the displayed text. The lazy effect below only
+      // covers the kind-change transition.
+      const decode = nextKind === 'text';
+      setLeft(decode ? decoded(l) : l);
+      setRight(decode ? decoded(r) : r);
+      setKind(nextKind);
     })();
 
     return () => {
@@ -134,7 +140,8 @@ export function useFileDiffData(options: UseFileDiffDataOptions): FileDiffData {
     };
   }, [generation]);
 
-  // Decode text lazily — once we know the kind is 'text'.
+  // Decode text lazily — once we know the kind is 'text'. (Covers the
+  // initial mount path where bytes arrived before the kind verdict.)
   useEffect(() => {
     if (kind !== 'text') return;
     setLeft((prev) => decoded(prev));
