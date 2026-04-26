@@ -866,6 +866,99 @@ body,
   color: var(--awapi-text-muted);
 }
 
+/* ---- Rules editor: Simple/Advanced tabs (Phase 6.1) -------------- */
+
+.awapi-rules-editor__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  background: var(--awapi-panel-alt);
+  border-bottom: 1px solid var(--awapi-border);
+  flex: 0 0 auto;
+}
+
+.awapi-rules-editor__tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+  cursor: pointer;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+.awapi-rules-editor__tab:hover {
+  color: var(--awapi-text);
+}
+
+.awapi-rules-editor__tab--active {
+  background: var(--awapi-panel);
+  color: var(--awapi-text);
+  border-color: var(--awapi-border);
+  position: relative;
+  top: 1px;
+}
+
+.awapi-rules-editor__simple {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.awapi-rules-editor__simple-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.awapi-rules-editor__simple-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.awapi-rules-editor__simple-box > span {
+  font-weight: 600;
+  color: var(--awapi-text);
+}
+
+.awapi-rules-editor__simple-box textarea {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  color: var(--awapi-text);
+  padding: 6px 8px;
+  border-radius: 2px;
+  resize: vertical;
+  min-height: 96px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.awapi-rules-editor__simple-box textarea::placeholder {
+  color: var(--awapi-text-muted);
+  opacity: 0.6;
+}
+
+.awapi-rules-editor__banner {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--awapi-border);
+  background: var(--awapi-panel-alt);
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--awapi-text);
+}
+
+.awapi-rules-editor__banner button {
+  margin: 0 2px;
+}
+
 /* ---- Diff options dialog ----------------------------------------- */
 
 .awapi-diffopts {
