@@ -72,6 +72,52 @@ Build **AwapiCompare**, a cross-platform (Windows/macOS/Linux) Beyond Compare al
 - [x] Unit tests: full glob matrix, negation precedence, ordering, size/mtime predicates
 - [x] Write `docs/rules-syntax.md`
 
+## Phase 6.1 — Beyond-Compare-style "Simple" rules view
+
+Today's rules editor exposes the full ordered, last-match-wins model
+with `kind` × `target` × `pattern` (+ optional `size` / `mtime`). It is
+strictly more expressive than Beyond Compare's four-box Name Filters
+dialog (Include files / Exclude files / Include folders / Exclude
+folders) but the cost is real: users must mentally pick `kind` and
+`target` for every rule, encode "is this a file or a folder?" in the
+glob, and reason about the whitelist-mode flip the moment any include
+rule exists.
+
+Goal: keep today's engine as the source of truth, but front it with a
+BC-style **Simple** view as the default, with today's editor moved
+behind an **Advanced** tab. Round-trips losslessly; rule sets that use
+features the simple view can't express (size/mtime predicates, custom
+ordering, mixed file/folder targets) show a banner and force Advanced.
+
+- [ ] Extend `Rule` in `src/shared/src/types.ts` with optional
+  `scope: 'file' | 'folder' | 'any'` (default `'any'` for back-compat)
+  and document semantics in `docs/rules-syntax.md`
+- [ ] Update the matcher in `src/shared/src/` (and any scanner usage in
+  `src/desktop/src/main/services/`) to honour `scope` — `'file'` rules
+  only match file entries, `'folder'` rules only match directories
+- [ ] Add `compileSimpleRules({ includeFiles, excludeFiles,
+  includeFolders, excludeFolders })` pure helper in `src/shared/src/`
+  that emits the canonical ordered rule list
+  (excludeFolders → excludeFiles → includeFolders → includeFiles,
+  with default `**` / `*` includes only emitted when the user changed
+  them) — 100% unit-test coverage
+- [ ] Add `tryDecompileToSimpleRules(rules)` inverse helper that
+  returns either the four-box payload or `null` when the rule set uses
+  advanced features (predicates, reordering, negation in unsupported
+  positions, mixed scopes) — full test matrix
+- [ ] Renderer: rules editor gets a tabbed shell with **Simple**
+  (default) and **Advanced** (today's editor) tabs; Simple shows four
+  textareas mirroring BC's Name Filters layout
+- [ ] Banner in Simple tab when `tryDecompileToSimpleRules` returns
+  `null`: "this rule set uses advanced features — edit in Advanced tab"
+- [ ] Live preview pane (`rules.test` IPC) works from both tabs
+  unchanged
+- [ ] RTL component tests: editing each box updates the compiled rule
+  list; switching tabs preserves edits; banner appears for advanced
+  rule sets
+- [ ] Update `docs/rules-syntax.md` and `docs/user-guide.md` with the
+  Simple ↔ Advanced mapping table
+
 ## Phase 6.5 — Diff options (per-session match policy)
 
 A configurable policy that controls how files are paired across sides
