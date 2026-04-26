@@ -6,7 +6,7 @@ import { NotImplementedError } from './errors.js';
 import { CliService } from './cliService.js';
 import { DialogService, type DialogServiceDeps } from './dialogService.js';
 import { DiffService } from './diffService.js';
-import { FsService } from './fsService.js';
+import { FsCodedError, FsService } from './fsService.js';
 import { HashService } from './hashService.js';
 import { LicenseService } from './licenseService.js';
 import { RulesService, type RulesServiceDeps } from './rulesService.js';
@@ -67,15 +67,24 @@ export function createServices(options: CreateServicesOptions = {}): Services {
  */
 function wrap<T>(fn: () => Promise<T> | T): Promise<T> {
   try {
-    return Promise.resolve(fn());
+    return Promise.resolve(fn()).catch((err: unknown) => translateError(err));
   } catch (err) {
-    if (err instanceof NotImplementedError) {
-      return Promise.reject(
-        Object.assign(new Error(err.message), { code: 'E_NOT_IMPLEMENTED', phase: err.phase }),
-      );
-    }
-    return Promise.reject(err as Error);
+    return translateError(err);
   }
+}
+
+function translateError<T>(err: unknown): Promise<T> {
+  if (err instanceof NotImplementedError) {
+    return Promise.reject(
+      Object.assign(new Error(err.message), { code: 'E_NOT_IMPLEMENTED', phase: err.phase }),
+    );
+  }
+  if (err instanceof FsCodedError) {
+    return Promise.reject(
+      Object.assign(new Error(err.message), { code: err.code, ...(err.details ?? {}) }),
+    );
+  }
+  return Promise.reject(err as Error);
 }
 
 /**
@@ -87,8 +96,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   const { fs, hash, rules, session, license, updater } = services;
 
   ipcMain.handle(IpcChannel.FsScan, (_e, req) => wrap(() => fs.scan(req)));
+  ipcMain.handle(IpcChannel.FsRead, (_e, req) => wrap(() => fs.read(req)));
   ipcMain.handle(IpcChannel.FsReadChunk, (_e, req) => wrap(() => fs.readChunk(req)));
   ipcMain.handle(IpcChannel.FsHash, (_e, path: string) => wrap(() => hash.hash(path)));
+  ipcMain.handle(IpcChannel.FsStat, (_e, req) => wrap(() => fs.stat(req)));
   ipcMain.handle(IpcChannel.FsCopy, (_e, req) => wrap(() => fs.copy(req)));
   ipcMain.handle(IpcChannel.FsWrite, (_e, req) => wrap(() => fs.write(req)));
 

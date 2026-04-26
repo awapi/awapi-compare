@@ -525,6 +525,9 @@ body,
 /* ---- File-diff tab placeholder -------------------------------------- */
 
 .awapi-file-diff {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 12px 16px;
   background: var(--awapi-bg);
@@ -576,6 +579,221 @@ body,
   margin-top: 16px;
   color: var(--awapi-text-muted);
   font-style: italic;
+}
+
+.awapi-file-diff__error {
+  color: var(--awapi-status-different, #d04040);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+.awapi-file-diff__warn {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: var(--awapi-panel);
+  border: 1px dashed var(--awapi-border);
+  border-radius: 4px;
+}
+
+.awapi-file-diff__warn--hard {
+  border-style: solid;
+  color: var(--awapi-status-different, #d04040);
+}
+
+.awapi-file-diff__status {
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+/* ---- Hex diff view -------------------------------------------------- */
+
+.awapi-hexdiff {
+  display: flex;
+  flex-direction: column;
+  height: 60vh;
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  background: var(--awapi-panel);
+  margin-bottom: 12px;
+}
+
+.awapi-hexdiff__summary {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--awapi-border);
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-hexdiff__body {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.awapi-hexdiff__inner {
+  position: relative;
+  width: 100%;
+}
+
+.awapi-hexdiff__row {
+  position: absolute;
+  inset-inline-start: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 90px 1fr 1fr;
+  align-items: center;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 22px;
+  padding: 0 8px;
+  white-space: pre;
+}
+
+.awapi-hexdiff__row--diff {
+  background: rgba(208, 64, 64, 0.12);
+}
+
+.awapi-hexdiff__offset {
+  color: var(--awapi-text-muted);
+}
+
+.awapi-hexdiff__cell {
+  display: flex;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.awapi-hexdiff__cell--blank {
+  opacity: 0.3;
+}
+
+.awapi-hexdiff__hex {
+  flex: 1;
+}
+
+.awapi-hexdiff__ascii {
+  color: var(--awapi-text-muted);
+}
+
+/* ---- Image diff view ------------------------------------------------ */
+
+.awapi-imgdiff {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  background: var(--awapi-panel);
+  margin-bottom: 12px;
+}
+
+.awapi-imgdiff__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--awapi-border);
+  flex-wrap: wrap;
+}
+
+.awapi-imgdiff__modebtn {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.awapi-imgdiff__modebtn--active {
+  background: var(--awapi-accent, #4080ff);
+  color: white;
+}
+
+.awapi-imgdiff__opacity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.awapi-imgdiff__status {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-imgdiff__status--warn {
+  color: var(--awapi-status-different, #d04040);
+}
+
+.awapi-imgdiff__body {
+  padding: 10px;
+  min-height: 240px;
+}
+
+.awapi-imgdiff__body--side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.awapi-imgdiff__pane h3 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-imgdiff__pane img,
+.awapi-imgdiff__onion img,
+.awapi-imgdiff__pixeldiff img {
+  max-width: 100%;
+  display: block;
+  background: repeating-conic-gradient(#888 0% 25%, #aaa 0% 50%) 0 0 / 16px 16px;
+}
+
+.awapi-imgdiff__onion {
+  position: relative;
+  display: inline-block;
+}
+
+.awapi-imgdiff__onion-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ---- Text diff view ------------------------------------------------- */
+
+.awapi-textdiff {
+  display: flex;
+  flex-direction: column;
+  height: 60vh;
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  background: var(--awapi-panel);
+  margin-bottom: 12px;
+}
+
+.awapi-textdiff__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--awapi-border);
+}
+
+.awapi-textdiff__title {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-textdiff__error {
+  color: var(--awapi-status-different, #d04040);
+  font-size: 12px;
+  margin-inline-start: auto;
+}
+
+.awapi-textdiff__editor {
+  flex: 1;
+  min-height: 0;
 }
 
 /* ---- Context menu --------------------------------------------------- */

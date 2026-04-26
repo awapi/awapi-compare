@@ -139,12 +139,12 @@ original API surface (`DiffOptions`) and original UI naming.
 
 ## Phase 7 — File compare views
 
-- [ ] Text diff via Monaco `DiffEditor` with syntax highlighting
-- [ ] Inline edit + save via `fs.write` with confirm; detect external modification
-- [ ] Binary/hex view: virtualized 16-byte rows, synchronized scroll, block-LCS diff
-- [ ] Image diff: side-by-side + onion-skin + `pixelmatch` canvas
-- [ ] Chunked file reads; warn on large files
-- [ ] Unit tests: hex diff algorithm, pixelmatch wrapper, save flow (memfs)
+- [x] Text diff via Monaco `DiffEditor` with syntax highlighting
+- [x] Inline edit + save via `fs.write` with confirm; detect external modification
+- [x] Binary/hex view: virtualized 16-byte rows, synchronized scroll, block-LCS diff
+- [x] Image diff: side-by-side + onion-skin + `pixelmatch` canvas
+- [x] Chunked file reads; warn on large files
+- [x] Unit tests: hex diff algorithm, pixelmatch wrapper, save flow (memfs)
 
 ## Phase 8 — Licensing, trial, activation
 

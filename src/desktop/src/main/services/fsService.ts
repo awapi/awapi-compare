@@ -1,4 +1,7 @@
 import {
+  FS_ERROR_EXTERNAL_MODIFICATION,
+  FS_ERROR_FILE_TOO_LARGE,
+  MAX_TEXT_FILE_BYTES,
   diffOptionsFromMode,
   type ComparedPair,
   type DiffOptions,
@@ -6,11 +9,17 @@ import {
   type FsCopyResult,
   type FsEntry,
   type FsReadChunkRequest,
+  type FsReadRequest,
+  type FsReadResult,
   type FsScanRequest,
   type FsScanResult,
+  type FsStatRequest,
+  type FsStatResult,
   type FsWriteRequest,
   type ScanProgress,
 } from '@awapi/shared';
+
+import * as nodeFs from 'node:fs';
 
 import { classifyPair } from './diffService.js';
 import { NotImplementedError } from './errors.js';
@@ -22,11 +31,68 @@ import { scan as scanTree } from './scanner.js';
 
 export type ScanProgressListener = (progress: ScanProgress) => void;
 
+/**
+ * Narrow filesystem surface used by `read` / `stat` / `write` /
+ * `readChunk`. Matches both `node:fs/promises` and memfs's
+ * `fs.promises` so tests can inject an in-memory volume.
+ */
+export interface FsIo {
+  readFile(path: string): Promise<Buffer | Uint8Array>;
+  writeFile(
+    path: string,
+    data: Uint8Array | string,
+    options?: { encoding?: BufferEncoding | null },
+  ): Promise<void>;
+  stat(path: string): Promise<{
+    size: number;
+    mtimeMs: number;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
+  }>;
+  open(path: string, flags: string): Promise<{
+    read(
+      buffer: Uint8Array,
+      offset: number,
+      length: number,
+      position: number | null,
+    ): Promise<{ bytesRead: number; buffer: Uint8Array }>;
+    close(): Promise<void>;
+  }>;
+}
+
+/**
+ * Sentinel error codes surfaced through IPC so the renderer can
+ * distinguish recoverable cases (large file / external modification)
+ * from generic failures. Re-exported from `@awapi/shared` to keep the
+ * symbol importable from main-side modules.
+ */
+export {
+  FS_ERROR_FILE_TOO_LARGE,
+  FS_ERROR_EXTERNAL_MODIFICATION,
+} from '@awapi/shared';
+
+export class FsCodedError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'FsCodedError';
+  }
+}
+
 export interface FsServiceDeps {
   /** Scanner options (injectable fs). Defaults to `node:fs`. */
   scannerOptions?: ScannerOptions;
   /** Hash service instance used in thorough/binary mode. */
   hash?: HashService;
+  /**
+   * I/O surface for read/stat/write/readChunk. Defaults to
+   * `node:fs.promises`.
+   */
+  io?: FsIo;
 }
 
 /**
@@ -155,16 +221,113 @@ export class FsService {
     return pair;
   }
 
-  readChunk(_req: FsReadChunkRequest): Promise<Uint8Array> {
-    throw new NotImplementedError('fs.readChunk', 'Phase 7');
+  readChunk(req: FsReadChunkRequest): Promise<Uint8Array> {
+    return this.readChunkImpl(req);
   }
 
   copy(_req: FsCopyRequest): Promise<FsCopyResult> {
     throw new NotImplementedError('fs.copy', 'Phase 5');
   }
 
-  write(_req: FsWriteRequest): Promise<void> {
-    throw new NotImplementedError('fs.write', 'Phase 7');
+  write(req: FsWriteRequest): Promise<void> {
+    return this.writeImpl(req);
+  }
+
+  read(req: FsReadRequest): Promise<FsReadResult> {
+    return this.readImpl(req);
+  }
+
+  stat(req: FsStatRequest): Promise<FsStatResult> {
+    return this.statImpl(req);
+  }
+
+  private get io(): FsIo {
+    return this.deps.io ?? (nodeFs.promises as unknown as FsIo);
+  }
+
+  private async readImpl(req: FsReadRequest): Promise<FsReadResult> {
+    const cap = req.maxBytes ?? MAX_TEXT_FILE_BYTES;
+    const stat = await this.io.stat(req.path);
+    if (!stat.isFile()) {
+      throw new FsCodedError(`fs.read: ${req.path} is not a file`, 'E_NOT_FILE');
+    }
+    if (stat.size > cap) {
+      throw new FsCodedError(
+        `fs.read: ${req.path} exceeds the ${cap}-byte cap`,
+        FS_ERROR_FILE_TOO_LARGE,
+        { size: stat.size, maxBytes: cap },
+      );
+    }
+    const data = await this.io.readFile(req.path);
+    const view = data instanceof Uint8Array ? data : new Uint8Array(data);
+    // Return a fresh Uint8Array so we don't accidentally surface a
+    // pooled Buffer back through IPC structured-clone.
+    const copy = new Uint8Array(view.byteLength);
+    copy.set(view);
+    return { data: copy, size: stat.size, mtimeMs: stat.mtimeMs };
+  }
+
+  private async statImpl(req: FsStatRequest): Promise<FsStatResult> {
+    const stat = await this.io.stat(req.path);
+    const type: FsStatResult['type'] = stat.isFile()
+      ? 'file'
+      : stat.isDirectory()
+        ? 'dir'
+        : stat.isSymbolicLink()
+          ? 'symlink'
+          : 'other';
+    return { size: stat.size, mtimeMs: stat.mtimeMs, type };
+  }
+
+  private async writeImpl(req: FsWriteRequest): Promise<void> {
+    if (req.expectedMtimeMs !== undefined) {
+      // External-modification guard. Tolerate ±1ms because some
+      // filesystems (FAT, older HFS) round mtimes.
+      let actual: { mtimeMs: number } | null = null;
+      try {
+        actual = await this.io.stat(req.path);
+      } catch {
+        // File missing is a different kind of conflict, but for now
+        // we treat it the same way — the renderer should re-check.
+        actual = null;
+      }
+      if (actual && Math.abs(actual.mtimeMs - req.expectedMtimeMs) > 1) {
+        throw new FsCodedError(
+          `fs.write: ${req.path} was modified externally`,
+          FS_ERROR_EXTERNAL_MODIFICATION,
+          { expectedMtimeMs: req.expectedMtimeMs, actualMtimeMs: actual.mtimeMs },
+        );
+      }
+    }
+    const encoding = req.encoding ?? (typeof req.contents === 'string' ? 'utf8' : 'binary');
+    if (encoding === 'utf8') {
+      const text = typeof req.contents === 'string'
+        ? req.contents
+        : Buffer.from(req.contents).toString('utf8');
+      await this.io.writeFile(req.path, text, { encoding: 'utf8' });
+    } else {
+      const bytes = typeof req.contents === 'string'
+        ? new TextEncoder().encode(req.contents)
+        : req.contents;
+      await this.io.writeFile(req.path, bytes);
+    }
+  }
+
+  private async readChunkImpl(req: FsReadChunkRequest): Promise<Uint8Array> {
+    if (!Number.isInteger(req.offset) || req.offset < 0) {
+      throw new Error(`fs.readChunk: offset must be a non-negative integer`);
+    }
+    if (!Number.isInteger(req.length) || req.length <= 0) {
+      throw new Error(`fs.readChunk: length must be a positive integer`);
+    }
+    const handle = await this.io.open(req.path, 'r');
+    try {
+      const buf = new Uint8Array(req.length);
+      const { bytesRead } = await handle.read(buf, 0, req.length, req.offset);
+      return bytesRead === buf.length ? buf : buf.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
   }
 
   onScanProgress(listener: ScanProgressListener): () => void {

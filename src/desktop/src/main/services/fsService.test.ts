@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mergeDiffOptions, type FsScanRequest, type Rule } from '@awapi/shared';
 
 import { NotImplementedError } from './errors.js';
-import { FsService } from './fsService.js';
+import { FS_ERROR_EXTERNAL_MODIFICATION, FS_ERROR_FILE_TOO_LARGE, FsCodedError, FsService, type FsIo } from './fsService.js';
 import { HashService } from './hashService.js';
 
 function makeFs(tree: Record<string, string | null>): unknown {
@@ -23,7 +23,50 @@ function svc(fs: unknown): FsService {
   return new FsService({
     scannerOptions: { fs: fs as never },
     hash: new HashService(fs as never),
+    io: ioOf(fs),
   });
+}
+
+// memfs's `fs.promises` doesn't expose `open`, so we shim it on top of
+// the synchronous API. Only the `read` and `close` methods used by
+// {@link FsService.readChunk} need to work.
+function ioOf(fs: unknown): FsIo {
+  const realFs = fs as {
+    promises: {
+      readFile(p: string): Promise<Uint8Array | Buffer>;
+      writeFile(p: string, data: Uint8Array | string, opts?: { encoding?: BufferEncoding | null }): Promise<void>;
+      stat(p: string): Promise<{
+        size: number;
+        mtimeMs: number;
+        isFile(): boolean;
+        isDirectory(): boolean;
+        isSymbolicLink(): boolean;
+      }>;
+    };
+    openSync(p: string, flags: string): number;
+    readSync(fd: number, buf: Uint8Array, off: number, len: number, pos: number | null): number;
+    closeSync(fd: number): void;
+  };
+  return {
+    readFile: (p) => realFs.promises.readFile(p),
+    writeFile: (p, d, o) => realFs.promises.writeFile(p, d, o),
+    stat: (p) => realFs.promises.stat(p),
+    open: (p, flags) =>
+      Promise.resolve({
+        async read(buf: Uint8Array, off: number, len: number, pos: number | null) {
+          const fd = realFs.openSync(p, flags);
+          try {
+            const bytesRead = realFs.readSync(fd, buf, off, len, pos);
+            return { bytesRead, buffer: buf };
+          } finally {
+            realFs.closeSync(fd);
+          }
+        },
+        async close() {
+          /* fd is closed inside read() — no-op here. */
+        },
+      }),
+  };
 }
 
 function req(
@@ -149,12 +192,120 @@ describe('FsService.scan — DiffOptions pairing', () => {
   });
 });
 
+describe('FsService.read', () => {
+  it('returns the file contents plus size and mtime', async () => {
+    const fs = makeFs({ '/x.txt': 'hello' });
+    const r = await svc(fs).read({ path: '/x.txt' });
+    expect(new TextDecoder().decode(r.data)).toBe('hello');
+    expect(r.size).toBe(5);
+    expect(typeof r.mtimeMs).toBe('number');
+  });
+
+  it('rejects with E_FILE_TOO_LARGE when the file exceeds maxBytes', async () => {
+    const fs = makeFs({ '/big.bin': 'x'.repeat(2048) });
+    await expect(svc(fs).read({ path: '/big.bin', maxBytes: 1024 })).rejects.toMatchObject({
+      code: FS_ERROR_FILE_TOO_LARGE,
+    });
+  });
+
+  it('rejects with E_NOT_FILE on directories', async () => {
+    const fs = makeFs({ '/dir': null });
+    await expect(svc(fs).read({ path: '/dir' })).rejects.toBeInstanceOf(FsCodedError);
+  });
+});
+
+describe('FsService.stat', () => {
+  it('reports type=file with size and mtime', async () => {
+    const fs = makeFs({ '/y.txt': 'abc' });
+    const r = await svc(fs).stat({ path: '/y.txt' });
+    expect(r.type).toBe('file');
+    expect(r.size).toBe(3);
+    expect(typeof r.mtimeMs).toBe('number');
+  });
+
+  it('reports type=dir for directories', async () => {
+    const fs = makeFs({ '/d': null });
+    const r = await svc(fs).stat({ path: '/d' });
+    expect(r.type).toBe('dir');
+  });
+});
+
+describe('FsService.write', () => {
+  it('writes utf8 text to disk', async () => {
+    const fs = makeFs({});
+    await svc(fs).write({ path: '/z.txt', contents: 'héllo' });
+    const r = await svc(fs).read({ path: '/z.txt' });
+    expect(new TextDecoder().decode(r.data)).toBe('héllo');
+  });
+
+  it('writes raw bytes when contents is a Uint8Array', async () => {
+    const fs = makeFs({});
+    await svc(fs).write({
+      path: '/bin.dat',
+      contents: Uint8Array.from([0xde, 0xad, 0xbe, 0xef]),
+    });
+    const r = await svc(fs).read({ path: '/bin.dat' });
+    expect(Array.from(r.data)).toEqual([0xde, 0xad, 0xbe, 0xef]);
+  });
+
+  it('rejects with E_EXTERNAL_MODIFICATION when expectedMtimeMs disagrees', async () => {
+    const fs = makeFs({ '/m.txt': 'first' });
+    const before = await svc(fs).stat({ path: '/m.txt' });
+    // Tamper: change mtime via the underlying volume.
+    (fs as { utimesSync(p: string, atime: number, mtime: number): void }).utimesSync(
+      '/m.txt',
+      Date.now() / 1000,
+      (before.mtimeMs + 5000) / 1000,
+    );
+    await expect(
+      svc(fs).write({
+        path: '/m.txt',
+        contents: 'second',
+        expectedMtimeMs: before.mtimeMs,
+      }),
+    ).rejects.toMatchObject({ code: FS_ERROR_EXTERNAL_MODIFICATION });
+  });
+
+  it('writes successfully when expectedMtimeMs matches the current mtime', async () => {
+    const fs = makeFs({ '/m.txt': 'first' });
+    const before = await svc(fs).stat({ path: '/m.txt' });
+    await expect(
+      svc(fs).write({
+        path: '/m.txt',
+        contents: 'second',
+        expectedMtimeMs: before.mtimeMs,
+      }),
+    ).resolves.toBeUndefined();
+    const after = await svc(fs).read({ path: '/m.txt' });
+    expect(new TextDecoder().decode(after.data)).toBe('second');
+  });
+});
+
+describe('FsService.readChunk', () => {
+  it('reads a window of bytes from the requested offset', async () => {
+    const fs = makeFs({ '/buf.bin': 'abcdefghij' });
+    const r = await svc(fs).readChunk({ path: '/buf.bin', offset: 3, length: 4 });
+    expect(new TextDecoder().decode(r)).toBe('defg');
+  });
+
+  it('returns a short buffer when reading past EOF', async () => {
+    const fs = makeFs({ '/buf.bin': 'abcde' });
+    const r = await svc(fs).readChunk({ path: '/buf.bin', offset: 3, length: 16 });
+    expect(new TextDecoder().decode(r)).toBe('de');
+  });
+
+  it('rejects on negative or non-integer offset/length', async () => {
+    const fs = makeFs({ '/buf.bin': 'abc' });
+    await expect(svc(fs).readChunk({ path: '/buf.bin', offset: -1, length: 1 })).rejects.toThrow();
+    await expect(svc(fs).readChunk({ path: '/buf.bin', offset: 0, length: 0 })).rejects.toThrow();
+    await expect(svc(fs).readChunk({ path: '/buf.bin', offset: 0.5, length: 1 })).rejects.toThrow();
+  });
+});
+
 describe('FsService deferred methods', () => {
-  it('throws NotImplementedError for copy/readChunk/write', () => {
+  it('throws NotImplementedError for copy', () => {
     const s = new FsService();
     expect(() => s.copy({ from: '/a', to: '/b' })).toThrow(NotImplementedError);
-    expect(() => s.readChunk({ path: '/a', offset: 0, length: 16 })).toThrow(NotImplementedError);
-    expect(() => s.write({ path: '/a', contents: '' })).toThrow(NotImplementedError);
   });
 
   it('dispatches scan-progress events to all listeners until unsubscribed', () => {

@@ -1,6 +1,23 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'node:path';
 
 export default defineConfig({
+  resolve: {
+    alias: [
+      // Tests never mount the real Monaco editor (the few that touch
+      // TextDiffView pass an explicit `monacoLoader` prop). Pointing
+      // every `monaco-editor*` specifier — including the `?worker`
+      // deep imports — at a tiny stub keeps vite-node from resolving
+      // Monaco's heavy ESM tree.
+      {
+        find: /^monaco-editor(\/.*)?(\?worker)?$/,
+        replacement: resolve(
+          __dirname,
+          'src/desktop/src/renderer/test-stubs/monaco-editor.ts',
+        ),
+      },
+    ],
+  },
   test: {
     globals: true,
     environment: 'node',

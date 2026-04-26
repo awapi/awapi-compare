@@ -18,8 +18,10 @@ import type {
 export const IpcChannel = {
   FsScan: 'fs.scan',
   FsScanProgress: 'fs.scan.progress',
+  FsRead: 'fs.read',
   FsReadChunk: 'fs.readChunk',
   FsHash: 'fs.hash',
+  FsStat: 'fs.stat',
   FsCopy: 'fs.copy',
   FsWrite: 'fs.write',
   SessionSave: 'session.save',
@@ -81,11 +83,65 @@ export interface FsReadChunkRequest {
   length: number;
 }
 
+/**
+ * Read an entire file (subject to {@link FsReadRequest.maxBytes}). The
+ * response includes the contents plus an mtime stamp the renderer can
+ * later pass back via {@link FsWriteRequest.expectedMtimeMs} to detect
+ * external modifications during save.
+ */
+export interface FsReadRequest {
+  path: string;
+  /**
+   * Hard cap on the number of bytes to return. Reads larger than this
+   * reject with `E_FILE_TOO_LARGE`. Defaults to
+   * `MAX_TEXT_FILE_BYTES` from `fileKind`.
+   */
+  maxBytes?: number;
+}
+
+export interface FsReadResult {
+  data: Uint8Array;
+  size: number;
+  mtimeMs: number;
+}
+
+/**
+ * Read filesystem metadata for a single path. Used by the file-diff
+ * tab to detect external modifications between load and save.
+ */
+export interface FsStatRequest {
+  path: string;
+}
+
+export interface FsStatResult {
+  size: number;
+  mtimeMs: number;
+  type: 'file' | 'dir' | 'symlink' | 'other';
+}
+
 export interface FsWriteRequest {
   path: string;
   contents: string | Uint8Array;
   encoding?: 'utf8' | 'binary';
+  /**
+   * If set, the main process re-stats the target before writing and
+   * rejects with `E_EXTERNAL_MODIFICATION` when the file's mtime
+   * differs (within a 1ms tolerance). Used by inline edit + save to
+   * surface a confirm prompt to the user.
+   */
+  expectedMtimeMs?: number;
 }
+
+/**
+ * Error code returned via the IPC error channel when an `fs.write`
+ * with `expectedMtimeMs` detects that the file changed on disk
+ * between the read and the write. Renderers compare against this
+ * constant rather than embedding the literal.
+ */
+export const FS_ERROR_EXTERNAL_MODIFICATION = 'E_EXTERNAL_MODIFICATION';
+
+/** Error code returned when a file exceeds the read-size cap. */
+export const FS_ERROR_FILE_TOO_LARGE = 'E_FILE_TOO_LARGE';
 
 export interface LicenseActivateRequest {
   key: string;
@@ -193,8 +249,10 @@ export type MenuAction =
 export interface AwapiApi {
   fs: {
     scan(req: FsScanRequest): Promise<FsScanResult>;
+    read(req: FsReadRequest): Promise<FsReadResult>;
     readChunk(req: FsReadChunkRequest): Promise<Uint8Array>;
     hash(path: string): Promise<string>;
+    stat(req: FsStatRequest): Promise<FsStatResult>;
     copy(req: FsCopyRequest): Promise<FsCopyResult>;
     write(req: FsWriteRequest): Promise<void>;
     onScanProgress(cb: (p: ScanProgress) => void): () => void;

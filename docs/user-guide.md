@@ -101,3 +101,34 @@ Advanced tab.
 The live-preview pane on the right works from both tabs and uses the
 exact same matcher the scanner will use.
 
+
+## File-diff view
+
+Double-click any pair in the compare tree to open a file-diff tab.
+AwapiCompare picks the right viewer from the file's content (not its
+extension):
+
+- **Text** — Monaco-backed side-by-side diff with syntax highlighting.
+  Both sides are editable in place. Hit **Save** to write back via
+  the main process.
+- **Hex** — virtualised 16-byte rows for any binary file. Differing
+  rows are tinted; the offsets column tracks the absolute byte
+  position.
+- **Image** — three modes: side-by-side, onion-skin (with an opacity
+  slider), and pixel-diff (red highlights from `pixelmatch`).
+
+### Large files
+
+Files above 5 MiB show a confirmation gate ("Open anyway") before
+loading; files above 50 MiB are refused entirely. The hard cap exists
+to keep the renderer responsive — use the CLI for bulk diffs at that
+scale.
+
+### External-modification protection
+
+When you save an edited file, AwapiCompare passes the on-disk mtime
+captured at load time alongside the new contents. If something else
+has touched the file in the meantime, the save is rejected and you're
+prompted before overwriting. Choosing **OK** discards your edits and
+reloads from disk; choosing **Cancel** keeps the editor dirty so you
+can copy your changes elsewhere.

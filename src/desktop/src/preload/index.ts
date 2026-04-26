@@ -5,8 +5,12 @@ import type {
   FsCopyRequest,
   FsCopyResult,
   FsReadChunkRequest,
+  FsReadRequest,
+  FsReadResult,
   FsScanRequest,
   FsScanResult,
+  FsStatRequest,
+  FsStatResult,
   FsWriteRequest,
   InitialCompareSession,
   LicenseActivateRequest,
@@ -24,9 +28,13 @@ const api: AwapiApi = {
   fs: {
     scan: (req: FsScanRequest): Promise<FsScanResult> =>
       ipcRenderer.invoke(IpcChannel.FsScan, req),
+    read: (req: FsReadRequest): Promise<FsReadResult> =>
+      ipcRenderer.invoke(IpcChannel.FsRead, req),
     readChunk: (req: FsReadChunkRequest): Promise<Uint8Array> =>
       ipcRenderer.invoke(IpcChannel.FsReadChunk, req),
     hash: (path: string): Promise<string> => ipcRenderer.invoke(IpcChannel.FsHash, path),
+    stat: (req: FsStatRequest): Promise<FsStatResult> =>
+      ipcRenderer.invoke(IpcChannel.FsStat, req),
     copy: (req: FsCopyRequest): Promise<FsCopyResult> =>
       ipcRenderer.invoke(IpcChannel.FsCopy, req),
     write: (req: FsWriteRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.FsWrite, req),
