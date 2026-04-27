@@ -116,12 +116,49 @@ cli *args:
 
 # ---- release ------------------------------------------------------------
 
-# Bump version, tag, and push. CI takes it from there.
-# Usage: just release 0.1.0
-release version:
-    @echo "Releasing v{{version}}"
+# Bump version, tag, and push to trigger the GitHub Actions release
+# workflow. The workflow builds on macOS / Linux / Windows and uploads
+# the artifacts to a *draft* GitHub Release.
+#
+# By default the release stays as a draft so you can review it. Pass
+# `publish` as the second argument to automatically promote it to the
+# latest release once the workflow finishes (end-users' update check
+# only sees published releases).
+#
+#   just release 0.1.3           # draft only (default)
+#   just release 0.1.3 publish   # draft + auto-publish when CI finishes
+#
+# Auto-publish requires the GitHub CLI (`brew install gh` + `gh auth login`).
+release version mode="draft":
+    @echo "Bumping versions to {{version}}..."
     pnpm -r exec npm version {{version}} --no-git-tag-version
     git add -A
     git commit -m "chore: release v{{version}}"
+    git push
+    @echo "Creating and pushing release tag v{{version}}..."
     git tag -a "v{{version}}" -m "v{{version}}"
-    git push origin main --follow-tags
+    git push origin v{{version}}
+    @echo ""
+    @echo "✓ Tag pushed. GitHub Actions is now building and uploading to a draft release."
+    @if [ "{{mode}}" = "publish" ]; then \
+        command -v gh >/dev/null 2>&1 || { echo "gh CLI not found. Install with: brew install gh"; exit 1; }; \
+        echo "Waiting for the release workflow to finish before publishing..."; \
+        sleep 15; \
+        gh run watch --exit-status $(gh run list --workflow='Release' --limit 1 --json databaseId --jq '.[0].databaseId') || { echo "Workflow failed — draft left in place for inspection."; exit 1; }; \
+        echo "Publishing draft release v{{version}}..."; \
+        gh release edit v{{version}} --draft=false --latest; \
+        echo "✓ v{{version}} is now the latest release."; \
+        echo "  https://github.com/awapi/awapi-compare/releases/tag/v{{version}}"; \
+    else \
+        echo "  Draft will remain a draft. Publish later with: just publish {{version}}"; \
+    fi
+
+# Promote an existing draft GitHub Release to published + mark it as the
+# latest release. This is what makes the in-app update notifier see it.
+# Requires the GitHub CLI (`brew install gh` and `gh auth login`).
+publish version:
+    @command -v gh >/dev/null 2>&1 || { echo "gh CLI not found. Install with: brew install gh"; exit 1; }
+    @echo "Publishing draft release v{{version}}..."
+    gh release edit v{{version}} --draft=false --latest
+    @echo "✓ v{{version}} is now the latest release."
+    @echo "  https://github.com/awapi/awapi-compare/releases/tag/v{{version}}"

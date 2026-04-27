@@ -60,7 +60,7 @@ publish:
   provider: github
   owner: awapi
   repo: awapi-compare
-  releaseType: release
+  releaseType: draft
   # For a private repo, the running app needs a GH_TOKEN; it is embedded
   # during packaging via env var, NOT committed. See docs/release-process.md.
   private: true
