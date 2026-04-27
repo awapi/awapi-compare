@@ -7,6 +7,7 @@ import { Tabs } from './components/Tabs.js';
 import { RulesEditor, type RulesScope } from './components/RulesEditor.js';
 import { useRulesStore, useThemeStore, useWorkspaceStore } from './state/stores.js';
 import { getSessionStore } from './state/sessionRegistry.js';
+import { getTabSaveHandler } from './state/tabSaveRegistry.js';
 import { DEFAULT_DIFF_OPTIONS, type DiffOptions, type Rule } from '@awapi/shared';
 
 export function App(): JSX.Element {
@@ -109,13 +110,68 @@ export function App(): JSX.Element {
     getSessionStore(activeCompareId).getState().setDiffOptions(next);
   };
 
+  // Prompt the user about unsaved changes on a tab before closing
+  // it. Resolves to true when the close should proceed (Save or
+  // Don't Save), false on Cancel (or if the requested save fails).
+  const confirmTabCloseable = async (id: string): Promise<boolean> => {
+    const tab = useWorkspaceStore.getState().tabs.find((t) => t.id === id);
+    if (!tab || !tab.dirty) return true;
+    const choice = await window.awapi?.dialog?.confirmUnsaved?.({
+      name: tab.title,
+    });
+    if (choice === 'cancel' || choice === undefined) return false;
+    if (choice === 'save') {
+      const handler = getTabSaveHandler(id);
+      if (!handler) return true;
+      try {
+        await handler();
+      } catch (err) {
+        console.error('[awapi] save before close failed:', err);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const tryCloseTab = (id: string): void => {
+    void (async () => {
+      if (await confirmTabCloseable(id)) closeTab(id);
+    })();
+  };
+
+  // Window-close handshake. The main process intercepts the user's
+  // close request and emits `app.requestClose`; we walk every dirty
+  // tab through the same Save / Don't Save / Cancel prompt, then
+  // either tell main to actually close the window or simply ignore
+  // (cancel).
+  useEffect(() => {
+    if (!window.awapi?.app?.onCloseRequest) return;
+    return window.awapi.app.onCloseRequest(() => {
+      void (async () => {
+        const dirtyTabs = useWorkspaceStore
+          .getState()
+          .tabs.filter((t) => t.dirty === true);
+        for (const tab of dirtyTabs) {
+          // Focus the dirty tab so the user knows which file the
+          // prompt is about.
+          useWorkspaceStore.getState().setActiveTab(tab.id);
+          if (!(await confirmTabCloseable(tab.id))) return;
+          // Mark the tab clean so subsequent close logic doesn't
+          // re-prompt.
+          useWorkspaceStore.getState().setTabDirty(tab.id, false);
+        }
+        window.awapi?.app?.closeWindow?.();
+      })();
+    });
+  }, []);
+
   return (
     <div className="awapi-app">
       <Tabs
         tabs={tabs}
         activeTabId={activeTabId}
         onSelect={setActiveTab}
-        onClose={closeTab}
+        onClose={tryCloseTab}
         onNewCompareTab={() => openCompareTab()}
       />
       <main className="awapi-app__body">
@@ -140,6 +196,7 @@ export function App(): JSX.Element {
                 <FileDiffTab
                   relPath={tab.relPath}
                   parentCompareTabId={tab.parentCompareTabId}
+                  tabId={tab.id}
                   onOpenRules={() => setRulesEditorOpen(true)}
                   onOpenDiffOptions={() => setDiffOptionsOpen(true)}
                 />

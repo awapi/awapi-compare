@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import {
   FS_ERROR_EXTERNAL_MODIFICATION,
@@ -10,11 +10,16 @@ import {
 import { useFileDiffData } from '../useFileDiffData.js';
 import { joinPath, extname } from '../paths.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
-import { useThemeStore } from '../state/stores.js';
+import { useThemeStore, useWorkspaceStore } from '../state/stores.js';
+import {
+  registerTabSaveHandler,
+  unregisterTabSaveHandler,
+} from '../state/tabSaveRegistry.js';
 import type { ThemeName } from '../state/themeStore.js';
 import { getPalette, statusLabel } from '../theme.js';
+import type { ViewFilter } from '../viewFilter.js';
 import { Toolbar } from './Toolbar.js';
-import { TextDiffView } from './TextDiffView.js';
+import { TextDiffView, type TextDiffActions } from './TextDiffView.js';
 import { HexDiffView } from './HexDiffView.js';
 import { ImageDiffView } from './ImageDiffView.js';
 
@@ -28,6 +33,12 @@ export interface FileDiffTabProps {
   pair?: ComparedPair;
   /** Id of the compare tab whose scan produced this file diff. */
   parentCompareTabId?: string;
+  /**
+   * Workspace tab id. When provided, dirty-state changes from the
+   * embedded text diff bubble back to the workspace store so the tab
+   * title can render an unsaved-changes marker.
+   */
+  tabId?: string;
   /** Open the global rules editor (toolbar `Rules` button). */
   onOpenRules?: () => void;
   /** Open the diff-options dialog (toolbar `Match` button). */
@@ -50,6 +61,7 @@ export function FileDiffTab({
   relPath,
   pair: pairProp,
   parentCompareTabId,
+  tabId,
   onOpenRules,
   onOpenDiffOptions,
 }: FileDiffTabProps): JSX.Element {
@@ -59,6 +71,7 @@ export function FileDiffTab({
         relPath={relPath}
         initialPair={pairProp}
         roots={null}
+        tabId={tabId}
         onOpenRules={onOpenRules}
         onOpenDiffOptions={onOpenDiffOptions}
       />
@@ -69,6 +82,7 @@ export function FileDiffTab({
       relPath={relPath}
       pairProp={pairProp}
       parentCompareTabId={parentCompareTabId}
+      tabId={tabId}
       onOpenRules={onOpenRules}
       onOpenDiffOptions={onOpenDiffOptions}
     />
@@ -79,12 +93,14 @@ function SessionBoundFileDiffBody({
   relPath,
   pairProp,
   parentCompareTabId,
+  tabId,
   onOpenRules,
   onOpenDiffOptions,
 }: {
   relPath: string;
   pairProp?: ComparedPair;
   parentCompareTabId: string;
+  tabId?: string;
   onOpenRules?: () => void;
   onOpenDiffOptions?: () => void;
 }): JSX.Element {
@@ -106,6 +122,7 @@ function SessionBoundFileDiffBody({
       relPath={relPath}
       initialPair={initialPair}
       roots={roots}
+      tabId={tabId}
       onOpenRules={onOpenRules}
       onOpenDiffOptions={onOpenDiffOptions}
     />
@@ -116,12 +133,14 @@ function FileDiffBody({
   relPath,
   initialPair,
   roots,
+  tabId,
   onOpenRules,
   onOpenDiffOptions,
 }: {
   relPath: string;
   initialPair?: ComparedPair;
   roots: RootPair | null;
+  tabId?: string;
   onOpenRules?: () => void;
   onOpenDiffOptions?: () => void;
 }): JSX.Element {
@@ -138,10 +157,57 @@ function FileDiffBody({
   const [leftPath, setLeftPath] = useState<string>(seededLeft);
   const [rightPath, setRightPath] = useState<string>(seededRight);
   const [mode, setMode] = useState<CompareMode>('quick');
+  const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [leftDirty, setLeftDirty] = useState(false);
+  const [rightDirty, setRightDirty] = useState(false);
+  const [saving, setSaving] = useState<'left' | 'right' | null>(null);
+  const textDiffActionsRef = useRef<TextDiffActions | null>(null);
+  // Mirror dirty state into refs so the tab save handler (registered
+  // once on mount) can read the LATEST values without re-registering
+  // on every render.
+  const leftDirtyRef = useRef(false);
+  leftDirtyRef.current = leftDirty;
+  const rightDirtyRef = useRef(false);
+  rightDirtyRef.current = rightDirty;
 
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
+
+  const setTabDirty = useWorkspaceStore((s) => s.setTabDirty);
+  const handleDirtyChange = useCallback(
+    (state: { left: boolean; right: boolean }) => {
+      setLeftDirty(state.left);
+      setRightDirty(state.right);
+      if (!tabId) return;
+      setTabDirty(tabId, state.left || state.right);
+    },
+    [setTabDirty, tabId],
+  );
+  // Clear the dirty flag when the file-diff tab unmounts (e.g. user
+  // closed it) so a stale `*` cannot linger on a re-opened tab.
+  useEffect(() => {
+    return () => {
+      if (tabId) setTabDirty(tabId, false);
+    };
+  }, [setTabDirty, tabId]);
+
+  // Register a save handler so the workspace-level close-and-quit
+  // flow (App.tsx) can flush this tab's edits when the user picks
+  // "Save" on the unsaved-changes prompt.
+  useEffect(() => {
+    if (!tabId) return;
+    registerTabSaveHandler(tabId, async () => {
+      const actions = textDiffActionsRef.current;
+      if (!actions) return;
+      // Save left first (if dirty), then right. Sequential so the
+      // toolbar's `saving` state correctly transitions through both
+      // sides and a failure on either aborts the rest.
+      if (leftDirtyRef.current) await actions.saveLeft();
+      if (rightDirtyRef.current) await actions.saveRight();
+    });
+    return () => unregisterTabSaveHandler(tabId);
+  }, [tabId]);
 
   const data = useFileDiffData({
     leftPath: leftPath.trim() ? leftPath : null,
@@ -167,7 +233,11 @@ function FileDiffBody({
           encoding: 'utf8',
           expectedMtimeMs: target.mtimeMs,
         });
-        data.reload();
+        // Refresh ONLY the side we just wrote so its mtime snapshot
+        // is up-to-date for the next save's external-modification
+        // check. Reloading both sides would clobber unsaved edits on
+        // the other side.
+        data.reloadSide(side);
       } catch (err) {
         const errObj = err as { code?: string; message?: string };
         if (errObj.code === FS_ERROR_EXTERNAL_MODIFICATION) {
@@ -207,6 +277,15 @@ function FileDiffBody({
 
   const scanning = data.left.state === 'loading' || data.right.state === 'loading';
 
+  const editableLeft = data.left.state === 'ready' && viewFilter === 'all';
+  const editableRight = data.right.state === 'ready' && viewFilter === 'all';
+  const handleSaveLeftClick = useCallback(() => {
+    void textDiffActionsRef.current?.saveLeft();
+  }, []);
+  const handleSaveRightClick = useCallback(() => {
+    void textDiffActionsRef.current?.saveRight();
+  }, []);
+
   return (
     <section className="awapi-file-diff" aria-label={`File diff for ${relPath}`}>
       <Toolbar
@@ -214,6 +293,8 @@ function FileDiffBody({
         rightRoot={rightPath}
         mode={mode}
         scanning={scanning}
+        viewFilter={viewFilter}
+        onViewFilterChange={setViewFilter}
         theme={theme}
         onLeftRootChange={setLeftPath}
         onRightRootChange={setRightPath}
@@ -225,6 +306,14 @@ function FileDiffBody({
         onPickLeftFolder={onPickLeftFile}
         onPickRightFolder={onPickRightFile}
         pathLabel="file"
+        showMode={false}
+        onSaveLeft={handleSaveLeftClick}
+        onSaveRight={handleSaveRightClick}
+        leftEditable={editableLeft}
+        rightEditable={editableRight}
+        leftDirty={leftDirty}
+        rightDirty={rightDirty}
+        saving={saving}
       />
       <div className="awapi-file-diff__content">
         {!pair && !leftPath && !rightPath ? (
@@ -235,9 +324,13 @@ function FileDiffBody({
         ) : (
           <FileDiffViewSwitcher
             relPath={relPath}
+            viewFilter={viewFilter}
             data={data}
             saveError={saveError}
             onSave={handleSave}
+            onDirtyChange={handleDirtyChange}
+            onSavingChange={setSaving}
+            actionsRef={textDiffActionsRef}
           />
         )}
       </div>
@@ -251,11 +344,19 @@ function FileDiffViewSwitcher({
   data,
   saveError,
   onSave,
+  onDirtyChange,
+  onSavingChange,
+  actionsRef,
+  viewFilter,
 }: {
   relPath: string;
   data: ReturnType<typeof useFileDiffData>;
   saveError: string | null;
   onSave: (side: 'left' | 'right', value: string) => Promise<void>;
+  onDirtyChange?: (state: { left: boolean; right: boolean }) => void;
+  onSavingChange?: (saving: 'left' | 'right' | null) => void;
+  actionsRef?: React.MutableRefObject<TextDiffActions | null>;
+  viewFilter: ViewFilter;
 }): JSX.Element {
   const blockingState = unconfirmedOrTooLarge(data);
   if (blockingState === 'unconfirmed') {
@@ -303,14 +404,18 @@ function FileDiffViewSwitcher({
           relPath={relPath}
           leftText={data.left.state === 'absent' ? '' : (data.left.text ?? null)}
           rightText={data.right.state === 'absent' ? '' : (data.right.text ?? null)}
-          editableLeft={data.left.state === 'ready'}
-          editableRight={data.right.state === 'ready'}
+          editableLeft={data.left.state === 'ready' && viewFilter === 'all'}
+          editableRight={data.right.state === 'ready' && viewFilter === 'all'}
+          viewFilter={viewFilter}
           onSave={onSave}
+          onDirtyChange={onDirtyChange}
+          onSavingChange={onSavingChange}
+          actionsRef={actionsRef}
         />
       ) : kind === 'image' ? (
         <ImageDiffView left={left} right={right} imageFormat={sniffResult.imageFormat} />
       ) : (
-        <HexDiffView left={left} right={right} />
+        <HexDiffView left={left} right={right} viewFilter={viewFilter} />
       )}
     </>
   );

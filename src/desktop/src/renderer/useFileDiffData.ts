@@ -40,6 +40,12 @@ export interface FileDiffData {
   kind: FileKind | null;
   /** Re-trigger the load (e.g. after a save or external change). */
   reload: () => void;
+  /**
+   * Re-load just one side from disk. Used after a save so the
+   * just-written side picks up its new mtime without clobbering
+   * unsaved edits on the other side.
+   */
+  reloadSide: (side: 'left' | 'right') => void;
   /** Confirm loading despite the large-file warning. */
   confirmLarge: () => void;
 }
@@ -89,6 +95,27 @@ export function useFileDiffData(options: UseFileDiffDataOptions): FileDiffData {
   const reload = useCallback(() => {
     setGeneration((g) => g + 1);
   }, []);
+
+  const reloadSide = useCallback(
+    (side: 'left' | 'right') => {
+      const api = fsApi ?? (typeof window !== 'undefined' ? window.awapi?.fs : undefined);
+      if (!api) return;
+      const path = side === 'left' ? leftPath : rightPath;
+      const setter = side === 'left' ? setLeft : setRight;
+      if (!path) {
+        setter(ABSENT);
+        return;
+      }
+      setter({ path, state: 'loading' });
+      void (async () => {
+        const next = await loadSide(path, api, largeFileBytes, confirmedLarge);
+        // Decode text eagerly when the joint kind is already known to
+        // be 'text' (the common case after a save).
+        setter(kind === 'text' ? decoded(next) : next);
+      })();
+    },
+    [fsApi, leftPath, rightPath, largeFileBytes, confirmedLarge, kind],
+  );
 
   const confirmLarge = useCallback(() => {
     setConfirmedLarge(true);
@@ -148,7 +175,7 @@ export function useFileDiffData(options: UseFileDiffDataOptions): FileDiffData {
     setRight((prev) => decoded(prev));
   }, [kind]);
 
-  return { left, right, kind, reload, confirmLarge };
+  return { left, right, kind, reload, reloadSide, confirmLarge };
 }
 
 function initialSide(path: string | null): SideData {

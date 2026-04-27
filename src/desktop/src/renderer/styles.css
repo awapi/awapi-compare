@@ -527,6 +527,12 @@ body,
   border-radius: 2px;
 }
 
+.awapi-tab__dirty {
+  margin-right: 4px;
+  font-weight: 700;
+  color: var(--awapi-accent, currentColor);
+}
+
 /* ---- File-diff tab placeholder -------------------------------------- */
 
 .awapi-file-diff {

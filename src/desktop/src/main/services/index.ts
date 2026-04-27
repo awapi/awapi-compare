@@ -132,6 +132,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
     wrap(() => services.dialog.pickFile(req)),
   );
 
+  ipcMain.handle(IpcChannel.DialogConfirmUnsaved, (_e, req) =>
+    wrap(() => services.dialog.confirmUnsaved(req)),
+  );
+
   ipcMain.handle(IpcChannel.AppGetInitialCompare, () => services.initialCompare);
 }
 

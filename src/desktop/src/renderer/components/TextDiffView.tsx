@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { JSX } from 'react';
+import type { JSX, MutableRefObject } from 'react';
 import { languageFromPath } from '@awapi/shared';
+import { filterTextLines, type ViewFilter } from '../viewFilter.js';
+
+/**
+ * Imperative handle exposed via {@link TextDiffViewProps.actionsRef}.
+ * Lets a parent component (e.g. the file-diff toolbar) trigger a save
+ * for either side without owning the Monaco models directly.
+ */
+export interface TextDiffActions {
+  /** Read the current original-side value and invoke `onSave('left', ...)`. */
+  saveLeft(): Promise<void>;
+  /** Read the current modified-side value and invoke `onSave('right', ...)`. */
+  saveRight(): Promise<void>;
+}
 
 /**
  * Minimal monaco surface we depend on. Defining it explicitly (rather
@@ -8,10 +21,10 @@ import { languageFromPath } from '@awapi/shared';
  * pulling Monaco's web-worker bundle into jsdom.
  */
 export interface MonacoLike {
-  /** `monaco.KeyMod.Alt` bitmask value. */
-  KeyMod: { Alt: number };
-  /** Subset of `monaco.KeyCode` values needed for copy keybindings. */
-  KeyCode: { RightArrow: number; LeftArrow: number };
+  /** `monaco.KeyMod` bitmask values we use. */
+  KeyMod: { Alt: number; CtrlCmd: number; Shift: number };
+  /** Subset of `monaco.KeyCode` values needed for our keybindings. */
+  KeyCode: { RightArrow: number; LeftArrow: number; KeyS: number };
   editor: {
     createDiffEditor(
       container: HTMLElement,
@@ -133,8 +146,35 @@ export interface TextDiffViewProps {
    * external-modification check) and refreshing the view.
    */
   onSave?: (side: 'left' | 'right', value: string) => Promise<void>;
+  /**
+   * Notifies the host whenever the dirty state on either side
+   * changes. The host can use this to render a tab-level "unsaved
+   * changes" marker.
+   */
+  onDirtyChange?: (state: { left: boolean; right: boolean }) => void;
+  /**
+   * Notifies the host whenever a save is in flight (or finishes).
+   * `'left' | 'right'` while the corresponding side is being saved,
+   * `null` when idle.
+   */
+  onSavingChange?: (saving: 'left' | 'right' | null) => void;
+  /**
+   * Imperative handle for triggering a save from outside the
+   * component (e.g. the toolbar). The component populates
+   * `actionsRef.current` once the editor is ready and clears it on
+   * unmount.
+   */
+  actionsRef?: MutableRefObject<TextDiffActions | null>;
   /** Lazy Monaco loader; overridable for tests. */
   monacoLoader?: MonacoLoader;
+  /**
+   * Renderer-only line filter. `'diffs'` shows only differing lines on
+   * each side, `'same'` shows only matching lines, `'all'` (default)
+   * passes the buffers through. Edits are disabled when a non-`'all'`
+   * filter is active to prevent saving the filtered subset back to
+   * disk.
+   */
+  viewFilter?: ViewFilter;
 }
 
 /**
@@ -150,8 +190,19 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
     editableLeft,
     editableRight,
     onSave,
+    onDirtyChange,
+    onSavingChange,
+    actionsRef,
     monacoLoader = defaultLoader,
+    viewFilter = 'all',
   } = props;
+
+  // Apply the All/Diffs/Same filter to the buffers fed to Monaco. The
+  // helper bails out (and returns the original text untouched) when
+  // either side exceeds its line cap.
+  const filtered = filterTextLines(leftText, rightText, viewFilter);
+  const displayLeftText = leftText === null ? null : filtered.leftText;
+  const displayRightText = rightText === null ? null : filtered.rightText;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<MonacoDiffEditor | null>(null);
@@ -163,6 +214,10 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   editableRightRef.current = editableRight;
   const editableLeftRef = useRef(editableLeft);
   editableLeftRef.current = editableLeft;
+  // Holds the latest `handleSave` so keybindings registered once at
+  // mount can invoke the current callback (which closes over
+  // `onSave`).
+  const handleSaveRef = useRef<((side: 'left' | 'right') => Promise<void>) | null>(null);
   const [editorState, setEditorState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [editorError, setEditorError] = useState<string | null>(null);
   const [leftDirty, setLeftDirty] = useState(false);
@@ -180,8 +235,8 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
         if (cancelled) return;
         monacoRef.current = monaco;
         const lang = languageFromPath(relPath);
-        const original = monaco.editor.createModel(leftText ?? '', lang);
-        const modified = monaco.editor.createModel(rightText ?? '', lang);
+        const original = monaco.editor.createModel(displayLeftText ?? '', lang);
+        const modified = monaco.editor.createModel(displayRightText ?? '', lang);
         const container = containerRef.current;
         if (!container) {
           original.dispose();
@@ -206,12 +261,13 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
 
         // Context-menu actions: "Copy → Right" (from original) and
         // "Copy ← Left" (from modified), mirroring the folder-compare
-        // context menu. Keybindings (Alt+→ / Alt+←) are registered
-        // through Monaco so they also work when focus is inside the editor.
+        // context menu. Keybindings use Alt+Shift+Arrow (rather than
+        // plain Alt+Arrow) so they don't collide with macOS
+        // Option+Arrow word navigation.
         const subCopyRight = editor.getOriginalEditor().addAction({
           id: 'awapi.copySelectionToRight',
-          label: 'Copy \u2192 Right',
-          keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.RightArrow],
+          label: 'Copy → Right',
+          keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.RightArrow],
           contextMenuGroupId: 'awapi',
           contextMenuOrder: 1,
           run(ed) {
@@ -225,7 +281,7 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
         const subCopyLeft = editor.getModifiedEditor().addAction({
           id: 'awapi.copySelectionToLeft',
           label: 'Copy \u2190 Left',
-          keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.LeftArrow],
+          keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.LeftArrow],
           contextMenuGroupId: 'awapi',
           contextMenuOrder: 1,
           run(ed) {
@@ -237,6 +293,33 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
           },
         });
         subscriptionsRef.current.push(subCopyRight, subCopyLeft);
+
+        // Cmd/Ctrl+S inside either editor saves the corresponding
+        // side. Registered as Monaco actions so the keybinding is
+        // captured before the browser's default Save dialog.
+        const subSaveLeft = editor.getOriginalEditor().addAction({
+          id: 'awapi.saveLeft',
+          label: 'Save left',
+          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+          contextMenuGroupId: 'awapi',
+          contextMenuOrder: 2,
+          run() {
+            if (!editableLeftRef.current) return;
+            void handleSaveRef.current?.('left');
+          },
+        });
+        const subSaveRight = editor.getModifiedEditor().addAction({
+          id: 'awapi.saveRight',
+          label: 'Save right',
+          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+          contextMenuGroupId: 'awapi',
+          contextMenuOrder: 2,
+          run() {
+            if (!editableRightRef.current) return;
+            void handleSaveRef.current?.('right');
+          },
+        });
+        subscriptionsRef.current.push(subSaveLeft, subSaveRight);
 
         setEditorState('ready');
       } catch (err) {
@@ -263,22 +346,37 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   // available. We depend on `editorState` so the sync also runs on
   // the transition to `'ready'`, in case the data loaded before
   // Monaco did.
+  //
+  // CRITICAL: this effect runs whenever EITHER side's text prop
+  // changes (e.g. after a single-side reload following a save).
+  // Without per-side change tracking, the unchanged side's `setValue`
+  // branch would still fire — silently discarding unsaved edits and
+  // clearing the dirty flag. We therefore only overwrite a side when
+  // its OWN prop value actually changed since the last sync.
+  const lastSyncedLeftRef = useRef<string | null>(null);
+  const lastSyncedRightRef = useRef<string | null>(null);
   useEffect(() => {
     if (editorState !== 'ready') return;
     const m = modelsRef.current;
     if (!m) return;
-    if (leftText !== null && m.original.getValue() !== leftText) {
-      m.original.setValue(leftText);
-      setLeftDirty(false);
+    if (displayLeftText !== null && displayLeftText !== lastSyncedLeftRef.current) {
+      lastSyncedLeftRef.current = displayLeftText;
+      if (m.original.getValue() !== displayLeftText) {
+        m.original.setValue(displayLeftText);
+        setLeftDirty(false);
+      }
     }
-    if (rightText !== null && m.modified.getValue() !== rightText) {
-      m.modified.setValue(rightText);
-      setRightDirty(false);
+    if (displayRightText !== null && displayRightText !== lastSyncedRightRef.current) {
+      lastSyncedRightRef.current = displayRightText;
+      if (m.modified.getValue() !== displayRightText) {
+        m.modified.setValue(displayRightText);
+        setRightDirty(false);
+      }
     }
     // The container size is often 0 while React was still painting
     // the initial frame; force a re-layout once content arrives.
     editorRef.current?.layout();
-  }, [leftText, rightText, editorState]);
+  }, [displayLeftText, displayRightText, editorState]);
 
   const handleSave = useCallback(
     async (side: 'left' | 'right') => {
@@ -298,29 +396,44 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
     },
     [onSave],
   );
+  // Keep the ref in sync so the mount-effect's Monaco actions always
+  // call the latest `handleSave`.
+  handleSaveRef.current = handleSave;
+
+  // Publish the imperative save handle so the toolbar can invoke
+  // saves without owning the Monaco models directly. We re-register
+  // whenever `handleSave` changes (i.e. when the `onSave` callback
+  // identity changes) so the toolbar always calls the latest version.
+  useEffect(() => {
+    if (!actionsRef) return;
+    actionsRef.current = {
+      saveLeft: () => handleSave('left'),
+      saveRight: () => handleSave('right'),
+    };
+    return () => {
+      if (actionsRef.current && actionsRef.current.saveLeft === handleSave) {
+        // No-op: cleanup happens on unmount via the next effect.
+      }
+      actionsRef.current = null;
+    };
+  }, [actionsRef, handleSave]);
+
+  // Bubble dirty-state changes to the host (used to render the
+  // tab-level unsaved-changes marker).
+  useEffect(() => {
+    onDirtyChange?.({ left: leftDirty, right: rightDirty });
+  }, [leftDirty, rightDirty, onDirtyChange]);
+
+  // Bubble in-flight save state to the host (used to drive the
+  // toolbar Save buttons' disabled / "Saving…" label).
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
 
   return (
     <section className="awapi-textdiff" aria-label={`Text diff for ${relPath}`}>
       <header className="awapi-textdiff__toolbar" role="toolbar">
         <span className="awapi-textdiff__title">{relPath}</span>
-        {editableLeft ? (
-          <button
-            type="button"
-            disabled={!leftDirty || saving !== null}
-            onClick={() => handleSave('left')}
-          >
-            {saving === 'left' ? 'Saving…' : leftDirty ? 'Save left' : 'Saved'}
-          </button>
-        ) : null}
-        {editableRight ? (
-          <button
-            type="button"
-            disabled={!rightDirty || saving !== null}
-            onClick={() => handleSave('right')}
-          >
-            {saving === 'right' ? 'Saving…' : rightDirty ? 'Save right' : 'Saved'}
-          </button>
-        ) : null}
         {editorState === 'loading' ? <span>Loading editor…</span> : null}
         {editorState === 'error' ? (
           <span className="awapi-textdiff__error">Editor failed: {editorError}</span>

@@ -14,6 +14,7 @@ import {
 import { buildRowMenuItems, isActionEnabled } from '../actions.js';
 import type { RowAction } from '../actions.js';
 import { useHotkeys } from '../useHotkeys.js';
+import { filterPairs } from '../viewFilter.js';
 import type { MenuAction } from '@awapi/shared';
 
 const MENU_TO_ROW: Partial<Record<MenuAction, RowAction>> = {
@@ -66,6 +67,7 @@ export function CompareTabBody({
   const error = useSession((s) => s.error);
   const sessionRules = useSession((s) => s.rules);
   const diffOptions = useSession((s) => s.diffOptions);
+  const viewFilter = useSession((s) => s.viewFilter);
   const setLeftRoot = useSession((s) => s.setLeftRoot);
   const setRightRoot = useSession((s) => s.setRightRoot);
   const setMode = useSession((s) => s.setMode);
@@ -74,6 +76,7 @@ export function CompareTabBody({
   const setProgress = useSession((s) => s.setProgress);
   const setSelectedPath = useSession((s) => s.setSelectedPath);
   const setError = useSession((s) => s.setError);
+  const setViewFilter = useSession((s) => s.setViewFilter);
   const markSame = useSession((s) => s.markSame);
   const excludePath = useSession((s) => s.excludePath);
 
@@ -150,6 +153,14 @@ export function CompareTabBody({
   const summary = useMemo(
     () => (pairs.length === 0 ? emptyDiffSummary() : summarize(pairs)),
     [pairs],
+  );
+
+  // Apply the All/Diffs/Same filter on top of the raw scan result. The
+  // summary continues to reflect the unfiltered totals so the status
+  // bar stays meaningful regardless of the active view.
+  const visiblePairs = useMemo(
+    () => filterPairs(pairs, viewFilter),
+    [pairs, viewFilter],
   );
 
   const openFileDiffTab = useWorkspaceStore((s) => s.openFileDiffTab);
@@ -238,6 +249,8 @@ export function CompareTabBody({
         mode={mode}
         scanning={scanning}
         theme={theme}
+        viewFilter={viewFilter}
+        onViewFilterChange={setViewFilter}
         onLeftRootChange={setLeftRoot}
         onRightRootChange={setRightRoot}
         onModeChange={setMode}
@@ -263,7 +276,7 @@ export function CompareTabBody({
         }}
       />
       <DiffTable
-        pairs={pairs}
+        pairs={visiblePairs}
         selectedPath={selected}
         theme={theme}
         onSelect={setSelectedPath}

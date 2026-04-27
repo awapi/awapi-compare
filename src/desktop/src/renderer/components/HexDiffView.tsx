@@ -10,6 +10,7 @@ import {
   rowSlice,
   type HexDiffSegment,
 } from '@awapi/shared';
+import type { ViewFilter } from '../viewFilter.js';
 
 export interface HexDiffViewProps {
   /** Bytes from the left side. Pass `null` when the side is absent. */
@@ -21,6 +22,12 @@ export interface HexDiffViewProps {
    * height; defaults to 22.
    */
   rowHeight?: number;
+  /**
+   * Renderer-only filter. `'diffs'` shows only rows containing at
+   * least one differing byte; `'same'` shows only fully-equal rows;
+   * `'all'` (default) shows everything.
+   */
+  viewFilter?: ViewFilter;
 }
 
 /**
@@ -42,11 +49,21 @@ interface HexRow {
  * block-LCS algorithm in `@awapi/shared/hexDiff`. Virtualised so that
  * 100k-row buffers don't lag the renderer.
  */
-export function HexDiffView({ left, right, rowHeight = 22 }: HexDiffViewProps): JSX.Element {
+export function HexDiffView({
+  left,
+  right,
+  rowHeight = 22,
+  viewFilter = 'all',
+}: HexDiffViewProps): JSX.Element {
   const lBuf = left ?? EMPTY;
   const rBuf = right ?? EMPTY;
   const diff = useMemo(() => diffHex(lBuf, rBuf), [lBuf, rBuf]);
-  const rows = useMemo(() => buildRows(diff.segments), [diff.segments]);
+  const allRows = useMemo(() => buildRows(diff.segments), [diff.segments]);
+  const rows = useMemo(() => {
+    if (viewFilter === 'diffs') return allRows.filter((r) => !r.equal);
+    if (viewFilter === 'same') return allRows.filter((r) => r.equal);
+    return allRows;
+  }, [allRows, viewFilter]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const virtualizer = useVirtualizer({

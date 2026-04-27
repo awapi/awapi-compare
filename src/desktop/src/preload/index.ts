@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AwapiApi,
+  DialogConfirmUnsavedChoice,
+  DialogConfirmUnsavedRequest,
   DialogPickFileRequest,
   DialogPickFolderRequest,
   FsCopyRequest,
@@ -77,12 +79,24 @@ const api: AwapiApi = {
     },
     getInitialCompare: (): Promise<InitialCompareSession | null> =>
       ipcRenderer.invoke(IpcChannel.AppGetInitialCompare),
+    onCloseRequest: (cb: () => void): (() => void) => {
+      const listener = (): void => cb();
+      ipcRenderer.on(IpcChannel.AppRequestClose, listener);
+      return () => ipcRenderer.removeListener(IpcChannel.AppRequestClose, listener);
+    },
+    closeWindow: (): void => {
+      ipcRenderer.send(IpcChannel.AppCloseWindow);
+    },
   },
   dialog: {
     pickFolder: (req?: DialogPickFolderRequest): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.DialogPickFolder, req ?? {}),
     pickFile: (req?: DialogPickFileRequest): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.DialogPickFile, req ?? {}),
+    confirmUnsaved: (
+      req?: DialogConfirmUnsavedRequest,
+    ): Promise<DialogConfirmUnsavedChoice> =>
+      ipcRenderer.invoke(IpcChannel.DialogConfirmUnsaved, req ?? {}),
   },
 };
 

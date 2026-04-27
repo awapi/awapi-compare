@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "fastify": "^4.25.0",
-    "prom-client": "^15.0.0"
-  }
+    "prom-client": "^15.0.0",
+    "test": "blabl1a3"  }
 }

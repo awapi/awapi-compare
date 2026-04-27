@@ -2,8 +2,57 @@
 > awapi-compare-root@0.0.0 typecheck /Users/omeryesil/projects/github.awapi/awapi-compare
 > tsc -b
 
-src/desktop/src/preload/index.ts(51,3): error TS2741: Property 'getInitialCompare' is missing in type '{ status: () => Promise<LicenseStatus>; activate: (req: LicenseActivateRequest) => Promise<LicenseStatus>; deactivate: () => Promise<void>; }' but required in type '{ getInitialCompare(): Promise<InitialCompareSession | null>; status(): Promise<LicenseStatus>; activate(req: LicenseActivateRequest): Promise<...>; deactivate(): Promise<...>; }'.
-src/desktop/src/preload/index.ts(69,5): error TS2353: Object literal may only specify known properties, and 'getInitialCompare' does not exist in type '{ onMenuAction(cb: (action: MenuAction) => void): () => void; }'.
-src/desktop/src/renderer/App.tsx(53,31): error TS2339: Property 'getInitialCompare' does not exist on type '{ onMenuAction(cb: (action: MenuAction) => void): () => void; }'.
-src/desktop/src/renderer/App.tsx(55,48): error TS2339: Property 'getInitialCompare' does not exist on type '{ onMenuAction(cb: (action: MenuAction) => void): () => void; }'.
+src/desktop/src/renderer/components/CompareTabBody.tsx(159,3): error TS1135: Argument expression expected.
+src/desktop/src/renderer/components/CompareTabBody.tsx(164,3): error TS1109: Expression expected.
+src/desktop/src/renderer/components/CompareTabBody.tsx(243,9): error TS1005: ',' expected.
+src/desktop/src/renderer/components/CompareTabBody.tsx(244,9): error TS1005: ',' expected.
+src/desktop/src/renderer/components/FileDiffTab.tsx(361,57): error TS1003: Identifier expected.
+src/desktop/src/renderer/components/FileDiffTab.tsx(361,58): error TS1002: Unterminated string literal.
+src/desktop/src/renderer/components/FileDiffTab.tsx(364,5): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/desktop/src/renderer/components/FileDiffTab.tsx(382,7): error TS17015: Expected corresponding closing tag for JSX fragment.
+src/desktop/src/renderer/components/FileDiffTab.tsx(383,3): error TS1109: Expression expected.
+src/desktop/src/renderer/components/Toolbar.tsx(114,58): error TS1003: Identifier expected.
+src/desktop/src/renderer/components/Toolbar.tsx(114,84): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/desktop/src/renderer/state/sessionStore.ts(55,3): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(55,16): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(55,47): error TS1131: Property or signature expected.
+src/desktop/src/renderer/state/sessionStore.ts(55,49): error TS1128: Declaration or statement expected.
+src/desktop/src/renderer/state/sessionStore.ts(55,50): error TS1128: Declaration or statement expected.
+src/desktop/src/renderer/state/sessionStore.ts(55,56): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(56,15): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(56,36): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(56,42): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(57,17): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(57,32): error TS1011: An element access expression should take an argument.
+src/desktop/src/renderer/state/sessionStore.ts(57,34): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(57,40): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(58,23): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(58,33): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(58,39): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(59,23): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(59,45): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(59,51): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(60,26): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(60,42): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(60,48): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(61,17): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(61,33): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(61,39): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(66,19): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(66,28): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(66,34): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(71,22): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(71,31): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(71,37): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(74,24): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(74,42): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(74,48): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(76,15): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(78,14): error TS1005: ';' expected.
+src/desktop/src/renderer/state/sessionStore.ts(79,1): error TS1128: Declaration or statement expected.
+src/desktop/src/renderer/state/sessionStore.ts(127,3): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(140,5): error TS1005: ',' expected.
+src/desktop/src/renderer/state/sessionStore.ts(140,56): error TS1136: Property assignment expected.
+src/desktop/src/renderer/state/sessionStore.ts(140,59): error TS1109: Expression expected.
+src/desktop/src/renderer/state/sessionStore.ts(140,60): error TS1005: ':' expected.
  ELIFECYCLE  Command failed with exit code 1.

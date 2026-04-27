@@ -49,13 +49,21 @@ export function Tabs({
             tabIndex={isActive ? 0 : -1}
             aria-selected={isActive}
             data-tab-id={tab.id}
+            data-dirty={tab.dirty ? 'true' : undefined}
             className={
               isActive ? 'awapi-tab awapi-tab--active' : 'awapi-tab'
             }
             onClick={() => onSelect(tab.id)}
             onKeyDown={handleKeyDown}
           >
-            <span className="awapi-tab__title">{tab.title}</span>
+            <span className="awapi-tab__title">
+              {tab.dirty ? (
+                <span className="awapi-tab__dirty" aria-label="Unsaved changes">
+                  *
+                </span>
+              ) : null}
+              {tab.title}
+            </span>
             {closable ? (
               <button
                 type="button"

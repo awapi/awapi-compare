@@ -9,6 +9,7 @@ import {
   type ScanProgress,
   type Session,
 } from '@awapi/shared';
+import type { ViewFilter } from '../viewFilter.js';
 
 /**
  * Subset of session state that is safe to persist or hand off via
@@ -39,6 +40,12 @@ export interface SessionState extends SessionSnapshot {
   selectedPath: string | null;
   /** Last scan error message, or null. */
   error: string | null;
+  /**
+   * Renderer-only filter applied on top of the scan result. Controls
+   * which rows are visible in the folder tree (and is also forwarded
+   * to file-diff tabs for text/hex content filtering).
+   */
+  viewFilter: ViewFilter;
 
   setLeftRoot(value: string): void;
   setRightRoot(value: string): void;
@@ -51,6 +58,7 @@ export interface SessionState extends SessionSnapshot {
   setProgress(progress: ScanProgress | null): void;
   setSelectedPath(relPath: string | null): void;
   setError(error: string | null): void;
+  setViewFilter(viewFilter: ViewFilter): void;
   /**
    * Locally re-classify a pair as `identical`. Used by the
    * "Mark same" command. Does not touch the filesystem.
@@ -122,6 +130,7 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
     progress: null,
     selectedPath: null,
     error: null,
+    viewFilter: 'all',
 
     setLeftRoot: (value) =>
       set({ leftRoot: value, pairs: [], selectedPath: null, updatedAt: now() }),
@@ -136,6 +145,7 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
     setProgress: (progress) => set({ progress }),
     setSelectedPath: (selectedPath) => set({ selectedPath }),
     setError: (error) => set({ error }),
+    setViewFilter: (viewFilter) => set({ viewFilter }),
 
     markSame: (relPath) =>
       set((s) => ({
@@ -159,6 +169,7 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
         scanning: false,
         selectedPath: null,
         error: null,
+        viewFilter: 'all',
       }),
 
     toSnapshot: () => {

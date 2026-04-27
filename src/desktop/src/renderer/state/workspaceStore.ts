@@ -6,6 +6,11 @@ export interface CompareTab {
   id: string;
   kind: 'compare';
   title: string;
+  /**
+   * True when the tab has unsaved edits. Rendered as a leading `*`
+   * marker on the tab title (VS Code-style).
+   */
+  dirty?: boolean;
 }
 
 export interface FileDiffTab {
@@ -19,6 +24,11 @@ export interface FileDiffTab {
    * file-diff component reads its pair from that tab's session store.
    */
   parentCompareTabId?: string;
+  /**
+   * True when the tab has unsaved edits. Rendered as a leading `*`
+   * marker on the tab title (VS Code-style).
+   */
+  dirty?: boolean;
 }
 
 export type WorkspaceTab = CompareTab | FileDiffTab;
@@ -57,6 +67,12 @@ export interface WorkspaceState {
    * paths are filled in.
    */
   setTabTitle(id: string, title: string): void;
+  /**
+   * Mark a tab as having unsaved edits (or clean). Setting `false`
+   * removes the `dirty` flag from the tab object so equality-based
+   * tests stay simple.
+   */
+  setTabDirty(id: string, dirty: boolean): void;
   closeTab(id: string): void;
   /**
    * Close every tab except the always-present (first) compare tab.
@@ -140,6 +156,20 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
     setTabTitle: (id, title) =>
       set((s) => ({
         tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)),
+      })),
+
+    setTabDirty: (id, dirty) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== id) return t;
+          if (dirty) {
+            if (t.dirty === true) return t;
+            return { ...t, dirty: true };
+          }
+          if (t.dirty === undefined) return t;
+          const { dirty: _omit, ...rest } = t;
+          return rest as WorkspaceTab;
+        }),
       })),
 
     closeTab: (id) => {

@@ -31,7 +31,12 @@ describe('registerIpcHandlers', () => {
     registerIpcHandlers(mockIpc as any, createServices());
 
     const expected = Object.values(IpcChannel).filter(
-      (c) => c !== IpcChannel.FsScanProgress && c !== IpcChannel.AppMenuAction,
+      (c) =>
+        // Push-only / non-invoke channels (handled separately).
+        c !== IpcChannel.FsScanProgress &&
+        c !== IpcChannel.AppMenuAction &&
+        c !== IpcChannel.AppRequestClose &&
+        c !== IpcChannel.AppCloseWindow,
     );
     expect(mockIpc.channels().sort()).toEqual([...expected].sort());
   });

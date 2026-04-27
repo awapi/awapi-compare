@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, Menu, app, ipcMain } from 'electron';
 
-import type { InitialCompareSession } from '@awapi/shared';
+import { IpcChannel, type InitialCompareSession } from '@awapi/shared';
 
 import { parseDesktopArgs } from './cliArgs.js';
 import {
@@ -15,6 +15,14 @@ import {
 } from './services/index.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
+/**
+ * Tracks per-window "the renderer has confirmed it's safe to close
+ * any unsaved changes". Set by the `app.closeWindow` IPC; consulted
+ * by the `close` handler so the second close (after the user clicked
+ * Save / Don't Save) goes through unimpeded.
+ */
+const closeApprovedWindows = new WeakSet<BrowserWindow>();
 
 function createMainWindow(services: Services): BrowserWindow {
   const win = new BrowserWindow({
@@ -32,6 +40,17 @@ function createMainWindow(services: Services): BrowserWindow {
 
   const detachProgress = attachProgressBridge(win, services);
   win.on('closed', detachProgress);
+
+  // Intercept the first close attempt so the renderer can prompt the
+  // user about any unsaved changes. The renderer either calls back
+  // via `app.closeWindow` (which sets the approval flag and we let
+  // the second close go through) or simply does nothing (cancel).
+  win.on('close', (event) => {
+    if (closeApprovedWindows.has(win)) return;
+    if (win.webContents.isDestroyed()) return;
+    event.preventDefault();
+    win.webContents.send(IpcChannel.AppRequestClose);
+  });
 
   win.once('ready-to-show', () => win.show());
 
@@ -81,6 +100,16 @@ void app.whenReady().then(async () => {
   // bad rules.json on disk can never leave handlers un-registered (which
   // would surface to the renderer as "No handler registered for ...").
   registerIpcHandlers(ipcMain, services);
+
+  // Renderer signals "user has resolved unsaved-changes prompts; go
+  // ahead and close the window". We mark the sender's window as
+  // approved so the next `close` handler doesn't re-prompt.
+  ipcMain.on(IpcChannel.AppCloseWindow, (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    closeApprovedWindows.add(win);
+    win.close();
+  });
   // eslint-disable-next-line no-console
   console.log('[awapi] IPC handlers registered');
   // Best-effort: warm the rules cache. Failures here are non-fatal.

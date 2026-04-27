@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createRef } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { FS_ERROR_EXTERNAL_MODIFICATION } from '@awapi/shared';
 import {
@@ -7,6 +8,7 @@ import {
   type MonacoEditorInstance,
   type MonacoLike,
   type MonacoModel,
+  type TextDiffActions,
 } from './TextDiffView.js';
 
 interface FakeModel extends MonacoModel {
@@ -53,8 +55,8 @@ function makeMonaco(models: { l: FakeModel; r: FakeModel }): MonacoLike {
     getModifiedEditor: () => noop,
   };
   return {
-    KeyMod: { Alt: 512 },
-    KeyCode: { RightArrow: 17, LeftArrow: 15 },
+    KeyMod: { Alt: 512, CtrlCmd: 2048, Shift: 1024 },
+    KeyCode: { RightArrow: 17, LeftArrow: 15, KeyS: 49 },
     editor: {
       createDiffEditor: () => editor,
       // The component creates two models in order: original then modified.
@@ -67,10 +69,14 @@ function makeMonaco(models: { l: FakeModel; r: FakeModel }): MonacoLike {
 }
 
 describe('<TextDiffView /> save flow', () => {
-  it('calls onSave with the modified-side value and clears the dirty flag', async () => {
+  it('calls onSave with the modified-side value via the actions ref and clears the dirty flag', async () => {
     const l = makeModel('left');
     const r = makeModel('right');
     const onSave = vi.fn().mockResolvedValue(undefined);
+    const onDirtyChange = vi.fn();
+    const actionsRef = createRef<TextDiffActions | null>() as React.MutableRefObject<
+      TextDiffActions | null
+    >;
     render(
       <TextDiffView
         relPath="src/foo.ts"
@@ -78,20 +84,26 @@ describe('<TextDiffView /> save flow', () => {
         rightText="right"
         editableRight
         onSave={onSave}
+        onDirtyChange={onDirtyChange}
+        actionsRef={actionsRef}
         monacoLoader={async () => makeMonaco({ l, r })}
       />,
     );
     // Wait for the editor to mount.
     await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
-    // Edit the modified model and assert the save button enables.
+    expect(actionsRef.current).not.toBeNull();
+    // Edit the modified model and assert dirty bubbled up.
     act(() => {
       r.setValue('right2');
       r.fire();
     });
-    const saveBtn = await screen.findByRole('button', { name: /save right/i });
-    expect(saveBtn).toBeEnabled();
+    await waitFor(() => {
+      expect(onDirtyChange).toHaveBeenCalledWith(
+        expect.objectContaining({ right: true }),
+      );
+    });
     await act(async () => {
-      saveBtn.click();
+      await actionsRef.current!.saveRight();
     });
     expect(onSave).toHaveBeenCalledWith('right', 'right2');
   });
@@ -112,6 +124,9 @@ describe('<TextDiffView /> save flow', () => {
         seen.push(e);
       }
     };
+    const actionsRef = createRef<TextDiffActions | null>() as React.MutableRefObject<
+      TextDiffActions | null
+    >;
     render(
       <TextDiffView
         relPath="src/foo.ts"
@@ -119,6 +134,7 @@ describe('<TextDiffView /> save flow', () => {
         rightText="right"
         editableRight
         onSave={onSave}
+        actionsRef={actionsRef}
         monacoLoader={async () => makeMonaco({ l, r })}
       />,
     );
@@ -127,9 +143,8 @@ describe('<TextDiffView /> save flow', () => {
       r.setValue('right2');
       r.fire();
     });
-    const saveBtn = await screen.findByRole('button', { name: /save right/i });
     await act(async () => {
-      saveBtn.click();
+      await actionsRef.current!.saveRight();
     });
     expect(inner).toHaveBeenCalledWith('right', 'right2');
     expect(seen).toEqual([err]);
@@ -215,8 +230,8 @@ describe('<TextDiffView /> copy context-menu actions', () => {
       getModifiedEditor: () => modEditor,
     };
     const monaco: MonacoLike = {
-      KeyMod: { Alt: 512 },
-      KeyCode: { RightArrow: 17, LeftArrow: 15 },
+      KeyMod: { Alt: 512, CtrlCmd: 2048, Shift: 1024 },
+      KeyCode: { RightArrow: 17, LeftArrow: 15, KeyS: 49 },
       editor: {
         createDiffEditor: () => editor,
         createModel: vi

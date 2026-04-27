@@ -39,8 +39,11 @@ export const IpcChannel = {
   SftpConnect: 'sftp.connect',
   AppMenuAction: 'app.menuAction',
   AppGetInitialCompare: 'app.getInitialCompare',
+  AppRequestClose: 'app.requestClose',
+  AppCloseWindow: 'app.closeWindow',
   DialogPickFolder: 'dialog.pickFolder',
   DialogPickFile: 'dialog.pickFile',
+  DialogConfirmUnsaved: 'dialog.confirmUnsaved',
 } as const;
 
 export type IpcChannelId = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -186,6 +189,26 @@ export interface DialogPickFileResult {
 }
 
 /**
+ * Request payload for {@link AwapiApi.dialog.confirmUnsaved}. The
+ * dialog renders a native 3-button prompt: Save / Don't Save /
+ * Cancel.
+ */
+export interface DialogConfirmUnsavedRequest {
+  /** Optional dialog title. Defaults to "Unsaved changes". */
+  title?: string;
+  /**
+   * The file (or tab) name shown in the message body, e.g.
+   * `"package.json"`. When omitted, a generic message is used.
+   */
+  name?: string;
+  /** Extra detail text rendered below the main message. */
+  detail?: string;
+}
+
+/** Result of a 3-button unsaved-changes prompt. */
+export type DialogConfirmUnsavedChoice = 'save' | 'discard' | 'cancel';
+
+/**
  * Initial compare session injected at app launch from CLI args or env
  * vars (e.g. `awapi-compare --type folder --left ./a --right ./b`).
  * The renderer fetches this once on startup and pre-populates the
@@ -311,6 +334,19 @@ export interface AwapiApi {
      * no folder pair.
      */
     getInitialCompare(): Promise<InitialCompareSession | null>;
+    /**
+     * Subscribe to a "window-close requested" event from the main
+     * process. The renderer is expected to prompt the user about any
+     * unsaved changes and, once the user confirms, call
+     * {@link AwapiApi.app.closeWindow} to actually close the window.
+     * Returns an unsubscribe function.
+     */
+    onCloseRequest(cb: () => void): () => void;
+    /**
+     * Tell the main process to close the focused window now. Used by
+     * the renderer after it has prompted about unsaved changes.
+     */
+    closeWindow(): void;
   };
   dialog: {
     /**
@@ -323,6 +359,11 @@ export interface AwapiApi {
      * absolute path, or `null` if the user cancelled.
      */
     pickFile(req?: DialogPickFileRequest): Promise<string | null>;
+    /**
+     * Show a native 3-button unsaved-changes prompt. Resolves with
+     * the user's choice.
+     */
+    confirmUnsaved(req?: DialogConfirmUnsavedRequest): Promise<DialogConfirmUnsavedChoice>;
   };
 }
 

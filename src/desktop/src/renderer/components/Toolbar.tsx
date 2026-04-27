@@ -1,6 +1,7 @@
 import type { ChangeEvent, JSX, ReactNode } from 'react';
 import type { CompareMode } from '@awapi/shared';
 import type { ThemeName } from '../state/themeStore.js';
+import type { ViewFilter } from '../viewFilter.js';
 
 export interface ToolbarProps {
   leftRoot: string;
@@ -8,6 +9,8 @@ export interface ToolbarProps {
   mode: CompareMode;
   scanning: boolean;
   theme: ThemeName;
+  /** Current view filter (`'all' | 'diffs' | 'same'`). Defaults to `'all'`. */
+  viewFilter?: ViewFilter;
   onLeftRootChange(value: string): void;
   onRightRootChange(value: string): void;
   onModeChange(mode: CompareMode): void;
@@ -17,6 +20,7 @@ export interface ToolbarProps {
   onPickLeftFolder?(): void;
   onPickRightFolder?(): void;
   onOpenDiffOptions?(): void;
+  onViewFilterChange?(filter: ViewFilter): void;
   /**
    * Whether the path inputs represent folder roots (default) or
    * single file paths. Only affects placeholder, aria-label and
@@ -24,6 +28,27 @@ export interface ToolbarProps {
    * through `leftRoot`/`rightRoot`.
    */
   pathLabel?: 'folder' | 'file';
+  /**
+   * Whether to show the compare-mode (`Quick / Thorough / Binary`)
+   * dropdown. Defaults to `true`. The mode only matters for folder
+   * scans; file-content tabs hide it because the text/hex/image
+   * diffs always read both files in full.
+   */
+  showMode?: boolean;
+  /**
+   * Optional save handlers for editable text-diff sides. When
+   * provided, the toolbar renders a `Save left` / `Save right` icon
+   * button next to Refresh/Swap/Stop, enabled only when the
+   * corresponding side is editable, dirty, and no save is in flight.
+   */
+  onSaveLeft?: () => void;
+  onSaveRight?: () => void;
+  leftEditable?: boolean;
+  rightEditable?: boolean;
+  leftDirty?: boolean;
+  rightDirty?: boolean;
+  /** Side currently being saved, or `null` when idle. */
+  saving?: 'left' | 'right' | null;
 }
 
 const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
@@ -86,7 +111,17 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onPickLeftFolder,
     onPickRightFolder,
     onOpenDiffOptions,
+    onViewFilterChange,
+    viewFilter = 'all',
     pathLabel = 'folder',
+    showMode = true,
+    onSaveLeft,
+    onSaveRight,
+    leftEditable = false,
+    rightEditable = false,
+    leftDirty = false,
+    rightDirty = false,
+    saving = null,
   } = props;
 
   const canCompare = !scanning && leftRoot.trim() !== '' && rightRoot.trim() !== '';
@@ -103,17 +138,33 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         role="toolbar"
         aria-label="Compare toolbar"
       >
-        <div className="awapi-toolbar__group">
-          <IconBtn glyph="⌂" label="Home" disabled title="Coming soon" />
-          <IconBtn glyph="🗂" label="Sessions" disabled title="Coming soon" />
+        <div className="awapi-toolbar__group" role="group" aria-label="View filter">
+          <IconBtn
+            glyph="✱"
+            label="All"
+            ariaLabel="Show all entries"
+            active={viewFilter === 'all'}
+            disabled={!onViewFilterChange}
+            onClick={() => onViewFilterChange?.('all')}
+          />
+          <IconBtn
+            glyph="≠"
+            label="Diffs"
+            ariaLabel="Show only differences"
+            active={viewFilter === 'diffs'}
+            disabled={!onViewFilterChange}
+            onClick={() => onViewFilterChange?.('diffs')}
+          />
+          <IconBtn
+            glyph="="
+            label="Same"
+            ariaLabel="Show only matching entries"
+            active={viewFilter === 'same'}
+            disabled={!onViewFilterChange}
+            onClick={() => onViewFilterChange?.('same')}
+          />
         </div>
         <div className="awapi-toolbar__group">
-          <IconBtn glyph="✱" label="All" disabled title="Coming soon" />
-          <IconBtn glyph="≠" label="Diffs" active disabled title="Coming soon" />
-          <IconBtn glyph="=" label="Same" disabled title="Coming soon" />
-        </div>
-        <div className="awapi-toolbar__group">
-          <IconBtn glyph="📄" label="Files" disabled title="Coming soon" />
           <IconBtn
             glyph="↻"
             label={scanning ? 'Scanning…' : 'Refresh'}
@@ -131,21 +182,45 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           />
           <IconBtn glyph="■" label="Stop" disabled={!scanning} />
         </div>
-        <div className="awapi-toolbar__group">
-          <select
-            aria-label="Compare mode"
-            value={mode}
-            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-              onModeChange(e.target.value as CompareMode)
-            }
-          >
-            {MODES.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {onSaveLeft || onSaveRight ? (
+          <div className="awapi-toolbar__group" role="group" aria-label="Save edits">
+            {onSaveLeft ? (
+              <IconBtn
+                glyph="💾"
+                label={saving === 'left' ? 'Saving…' : 'Save left'}
+                ariaLabel="Save left"
+                disabled={!leftEditable || !leftDirty || saving !== null}
+                onClick={onSaveLeft}
+              />
+            ) : null}
+            {onSaveRight ? (
+              <IconBtn
+                glyph="💾"
+                label={saving === 'right' ? 'Saving…' : 'Save right'}
+                ariaLabel="Save right"
+                disabled={!rightEditable || !rightDirty || saving !== null}
+                onClick={onSaveRight}
+              />
+            ) : null}
+          </div>
+        ) : null}
+        {showMode ? (
+          <div className="awapi-toolbar__group">
+            <select
+              aria-label="Compare mode"
+              value={mode}
+              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                onModeChange(e.target.value as CompareMode)
+              }
+            >
+              {MODES.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="awapi-toolbar__spacer" />
         <div className="awapi-toolbar__group">
           <IconBtn
