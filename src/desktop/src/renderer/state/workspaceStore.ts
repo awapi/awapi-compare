@@ -78,6 +78,19 @@ export interface WorkspaceState {
    * Close every tab except the always-present (first) compare tab.
    */
   closeAllFileDiffTabs(): void;
+  /**
+   * Close every tab except the one with the given id. The workspace
+   * invariant (at least one compare tab) is preserved: if `id` is a
+   * file-diff tab, the first compare tab is kept alongside it.
+   * Returns the ids of the tabs that were actually closed.
+   */
+  closeOtherTabs(id: string): string[];
+  /**
+   * Close every tab and reset the workspace to a single fresh compare
+   * tab (re-using the always-on `COMPARE_TAB_ID` so menu shortcuts
+   * keep working). Returns the ids of the tabs that were closed.
+   */
+  closeAllTabs(): string[];
 }
 
 export interface CreateWorkspaceStoreOptions {
@@ -206,6 +219,42 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
         };
       });
       for (const t of closed) onTabClosed?.(t);
+    },
+
+    closeOtherTabs: (id) => {
+      const { tabs } = get();
+      const target = tabs.find((t) => t.id === id);
+      if (!target) return [];
+      // Decide which tabs to keep. Always keep the target. If the
+      // target isn't a compare tab, also keep the first compare tab
+      // so the workspace invariant (≥1 compare tab) holds.
+      const keep = new Set<string>([id]);
+      if (target.kind !== 'compare') {
+        const firstCompare = tabs.find((t) => t.kind === 'compare');
+        if (firstCompare) keep.add(firstCompare.id);
+      }
+      const closed = tabs.filter((t) => !keep.has(t.id));
+      if (closed.length === 0) return [];
+      const next = tabs.filter((t) => keep.has(t.id));
+      set({ tabs: next, activeTabId: id });
+      for (const t of closed) onTabClosed?.(t);
+      return closed.map((t) => t.id);
+    },
+
+    closeAllTabs: () => {
+      const { tabs } = get();
+      // Preserve the first compare tab (or fall back to the always-on
+      // initial compare tab) so the workspace stays usable.
+      const firstCompare = tabs.find((t) => t.kind === 'compare');
+      const keepId = firstCompare?.id ?? COMPARE_TAB_ID;
+      const closed = tabs.filter((t) => t.id !== keepId);
+      if (closed.length === 0) return [];
+      const kept =
+        firstCompare ??
+        ({ id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' } as CompareTab);
+      set({ tabs: [kept], activeTabId: kept.id });
+      for (const t of closed) onTabClosed?.(t);
+      return closed.map((t) => t.id);
     },
   }));
 }

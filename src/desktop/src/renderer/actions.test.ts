@@ -44,6 +44,9 @@ describe('isActionEnabled', () => {
       'delete',
       'markSame',
       'exclude',
+      'openSelectedFolders',
+      'useAsLeftFolderOnly',
+      'useAsRightFolderOnly',
     ] as const) {
       expect(isActionEnabled(action, {})).toBe(false);
     }
@@ -85,6 +88,35 @@ describe('isActionEnabled', () => {
   it('open is disabled for error pairs', () => {
     expect(isActionEnabled('open', { pair: pair('error') })).toBe(false);
   });
+
+  it('useAsLeftFolderOnly requires a left-side directory entry', () => {
+    expect(isActionEnabled('useAsLeftFolderOnly', { pair: pair('different') })).toBe(false);
+    const dirPair: ComparedPair = {
+      relPath: 'sub',
+      status: 'different',
+      left: entry('sub', 'dir'),
+      right: entry('sub', 'dir'),
+    };
+    expect(isActionEnabled('useAsLeftFolderOnly', { pair: dirPair })).toBe(true);
+    expect(isActionEnabled('useAsRightFolderOnly', { pair: dirPair })).toBe(true);
+    expect(isActionEnabled('openSelectedFolders', { pair: dirPair })).toBe(true);
+  });
+
+  it('useAsRightFolderOnly is disabled when the right side is missing', () => {
+    const leftOnlyDir: ComparedPair = {
+      relPath: 'sub',
+      status: 'left-only',
+      left: entry('sub', 'dir'),
+    };
+    expect(isActionEnabled('useAsLeftFolderOnly', { pair: leftOnlyDir })).toBe(true);
+    expect(isActionEnabled('useAsRightFolderOnly', { pair: leftOnlyDir })).toBe(false);
+    // openSelectedFolders is enabled as long as at least one side is a dir.
+    expect(isActionEnabled('openSelectedFolders', { pair: leftOnlyDir })).toBe(true);
+  });
+
+  it('openSelectedFolders is disabled when neither side is a directory', () => {
+    expect(isActionEnabled('openSelectedFolders', { pair: pair('different') })).toBe(false);
+  });
 });
 
 describe('buildRowMenuItems', () => {
@@ -98,6 +130,9 @@ describe('buildRowMenuItems', () => {
       'delete',
       'markSame',
       'exclude',
+      'openSelectedFolders',
+      'useAsLeftFolderOnly',
+      'useAsRightFolderOnly',
     ]);
     for (const item of items) {
       expect(item.label).toBe(ROW_ACTION_LABELS[item.action]);
@@ -110,7 +145,7 @@ describe('buildRowMenuItems', () => {
     const disabled = items.filter((i) => i.disabled).map((i) => i.action);
     expect(disabled).toEqual(expect.arrayContaining(['copyRightToLeft', 'markSame']));
     expect(disabled).not.toContain('compare');
-    expect(items).toHaveLength(7);
+    expect(items).toHaveLength(10);
   });
 
   it('disables every row action when no pair is focused', () => {

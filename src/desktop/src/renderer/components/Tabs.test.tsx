@@ -57,4 +57,120 @@ describe('<Tabs />', () => {
     fireEvent.keyDown(file, { key: 'Enter' });
     expect(onSelect).toHaveBeenCalledWith('t1');
   });
+
+  it('right-click opens a context menu with Close / Close Others / Close All', () => {
+    const tabs: WorkspaceTab[] = [
+      ...TABS,
+      { id: 't2', kind: 'fileDiff', title: 'bar.txt', relPath: 'bar.txt' },
+    ];
+    render(
+      <Tabs
+        tabs={tabs}
+        activeTabId={COMPARE_TAB_ID}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        onCloseOthers={vi.fn()}
+        onCloseAll={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /foo\.txt/i }));
+    const menu = screen.getByTestId('tab-context-menu');
+    expect(menu).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Close' })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: 'Close Others' })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: 'Close All' })).toBeEnabled();
+  });
+
+  it('Close menu item invokes onClose for the right-clicked tab', async () => {
+    const onClose = vi.fn();
+    render(
+      <Tabs
+        tabs={TABS}
+        activeTabId={COMPARE_TAB_ID}
+        onSelect={vi.fn()}
+        onClose={onClose}
+        onCloseOthers={vi.fn()}
+        onCloseAll={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /foo\.txt/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalledWith('t1');
+    expect(screen.queryByTestId('tab-context-menu')).toBeNull();
+  });
+
+  it('Close Others invokes onCloseOthers with the right-clicked tab id', async () => {
+    const onCloseOthers = vi.fn();
+    const tabs: WorkspaceTab[] = [
+      ...TABS,
+      { id: 't2', kind: 'fileDiff', title: 'bar.txt', relPath: 'bar.txt' },
+    ];
+    render(
+      <Tabs
+        tabs={tabs}
+        activeTabId={COMPARE_TAB_ID}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        onCloseOthers={onCloseOthers}
+        onCloseAll={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /foo\.txt/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close Others' }));
+    expect(onCloseOthers).toHaveBeenCalledWith('t1');
+  });
+
+  it('Close All invokes onCloseAll', async () => {
+    const onCloseAll = vi.fn();
+    render(
+      <Tabs
+        tabs={TABS}
+        activeTabId={COMPARE_TAB_ID}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        onCloseOthers={vi.fn()}
+        onCloseAll={onCloseAll}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /foo\.txt/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close All' }));
+    expect(onCloseAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('Close is disabled when right-clicking the only compare tab', () => {
+    const ONLY_COMPARE: WorkspaceTab[] = [
+      { id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' },
+    ];
+    render(
+      <Tabs
+        tabs={ONLY_COMPARE}
+        activeTabId={COMPARE_TAB_ID}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        onCloseOthers={vi.fn()}
+        onCloseAll={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /compare/i }));
+    expect(screen.getByRole('menuitem', { name: 'Close' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Close Others' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Close All' })).toBeDisabled();
+  });
+
+  it('Escape dismisses the tab context menu', () => {
+    render(
+      <Tabs
+        tabs={TABS}
+        activeTabId={COMPARE_TAB_ID}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        onCloseOthers={vi.fn()}
+        onCloseAll={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /foo\.txt/i }));
+    expect(screen.getByTestId('tab-context-menu')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('tab-context-menu')).toBeNull();
+  });
 });

@@ -1,4 +1,4 @@
-import type { ChangeEvent, JSX, ReactNode } from 'react';
+import type { ChangeEvent, JSX, KeyboardEvent, ReactNode } from 'react';
 import type { CompareMode } from '@awapi/shared';
 import type { ThemeName } from '../state/themeStore.js';
 import type { ViewFilter } from '../viewFilter.js';
@@ -21,6 +21,13 @@ export interface ToolbarProps {
   onPickRightFolder?(): void;
   onOpenDiffOptions?(): void;
   onViewFilterChange?(filter: ViewFilter): void;
+  /**
+   * Called when the user presses Enter while focused in either path
+   * input. Used to load/refresh the comparison immediately instead of
+   * waiting for the debounced auto-compare. Defaults to `onRefresh`
+   * when omitted.
+   */
+  onSubmitPaths?(): void;
   /**
    * Whether the path inputs represent folder roots (default) or
    * single file paths. Only affects placeholder, aria-label and
@@ -112,6 +119,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onPickRightFolder,
     onOpenDiffOptions,
     onViewFilterChange,
+    onSubmitPaths,
     viewFilter = 'all',
     pathLabel = 'folder',
     showMode = true,
@@ -130,6 +138,12 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
   const leftPlaceholder = pathLabel === 'file' ? 'Left file\u2026' : 'Left folder\u2026';
   const rightPlaceholder = pathLabel === 'file' ? 'Right file\u2026' : 'Right folder\u2026';
   const browseTitle = pathLabel === 'file' ? 'Browse for file' : 'Browse for folder';
+
+  const handlePathKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    (onSubmitPaths ?? onRefresh)();
+  };
 
   return (
     <>
@@ -256,6 +270,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               onLeftRootChange(e.target.value)
             }
+            onKeyDown={handlePathKeyDown}
           />
           <button
             type="button"
@@ -277,6 +292,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               onRightRootChange(e.target.value)
             }
+            onKeyDown={handlePathKeyDown}
           />
           <button
             type="button"

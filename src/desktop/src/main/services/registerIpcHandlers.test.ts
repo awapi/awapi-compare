@@ -47,8 +47,8 @@ describe('registerIpcHandlers', () => {
     registerIpcHandlers(mockIpc as any, createServices());
 
     await expect(
-      mockIpc.invoke(IpcChannel.FsCopy, { from: '/a', to: '/b' }),
-    ).rejects.toMatchObject({ code: 'E_NOT_IMPLEMENTED', phase: 'Phase 5' });
+      mockIpc.invoke(IpcChannel.UpdaterDownload),
+    ).rejects.toMatchObject({ code: 'E_NOT_IMPLEMENTED', phase: 'Phase 9' });
   });
 
   it('returns skeleton values for handlers that are already functional', async () => {

@@ -300,6 +300,7 @@ function FileDiffBody({
         onRightRootChange={setRightPath}
         onModeChange={setMode}
         onRefresh={reload}
+        onSubmitPaths={reload}
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules ?? (() => undefined)}
         onOpenDiffOptions={onOpenDiffOptions}

@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { mergeDiffOptions, type FsScanRequest, type Rule } from '@awapi/shared';
 
-import { NotImplementedError } from './errors.js';
 import { FS_ERROR_EXTERNAL_MODIFICATION, FS_ERROR_FILE_TOO_LARGE, FsCodedError, FsService, type FsIo } from './fsService.js';
 import { HashService } from './hashService.js';
 
@@ -51,6 +50,16 @@ function ioOf(fs: unknown): FsIo {
     readFile: (p) => realFs.promises.readFile(p),
     writeFile: (p, d, o) => realFs.promises.writeFile(p, d, o),
     stat: (p) => realFs.promises.stat(p),
+    lstat: (p) =>
+      (realFs as unknown as { promises: { lstat(p: string): Promise<{ size: number; mtimeMs: number; isFile(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean }> } }).promises.lstat(p),
+    readdir: (p) =>
+      (realFs as unknown as { promises: { readdir(p: string): Promise<string[]> } }).promises.readdir(p),
+    mkdir: (p, opts) =>
+      (realFs as unknown as { promises: { mkdir(p: string, opts?: { recursive?: boolean }): Promise<unknown> } }).promises
+        .mkdir(p, opts)
+        .then(() => undefined),
+    copyFile: (from, to) =>
+      (realFs as unknown as { promises: { copyFile(from: string, to: string): Promise<void> } }).promises.copyFile(from, to),
     open: (p, flags) =>
       Promise.resolve({
         async read(buf: Uint8Array, off: number, len: number, pos: number | null) {
@@ -303,11 +312,6 @@ describe('FsService.readChunk', () => {
 });
 
 describe('FsService deferred methods', () => {
-  it('throws NotImplementedError for copy', () => {
-    const s = new FsService();
-    expect(() => s.copy({ from: '/a', to: '/b' })).toThrow(NotImplementedError);
-  });
-
   it('dispatches scan-progress events to all listeners until unsubscribed', () => {
     const s = new FsService();
     const a = vi.fn();
@@ -325,5 +329,58 @@ describe('FsService deferred methods', () => {
     s.emitScanProgress({ scanned: 3 });
     expect(a).toHaveBeenCalledTimes(2);
     expect(b).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('FsService.copy', () => {
+  it('copies a single file when the destination does not exist', async () => {
+    const fs = makeFs({ '/src/a.txt': 'hello' });
+    const r = await svc(fs).copy({ from: '/src/a.txt', to: '/dst/a.txt' });
+    expect(r).toEqual({ copied: 1, skipped: 0, errors: [] });
+    const read = await svc(fs).read({ path: '/dst/a.txt' });
+    expect(new TextDecoder().decode(read.data)).toBe('hello');
+  });
+
+  it('skips an existing destination file when overwrite is false', async () => {
+    const fs = makeFs({ '/src/a.txt': 'new', '/dst/a.txt': 'old' });
+    const r = await svc(fs).copy({ from: '/src/a.txt', to: '/dst/a.txt' });
+    expect(r).toEqual({ copied: 0, skipped: 1, errors: [] });
+    const read = await svc(fs).read({ path: '/dst/a.txt' });
+    expect(new TextDecoder().decode(read.data)).toBe('old');
+  });
+
+  it('overwrites an existing destination file when overwrite is true', async () => {
+    const fs = makeFs({ '/src/a.txt': 'new', '/dst/a.txt': 'old' });
+    const r = await svc(fs).copy({ from: '/src/a.txt', to: '/dst/a.txt', overwrite: true });
+    expect(r).toEqual({ copied: 1, skipped: 0, errors: [] });
+    const read = await svc(fs).read({ path: '/dst/a.txt' });
+    expect(new TextDecoder().decode(read.data)).toBe('new');
+  });
+
+  it('recursively copies a directory tree', async () => {
+    const fs = makeFs({
+      '/src/a.txt': 'a',
+      '/src/sub/b.txt': 'b',
+      '/src/sub/deep/c.txt': 'c',
+    });
+    const r = await svc(fs).copy({ from: '/src', to: '/dst' });
+    expect(r.copied).toBe(3);
+    expect(r.errors).toEqual([]);
+    expect(new TextDecoder().decode((await svc(fs).read({ path: '/dst/sub/deep/c.txt' })).data)).toBe('c');
+  });
+
+  it('counts as copied without writing when dryRun is true', async () => {
+    const fs = makeFs({ '/src/a.txt': 'a' });
+    const r = await svc(fs).copy({ from: '/src/a.txt', to: '/dst/a.txt', dryRun: true });
+    expect(r.copied).toBe(1);
+    await expect(svc(fs).stat({ path: '/dst/a.txt' })).rejects.toBeDefined();
+  });
+
+  it('records an error entry when the source does not exist', async () => {
+    const fs = makeFs({});
+    const r = await svc(fs).copy({ from: '/missing.txt', to: '/dst.txt' });
+    expect(r.copied).toBe(0);
+    expect(r.errors).toHaveLength(1);
+    expect(r.errors[0]?.path).toBe('/missing.txt');
   });
 });

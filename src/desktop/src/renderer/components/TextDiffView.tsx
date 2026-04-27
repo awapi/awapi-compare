@@ -197,10 +197,38 @@ export function computeCopyEdit(
   const tgtStart = sourceSide === 'original' ? change.modifiedStartLineNumber : change.originalStartLineNumber;
   const tgtEnd = sourceSide === 'original' ? change.modifiedEndLineNumber : change.originalEndLineNumber;
 
+  // Clip the source range to whatever the user actually selected. When
+  // the user has only a caret (no real text range) we keep the legacy
+  // "accept the whole hunk" behavior; when they highlighted a strict
+  // subset of the hunk we copy only those lines so neighbouring lines
+  // in the same Monaco-merged change aren't dragged along.
+  const isCaret =
+    selection.startLineNumber === selection.endLineNumber &&
+    selection.startColumn === selection.endColumn;
+  let selStartLine = selection.startLineNumber;
+  let selEndLine = selection.endLineNumber;
+  // A selection ending at column 1 of a following line excludes that
+  // line (Monaco convention for full-line selections via triple-click
+  // or Shift+Down).
+  if (selection.endColumn === 1 && selEndLine > selStartLine) selEndLine -= 1;
+
+  let copyStart = srcStart;
+  let copyEnd = srcEnd;
+  let isPartial = false;
+  if (!isCaret && srcEnd > 0) {
+    const clippedStart = Math.max(srcStart, selStartLine);
+    const clippedEnd = Math.min(srcEnd, selEndLine);
+    if (clippedEnd >= clippedStart && (clippedStart > srcStart || clippedEnd < srcEnd)) {
+      copyStart = clippedStart;
+      copyEnd = clippedEnd;
+      isPartial = true;
+    }
+  }
+
   // Plain (no trailing newline) joined source lines. When the source
   // side has zero lines for this change, the operation effectively
   // becomes "delete the inserted lines on the target side".
-  const sourceText = srcEnd === 0 ? '' : readLines(source, srcStart, srcEnd);
+  const sourceText = copyEnd === 0 ? '' : readLines(source, copyStart, copyEnd);
 
   if (tgtEnd === 0) {
     // Pure insertion on the target side. `tgtStart` is the line *after
@@ -218,9 +246,69 @@ export function computeCopyEdit(
     };
   }
 
-  // Paired change: replace the target lines wholesale. Match the range
-  // and the replacement text on whether they include a trailing
-  // newline so the final buffer keeps consistent line endings.
+  // Paired change. With a partial selection we need to map the
+  // selected source-line offset onto the target side. Monaco aligns
+  // the first `modifyCount` source lines line-for-line with the target
+  // lines; any remaining source lines are pure insertions tacked on
+  // after the modified block.
+  if (isPartial) {
+    const modifyCount = tgtEnd - tgtStart + 1;
+    const selOffset = copyStart - srcStart;
+    const selLines = copyEnd - copyStart + 1;
+
+    if (selOffset >= modifyCount) {
+      // Selection lies entirely in the inserted-tail portion of the
+      // hunk → insert it after the last paired target line. Don't
+      // overwrite anything.
+      const col = target.getLineMaxColumn ? target.getLineMaxColumn(tgtEnd) : 1;
+      return {
+        range: { startLineNumber: tgtEnd, startColumn: col, endLineNumber: tgtEnd, endColumn: col },
+        text: sourceText.length > 0 ? '\n' + sourceText : '',
+      };
+    }
+
+    if (selOffset + selLines <= modifyCount) {
+      // Selection is entirely within the line-aligned modify portion.
+      const tStart = tgtStart + selOffset;
+      const tEnd = tgtStart + selOffset + selLines - 1;
+      const lineCount = target.getLineCount?.();
+      const replacingLast = lineCount != null && tEnd >= lineCount;
+      if (replacingLast) {
+        const maxCol = target.getLineMaxColumn ? target.getLineMaxColumn(tEnd) : Number.MAX_SAFE_INTEGER;
+        return {
+          range: { startLineNumber: tStart, startColumn: 1, endLineNumber: tEnd, endColumn: maxCol },
+          text: sourceText,
+        };
+      }
+      return {
+        range: { startLineNumber: tStart, startColumn: 1, endLineNumber: tEnd + 1, endColumn: 1 },
+        text: sourceText.length > 0 ? sourceText + '\n' : '',
+      };
+    }
+
+    // Spans the modify/insert boundary: replace target lines from the
+    // selection's start offset through the end of the paired block
+    // with the full selected source text.
+    const tStart = tgtStart + selOffset;
+    const lineCount = target.getLineCount?.();
+    const replacingLast = lineCount != null && tgtEnd >= lineCount;
+    if (replacingLast) {
+      const maxCol = target.getLineMaxColumn ? target.getLineMaxColumn(tgtEnd) : Number.MAX_SAFE_INTEGER;
+      return {
+        range: { startLineNumber: tStart, startColumn: 1, endLineNumber: tgtEnd, endColumn: maxCol },
+        text: sourceText,
+      };
+    }
+    return {
+      range: { startLineNumber: tStart, startColumn: 1, endLineNumber: tgtEnd + 1, endColumn: 1 },
+      text: sourceText.length > 0 ? sourceText + '\n' : '',
+    };
+  }
+
+  // Paired change, full hunk: replace the target lines wholesale.
+  // Match the range and the replacement text on whether they include
+  // a trailing newline so the final buffer keeps consistent line
+  // endings.
   const lineCount = target.getLineCount?.();
   const replacingLastLine = lineCount != null && tgtEnd >= lineCount;
   if (replacingLastLine) {

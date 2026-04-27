@@ -3,9 +3,15 @@ import type { JSX } from 'react';
 import { CompareTabBody } from './components/CompareTabBody.js';
 import { DiffOptionsDialog } from './components/DiffOptionsDialog.js';
 import { FileDiffTab } from './components/FileDiffTab.js';
+import { PreferencesDialog } from './components/PreferencesDialog.js';
 import { Tabs } from './components/Tabs.js';
 import { RulesEditor, type RulesScope } from './components/RulesEditor.js';
-import { useRulesStore, useThemeStore, useWorkspaceStore } from './state/stores.js';
+import {
+  usePreferencesStore,
+  useRulesStore,
+  useThemeStore,
+  useWorkspaceStore,
+} from './state/stores.js';
 import { getSessionStore } from './state/sessionRegistry.js';
 import { getTabSaveHandler } from './state/tabSaveRegistry.js';
 import { DEFAULT_DIFF_OPTIONS, type DiffOptions, type Rule } from '@awapi/shared';
@@ -27,6 +33,12 @@ export function App(): JSX.Element {
   const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const [rulesScope, setRulesScope] = useState<RulesScope>('global');
   const [diffOptionsOpen, setDiffOptionsOpen] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+
+  const confirmOverwriteOnCopy = usePreferencesStore(
+    (s) => s.confirmOverwriteOnCopy,
+  );
+  const setPreferences = usePreferencesStore((s) => s.setPreferences);
 
   // Load global rules from main on mount.
   useEffect(() => {
@@ -139,6 +151,52 @@ export function App(): JSX.Element {
     })();
   };
 
+  // Walk a list of candidate tab ids through the dirty-prompt
+  // pipeline; returns the ids the user confirmed (or that were
+  // already clean). Stops on the first cancel.
+  const collectCloseableIds = async (
+    candidates: readonly string[],
+  ): Promise<string[]> => {
+    const ok: string[] = [];
+    for (const id of candidates) {
+      const tab = useWorkspaceStore.getState().tabs.find((t) => t.id === id);
+      if (!tab) continue;
+      if (tab.dirty === true) {
+        useWorkspaceStore.getState().setActiveTab(id);
+        if (!(await confirmTabCloseable(id))) return ok;
+        useWorkspaceStore.getState().setTabDirty(id, false);
+      }
+      ok.push(id);
+    }
+    return ok;
+  };
+
+  const tryCloseOtherTabs = (id: string): void => {
+    void (async () => {
+      const candidates = useWorkspaceStore
+        .getState()
+        .tabs.filter((t) => t.id !== id)
+        .map((t) => t.id);
+      const confirmed = await collectCloseableIds(candidates);
+      const closeOne = useWorkspaceStore.getState().closeTab;
+      for (const cid of confirmed) closeOne(cid);
+    })();
+  };
+
+  const tryCloseAllTabs = (): void => {
+    void (async () => {
+      const candidates = useWorkspaceStore
+        .getState()
+        .tabs.map((t) => t.id);
+      const confirmed = await collectCloseableIds(candidates);
+      const closeOne = useWorkspaceStore.getState().closeTab;
+      // closeTab refuses to close the last compare tab; closing the
+      // confirmed ids in order naturally preserves the workspace
+      // invariant.
+      for (const cid of confirmed) closeOne(cid);
+    })();
+  };
+
   // Window-close handshake. The main process intercepts the user's
   // close request and emits `app.requestClose`; we walk every dirty
   // tab through the same Save / Don't Save / Cancel prompt, then
@@ -165,6 +223,16 @@ export function App(): JSX.Element {
     });
   }, []);
 
+  // Listen for the global Preferences menu action (CmdOrCtrl+,). The
+  // listener is mounted once at app level so it works regardless of
+  // which tab is currently active.
+  useEffect(() => {
+    if (!window.awapi?.app?.onMenuAction) return;
+    return window.awapi.app.onMenuAction((menuAction) => {
+      if (menuAction === 'edit.preferences') setPreferencesOpen(true);
+    });
+  }, []);
+
   return (
     <div className="awapi-app">
       <Tabs
@@ -173,6 +241,8 @@ export function App(): JSX.Element {
         onSelect={setActiveTab}
         onClose={tryCloseTab}
         onNewCompareTab={() => openCompareTab()}
+        onCloseOthers={tryCloseOtherTabs}
+        onCloseAll={tryCloseAllTabs}
       />
       <main className="awapi-app__body">
         {tabs.map((tab) => {
@@ -234,6 +304,16 @@ export function App(): JSX.Element {
             setRulesScope('session');
             setRulesEditorOpen(true);
           }}
+        />
+      ) : null}
+      {preferencesOpen ? (
+        <PreferencesDialog
+          value={{ confirmOverwriteOnCopy }}
+          onSave={(next) => {
+            setPreferences(next);
+            setPreferencesOpen(false);
+          }}
+          onClose={() => setPreferencesOpen(false)}
         />
       ) : null}
     </div>

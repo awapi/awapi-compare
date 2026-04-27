@@ -4,18 +4,21 @@ import { Toolbar } from './Toolbar.js';
 import { StatusBar } from './StatusBar.js';
 import { DiffTable } from './DiffTable.js';
 import { ContextMenu } from './ContextMenu.js';
+import { OverwriteConfirmDialog } from './OverwriteConfirmDialog.js';
 import { emptyDiffSummary, summarize } from '../diffSummary.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
 import {
   useWorkspaceStore,
   useThemeStore,
   useRulesStore,
+  usePreferencesStore,
 } from '../state/stores.js';
 import { buildRowMenuItems, isActionEnabled } from '../actions.js';
 import type { RowAction } from '../actions.js';
 import { useHotkeys } from '../useHotkeys.js';
 import { filterPairs } from '../viewFilter.js';
-import type { MenuAction } from '@awapi/shared';
+import { joinPath } from '../paths.js';
+import type { ComparedPair, MenuAction } from '@awapi/shared';
 
 const MENU_TO_ROW: Partial<Record<MenuAction, RowAction>> = {
   'compare.copyLeftToRight': 'copyLeftToRight',
@@ -28,6 +31,14 @@ interface ContextMenuState {
   x: number;
   y: number;
   relPath: string;
+}
+
+interface OverwritePromptState {
+  direction: 'leftToRight' | 'rightToLeft';
+  from: string;
+  to: string;
+  target: string;
+  detail: string;
 }
 
 export interface CompareTabBodyProps {
@@ -87,7 +98,14 @@ export function CompareTabBody({
 
   const globalRules = useRulesStore((s) => s.rules);
 
+  const confirmOverwriteOnCopy = usePreferencesStore((s) => s.confirmOverwriteOnCopy);
+  const setConfirmOverwriteOnCopy = usePreferencesStore(
+    (s) => s.setConfirmOverwriteOnCopy,
+  );
+
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [overwritePrompt, setOverwritePrompt] =
+    useState<OverwritePromptState | null>(null);
 
   // Keep tab title in sync with the chosen folder pair.
   useEffect(() => {
@@ -110,13 +128,37 @@ export function CompareTabBody({
 
   const runCompare = useCallback(async () => {
     if (!window.awapi) return;
+    const left = leftRoot.trim();
+    const right = rightRoot.trim();
+    if (!left || !right) return;
     setScanning(true);
     setError(null);
     setProgress(null);
     try {
+      // Validate both roots exist and are directories before kicking
+      // off a scan. Without this, a missing/typo'd path silently
+      // produces an empty result, which is confusing for the user.
+      const sides: Array<{ side: 'Left' | 'Right'; path: string }> = [
+        { side: 'Left', path: left },
+        { side: 'Right', path: right },
+      ];
+      for (const { side, path } of sides) {
+        try {
+          const st = await window.awapi.fs.stat({ path });
+          if (st.type !== 'dir') {
+            setPairs([]);
+            setError(`${side} folder is not a directory: ${path}`);
+            return;
+          }
+        } catch {
+          setPairs([]);
+          setError(`${side} folder does not exist: ${path}`);
+          return;
+        }
+      }
       const result = await window.awapi.fs.scan({
-        leftRoot,
-        rightRoot,
+        leftRoot: left,
+        rightRoot: right,
         mode,
         rules: [...globalRules, ...sessionRules],
         diffOptions,
@@ -176,6 +218,61 @@ export function CompareTabBody({
     [pairs, openFileDiffTab, tabId],
   );
 
+  const performCopy = useCallback(
+    async (from: string, to: string, overwrite: boolean) => {
+      if (!window.awapi) return;
+      try {
+        const result = await window.awapi.fs.copy({ from, to, overwrite });
+        if (result.errors.length > 0) {
+          const first = result.errors[0];
+          setError(
+            `Copy completed with ${result.errors.length} error${result.errors.length === 1 ? '' : 's'}: ${first?.message ?? 'unknown error'}`,
+          );
+        } else {
+          setError(null);
+        }
+        await runCompare();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [runCompare, setError],
+  );
+
+  const requestCopy = useCallback(
+    (
+      direction: 'leftToRight' | 'rightToLeft',
+      pair: ComparedPair,
+    ) => {
+      const sourceEntry = direction === 'leftToRight' ? pair.left : pair.right;
+      if (!sourceEntry) return;
+      const sourceRoot = direction === 'leftToRight' ? leftRoot : rightRoot;
+      const destRoot = direction === 'leftToRight' ? rightRoot : leftRoot;
+      if (!sourceRoot || !destRoot) {
+        setError('Both folder roots must be set before copying.');
+        return;
+      }
+      const from = joinPath(sourceRoot, sourceEntry.relPath);
+      const to = joinPath(destRoot, sourceEntry.relPath);
+      const destinationEntry =
+        direction === 'leftToRight' ? pair.right : pair.left;
+      const willOverwrite = !!destinationEntry;
+
+      if (willOverwrite && confirmOverwriteOnCopy) {
+        setOverwritePrompt({
+          direction,
+          from,
+          to,
+          target: sourceEntry.name || sourceEntry.relPath,
+          detail: to,
+        });
+        return;
+      }
+      void performCopy(from, to, willOverwrite);
+    },
+    [leftRoot, rightRoot, confirmOverwriteOnCopy, performCopy, setError],
+  );
+
   const dispatchAction = useCallback(
     async (action: RowAction, relPath?: string) => {
       const targetPath = relPath ?? selected ?? null;
@@ -194,14 +291,37 @@ export function CompareTabBody({
         case 'exclude':
           if (targetPath) excludePath(targetPath);
           return;
+        case 'useAsLeftFolderOnly':
+          if (pair?.left?.type === 'dir') {
+            setLeftRoot(joinPath(leftRoot, pair.left.relPath));
+          }
+          return;
+        case 'useAsRightFolderOnly':
+          if (pair?.right?.type === 'dir') {
+            setRightRoot(joinPath(rightRoot, pair.right.relPath));
+          }
+          return;
+        case 'openSelectedFolders':
+          if (pair) {
+            const rel = pair.left?.relPath ?? pair.right?.relPath ?? pair.relPath;
+            if (rel) {
+              setLeftRoot(joinPath(leftRoot, rel));
+              setRightRoot(joinPath(rightRoot, rel));
+            }
+          }
+          return;
         case 'copyLeftToRight':
+          if (pair) requestCopy('leftToRight', pair);
+          return;
         case 'copyRightToLeft':
+          if (pair) requestCopy('rightToLeft', pair);
+          return;
         case 'delete':
-          setError(`"${action}" is not implemented yet (lands in Phase 7).`);
+          setError(`"${action}" is not implemented yet.`);
           return;
       }
     },
-    [pairs, selected, runCompare, openSelected, markSame, excludePath, setError],
+    [pairs, selected, runCompare, openSelected, markSame, excludePath, setError, setLeftRoot, setRightRoot, leftRoot, rightRoot, requestCopy],
   );
 
   // Hotkeys + app-menu actions only fire on the active tab.
@@ -255,6 +375,7 @@ export function CompareTabBody({
         onRightRootChange={setRightRoot}
         onModeChange={setMode}
         onRefresh={runCompare}
+        onSubmitPaths={runCompare}
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules}
         onOpenDiffOptions={onOpenDiffOptions}
@@ -301,6 +422,20 @@ export function CompareTabBody({
         <div role="alert" className="awapi-compare-body__error">
           {error}
         </div>
+      ) : null}
+      {overwritePrompt ? (
+        <OverwriteConfirmDialog
+          direction={overwritePrompt.direction}
+          target={overwritePrompt.target}
+          detail={overwritePrompt.detail}
+          onCancel={() => setOverwritePrompt(null)}
+          onConfirm={(remember) => {
+            const prompt = overwritePrompt;
+            setOverwritePrompt(null);
+            if (remember) setConfirmOverwriteOnCopy(false);
+            void performCopy(prompt.from, prompt.to, true);
+          }}
+        />
       ) : null}
     </div>
   );

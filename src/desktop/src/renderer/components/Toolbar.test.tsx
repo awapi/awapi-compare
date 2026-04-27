@@ -117,4 +117,30 @@ describe('<Toolbar />', () => {
       screen.getByRole('button', { name: /browse for right file/i }),
     ).toBeInTheDocument();
   });
+
+  it('pressing Enter in the left path input calls onSubmitPaths', async () => {
+    const onSubmitPaths = vi.fn();
+    renderToolbar({ leftRoot: '/a', rightRoot: '/b', onSubmitPaths });
+    const input = screen.getByLabelText('Left folder');
+    input.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(onSubmitPaths).toHaveBeenCalledTimes(1);
+  });
+
+  it('pressing Enter in the right path input calls onSubmitPaths', async () => {
+    const onSubmitPaths = vi.fn();
+    renderToolbar({ leftRoot: '/a', rightRoot: '/b', onSubmitPaths });
+    const input = screen.getByLabelText('Right folder');
+    input.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(onSubmitPaths).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to onRefresh when onSubmitPaths is not provided', async () => {
+    const handlers = renderToolbar({ leftRoot: '/a', rightRoot: '/b' });
+    const input = screen.getByLabelText('Left folder');
+    input.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(handlers.onRefresh).toHaveBeenCalledTimes(1);
+  });
 });

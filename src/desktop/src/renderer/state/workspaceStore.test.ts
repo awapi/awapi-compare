@@ -134,4 +134,72 @@ describe('workspaceStore', () => {
     useStore.getState().closeTab(COMPARE_TAB_ID);
     expect(onTabClosed).not.toHaveBeenCalled();
   });
+
+  it('closeOtherTabs keeps only the target tab when target is compare', () => {
+    let n = 0;
+    const useStore = createWorkspaceStore({ generateId: () => `g${++n}` });
+    const compare2 = useStore.getState().openCompareTab();
+    useStore.getState().openFileDiffTab('a.txt');
+    useStore.getState().openFileDiffTab('b.txt');
+    const closed = useStore.getState().closeOtherTabs(compare2);
+    expect(closed).toHaveLength(3);
+    expect(useStore.getState().tabs.map((t) => t.id)).toEqual([compare2]);
+    expect(useStore.getState().activeTabId).toBe(compare2);
+  });
+
+  it('closeOtherTabs preserves the first compare tab when target is a file-diff', () => {
+    let n = 0;
+    const useStore = createWorkspaceStore({ generateId: () => `g${++n}` });
+    const a = useStore.getState().openFileDiffTab('a.txt');
+    useStore.getState().openFileDiffTab('b.txt');
+    const closed = useStore.getState().closeOtherTabs(a);
+    // Only b.txt is closed; the first compare tab is preserved.
+    expect(closed).toHaveLength(1);
+    expect(useStore.getState().tabs.map((t) => t.id)).toEqual([COMPARE_TAB_ID, a]);
+    expect(useStore.getState().activeTabId).toBe(a);
+  });
+
+  it('closeOtherTabs is a no-op when only the target exists', () => {
+    const useStore = createWorkspaceStore({ generateId });
+    const closed = useStore.getState().closeOtherTabs(COMPARE_TAB_ID);
+    expect(closed).toEqual([]);
+    expect(useStore.getState().tabs).toHaveLength(1);
+  });
+
+  it('closeOtherTabs notifies onTabClosed for each closed tab', () => {
+    const onTabClosed = vi.fn();
+    let n = 0;
+    const useStore = createWorkspaceStore({
+      generateId: () => `g${++n}`,
+      onTabClosed,
+    });
+    const a = useStore.getState().openFileDiffTab('a.txt');
+    useStore.getState().openFileDiffTab('b.txt');
+    useStore.getState().closeOtherTabs(a);
+    expect(onTabClosed).toHaveBeenCalledTimes(1);
+    expect(onTabClosed).toHaveBeenCalledWith(
+      expect.objectContaining({ relPath: 'b.txt' }),
+    );
+  });
+
+  it('closeAllTabs leaves a single compare tab and focuses it', () => {
+    let n = 0;
+    const useStore = createWorkspaceStore({ generateId: () => `g${++n}` });
+    useStore.getState().openCompareTab();
+    useStore.getState().openFileDiffTab('a.txt');
+    useStore.getState().openFileDiffTab('b.txt');
+    const closed = useStore.getState().closeAllTabs();
+    expect(closed).toHaveLength(3);
+    const s = useStore.getState();
+    expect(s.tabs).toHaveLength(1);
+    expect(s.tabs[0]).toMatchObject({ id: COMPARE_TAB_ID, kind: 'compare' });
+    expect(s.activeTabId).toBe(COMPARE_TAB_ID);
+  });
+
+  it('closeAllTabs is a no-op on a fresh workspace', () => {
+    const useStore = createWorkspaceStore({ generateId });
+    const closed = useStore.getState().closeAllTabs();
+    expect(closed).toEqual([]);
+    expect(useStore.getState().tabs).toHaveLength(1);
+  });
 });

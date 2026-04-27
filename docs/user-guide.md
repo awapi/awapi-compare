@@ -132,3 +132,28 @@ has touched the file in the meantime, the save is rejected and you're
 prompted before overwriting. Choosing **OK** discards your edits and
 reloads from disk; choosing **Cancel** keeps the editor dirty so you
 can copy your changes elsewhere.
+
+## Copying between sides
+
+In the folder-compare view you can replicate any row from one side
+to the other:
+
+- **Copy → Right** — replace (or create) the right-hand version with
+  the left-hand file/folder. Keyboard: `Alt+→`.
+- **Copy ← Left** — the inverse. Keyboard: `Alt+←`.
+
+When the destination already has a file at the same relative path,
+AwapiCompare prompts before overwriting and offers a **Don't ask
+again** checkbox. Tick it to skip the prompt for the rest of the
+session (and future launches). You can re-enable the prompt at any
+time from **Preferences → Folder compare**.
+
+## Preferences
+
+Open via **Edit → Preferences…** (or **AwapiCompare → Preferences…**
+on macOS), keyboard `Cmd/Ctrl+,`. Preferences are stored locally per
+machine.
+
+- **Confirm before overwriting an existing file when copying between
+  sides** — when on (default), Copy → Right / Copy ← Left ask before
+  replacing destination files. When off, copies proceed silently.

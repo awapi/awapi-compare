@@ -20,9 +20,9 @@ import {
 } from '@awapi/shared';
 
 import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 
 import { classifyPair } from './diffService.js';
-import { NotImplementedError } from './errors.js';
 import { HashService } from './hashService.js';
 import { pairingKey } from './pairing.js';
 import { compileRules, evaluate } from './ruleMatcher.js';
@@ -58,6 +58,20 @@ export interface FsIo {
       position: number | null,
     ): Promise<{ bytesRead: number; buffer: Uint8Array }>;
     close(): Promise<void>;
+  }>;
+  /** Used by `fs.copy`. */
+  readdir(path: string): Promise<string[]>;
+  /** Used by `fs.copy` to recreate directory structure. */
+  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+  /** Used by `fs.copy`. */
+  copyFile(from: string, to: string): Promise<void>;
+  /** Used by `fs.copy` so symlinks aren't silently followed. */
+  lstat(path: string): Promise<{
+    size: number;
+    mtimeMs: number;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
   }>;
 }
 
@@ -225,8 +239,8 @@ export class FsService {
     return this.readChunkImpl(req);
   }
 
-  copy(_req: FsCopyRequest): Promise<FsCopyResult> {
-    throw new NotImplementedError('fs.copy', 'Phase 5');
+  copy(req: FsCopyRequest): Promise<FsCopyResult> {
+    return this.copyImpl(req);
   }
 
   write(req: FsWriteRequest): Promise<void> {
@@ -313,6 +327,95 @@ export class FsService {
     }
   }
 
+  private async copyImpl(req: FsCopyRequest): Promise<FsCopyResult> {
+    const result: FsCopyResult = { copied: 0, skipped: 0, errors: [] };
+    const overwrite = req.overwrite === true;
+    const dryRun = req.dryRun === true;
+    await this.copyRecursive(req.from, req.to, overwrite, dryRun, result);
+    return result;
+  }
+
+  private async copyRecursive(
+    from: string,
+    to: string,
+    overwrite: boolean,
+    dryRun: boolean,
+    result: FsCopyResult,
+  ): Promise<void> {
+    let stat: Awaited<ReturnType<FsIo['lstat']>>;
+    try {
+      stat = await this.io.lstat(from);
+    } catch (err) {
+      result.errors.push({ path: from, message: errMessage(err) });
+      return;
+    }
+    if (stat.isSymbolicLink()) {
+      // Conservative: never follow symlinks during copy. Skip and let
+      // the caller surface the count if needed.
+      result.skipped += 1;
+      return;
+    }
+    if (stat.isDirectory()) {
+      if (!dryRun) {
+        try {
+          await this.io.mkdir(to, { recursive: true });
+        } catch (err) {
+          result.errors.push({ path: to, message: errMessage(err) });
+          return;
+        }
+      }
+      let entries: string[];
+      try {
+        entries = await this.io.readdir(from);
+      } catch (err) {
+        result.errors.push({ path: from, message: errMessage(err) });
+        return;
+      }
+      for (const name of entries) {
+        await this.copyRecursive(
+          nodePath.join(from, name),
+          nodePath.join(to, name),
+          overwrite,
+          dryRun,
+          result,
+        );
+      }
+      return;
+    }
+    if (!stat.isFile()) {
+      // Sockets / FIFOs / etc — skip silently.
+      result.skipped += 1;
+      return;
+    }
+    // File case.
+    let exists = false;
+    try {
+      await this.io.stat(to);
+      exists = true;
+    } catch {
+      exists = false;
+    }
+    if (exists && !overwrite) {
+      result.skipped += 1;
+      return;
+    }
+    if (dryRun) {
+      result.copied += 1;
+      return;
+    }
+    try {
+      await this.io.mkdir(nodePath.dirname(to), { recursive: true });
+    } catch {
+      // Tolerate — copyFile will report a clearer error if needed.
+    }
+    try {
+      await this.io.copyFile(from, to);
+      result.copied += 1;
+    } catch (err) {
+      result.errors.push({ path: from, message: errMessage(err) });
+    }
+  }
+
   private async readChunkImpl(req: FsReadChunkRequest): Promise<Uint8Array> {
     if (!Number.isInteger(req.offset) || req.offset < 0) {
       throw new Error(`fs.readChunk: offset must be a non-negative integer`);
@@ -376,4 +479,8 @@ async function safeHash(
 function joinAbs(root: string, rel: string): string {
   if (root.endsWith('/') || root.endsWith('\\')) return root + rel;
   return `${root}/${rel}`;
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

@@ -437,4 +437,70 @@ describe('computeCopyEdit', () => {
 
     expect(computeCopyEdit(editor, left, right, sel, 'toModified')).toBeNull();
   });
+
+  it('copies only the selected line when Monaco merges modify+insert into one hunk (insert tail)', async () => {
+    // Reproduces the user-reported bug: left has 4 lines, right has 5
+    // lines; Monaco reports a single combined change covering original
+    // line 4 and modified lines 4..5 (LOG_LEVEL=info → LOG_LEVEL=debug
+    // and a new RATE_LIMIT=100 line). Selecting only the inserted line
+    // on the right and using Copy ← Left must NOT also bring across
+    // line 4 ("LOG_LEVEL=debug").
+    const { computeCopyEdit } = await import('./TextDiffView.js');
+    const left = lineModel(
+      ['PORT=8080', 'DB_HOST=localhost', 'DB_PORT=5432', 'LOG_LEVEL=info'].join('\n'),
+    );
+    const right = lineModel(
+      ['PORT=9090', 'DB_HOST=db.internal', 'DB_PORT=5432', 'LOG_LEVEL=debug', 'RATE_LIMIT=100'].join('\n'),
+    );
+    const editor = fakeEditor([
+      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
+      { originalStartLineNumber: 4, originalEndLineNumber: 4, modifiedStartLineNumber: 4, modifiedEndLineNumber: 5 },
+    ]);
+    // Real selection covering only right line 5 ("RATE_LIMIT=100").
+    const sel = { startLineNumber: 5, startColumn: 1, endLineNumber: 5, endColumn: 14 };
+
+    const op = computeCopyEdit(editor, right, left, sel, 'toOriginal');
+    expect(op).not.toBeNull();
+    left.pushEditOperations([], [op!], () => null);
+
+    expect(left.getValue()).toBe(
+      ['PORT=8080', 'DB_HOST=localhost', 'DB_PORT=5432', 'LOG_LEVEL=info', 'RATE_LIMIT=100'].join('\n'),
+    );
+  });
+
+  it('copies only the selected line within a paired multi-line modify hunk', async () => {
+    // The user's other case: a paired modify covering both line 1
+    // (PORT) and line 2 (DB_HOST). Selecting only line 1 must replace
+    // only line 1 on the target, leaving line 2 alone.
+    const { computeCopyEdit } = await import('./TextDiffView.js');
+    const left = lineModel(['PORT=8080', 'DB_HOST=localhost', 'DB_PORT=5432'].join('\n'));
+    const right = lineModel(['PORT=9090', 'DB_HOST=db.internal', 'DB_PORT=5432'].join('\n'));
+    const editor = fakeEditor([
+      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
+    ]);
+    const sel = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 };
+
+    const op = computeCopyEdit(editor, right, left, sel, 'toOriginal');
+    expect(op).not.toBeNull();
+    left.pushEditOperations([], [op!], () => null);
+
+    expect(left.getValue()).toBe(['PORT=9090', 'DB_HOST=localhost', 'DB_PORT=5432'].join('\n'));
+  });
+
+  it('falls back to the whole hunk when the user has only a caret (no real selection)', async () => {
+    const { computeCopyEdit } = await import('./TextDiffView.js');
+    const left = lineModel(['PORT=8080', 'DB_HOST=localhost'].join('\n'));
+    const right = lineModel(['PORT=9090', 'DB_HOST=db.internal'].join('\n'));
+    const editor = fakeEditor([
+      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
+    ]);
+    // Caret only — start === end.
+    const sel = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+
+    const op = computeCopyEdit(editor, right, left, sel, 'toOriginal');
+    expect(op).not.toBeNull();
+    left.pushEditOperations([], [op!], () => null);
+
+    expect(left.getValue()).toBe(['PORT=9090', 'DB_HOST=db.internal'].join('\n'));
+  });
 });

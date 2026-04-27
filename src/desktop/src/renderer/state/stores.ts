@@ -1,4 +1,5 @@
 import { disposeSessionStore } from './sessionRegistry.js';
+import { createPreferencesStore } from './preferencesStore.js';
 import { createRulesStore } from './rulesStore.js';
 import { createThemeStore } from './themeStore.js';
 import { createWorkspaceStore } from './workspaceStore.js';
@@ -21,3 +22,4 @@ export const useWorkspaceStore = createWorkspaceStore({
 
 export const useThemeStore = createThemeStore();
 export const useRulesStore = createRulesStore();
+export const usePreferencesStore = createPreferencesStore();
