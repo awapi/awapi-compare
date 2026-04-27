@@ -47,9 +47,15 @@ function licenseIsAllowed(license: string): boolean {
 }
 
 function main(): void {
-  const raw = execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], {
+  // On Windows, pnpm is shipped as `pnpm.cmd`, which Node's `execFileSync`
+  // cannot resolve without a shell. Use `shell: true` so the same call
+  // works across macOS, Linux and Windows runners. Arguments are static
+  // literals, so this does not introduce a shell-injection risk.
+  const pnpmBin = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  const raw = execFileSync(pnpmBin, ['licenses', 'list', '--prod', '--json'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
+    shell: process.platform === 'win32',
   });
   const report = JSON.parse(raw) as PnpmLicenseReport;
 

@@ -49,6 +49,7 @@ msi:
 
 linux:
   category: Development
+  maintainer: Awapi <support@awapi.com>
   target:
     - target: AppImage
       arch: [x64, arm64]
