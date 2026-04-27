@@ -62,12 +62,30 @@ export interface MonacoEditorInstance {
   getSelection(): MonacoRange | null;
 }
 
+/**
+ * One entry in the result of `IDiffEditor.getLineChanges()`.
+ *
+ * When a side has no lines in a particular change (pure insertion or
+ * deletion in the other side), Monaco sets that side's
+ * `*EndLineNumber` to `0` and uses `*StartLineNumber` as the line
+ * **after** which the lines are conceptually inserted (`0` meaning
+ * "before line 1").
+ */
+export interface MonacoLineChange {
+  originalStartLineNumber: number;
+  originalEndLineNumber: number;
+  modifiedStartLineNumber: number;
+  modifiedEndLineNumber: number;
+}
+
 export interface MonacoDiffEditor {
   setModel(model: { original: MonacoModel; modified: MonacoModel }): void;
   layout(): void;
   dispose(): void;
   getOriginalEditor(): MonacoEditorInstance;
   getModifiedEditor(): MonacoEditorInstance;
+  /** Line-level diff result; absent in fakes / before first compute. */
+  getLineChanges?(): MonacoLineChange[] | null;
 }
 
 export interface MonacoModel {
@@ -81,6 +99,10 @@ export interface MonacoModel {
     editOperations: MonacoSingleEditOperation[],
     cursorStateComputer: unknown,
   ): unknown;
+  /** Total line count; optional so tiny test fakes don't have to implement it. */
+  getLineCount?(): number;
+  /** 1-based max column for `line`; optional for the same reason. */
+  getLineMaxColumn?(line: number): number;
 }
 
 export type MonacoLoader = () => Promise<MonacoLike>;
@@ -128,6 +150,120 @@ async function ensureMonacoWorkers(): Promise<void> {
     };
   })();
   return monacoWorkersReady;
+}
+
+/**
+ * Map a copy-side selection onto the correct destination edit using
+ * Monaco's line-level diff result.
+ *
+ * The naive approach — `pushEditOperations` with the source `range`
+ * unchanged — looks wrong whenever the diff editor inserts virtual
+ * blank space to align matching content. Copying right line N "to
+ * left" then overwrites left line N (often blank padding) instead of
+ * inserting at the alignment point between the surrounding matched
+ * lines. We instead locate the diff change covering the selection on
+ * the source side and translate that change's coordinates to the
+ * destination side: a paired modify becomes a full-line replace, and
+ * a pure insertion becomes an insert at end-of-line `*StartLineNumber`
+ * (or at the very top when that field is `0`).
+ *
+ * Returns `null` (caller should skip the edit) when the diff result is
+ * unavailable or when the selection sits entirely on matching content
+ * — in that case there is nothing meaningful to copy across.
+ */
+export function computeCopyEdit(
+  editor: MonacoDiffEditor,
+  source: MonacoModel,
+  target: MonacoModel,
+  selection: MonacoRange,
+  direction: 'toModified' | 'toOriginal',
+): MonacoSingleEditOperation | null {
+  const changes = editor.getLineChanges?.() ?? null;
+  if (changes == null) {
+    // No diff info available (e.g. test fakes): preserve the legacy
+    // "replace selection literally" behavior so existing callers/tests
+    // keep working.
+    return { range: selection, text: source.getValueInRange(selection) };
+  }
+
+  // The selection sits on the *source* side; pick the diff change(s)
+  // it intersects there.
+  const sourceSide = direction === 'toModified' ? 'original' : 'modified';
+  const change = findChangeForSelection(changes, sourceSide, selection);
+  if (!change) return null;
+
+  const srcStart = sourceSide === 'original' ? change.originalStartLineNumber : change.modifiedStartLineNumber;
+  const srcEnd = sourceSide === 'original' ? change.originalEndLineNumber : change.modifiedEndLineNumber;
+  const tgtStart = sourceSide === 'original' ? change.modifiedStartLineNumber : change.originalStartLineNumber;
+  const tgtEnd = sourceSide === 'original' ? change.modifiedEndLineNumber : change.originalEndLineNumber;
+
+  // Plain (no trailing newline) joined source lines. When the source
+  // side has zero lines for this change, the operation effectively
+  // becomes "delete the inserted lines on the target side".
+  const sourceText = srcEnd === 0 ? '' : readLines(source, srcStart, srcEnd);
+
+  if (tgtEnd === 0) {
+    // Pure insertion on the target side. `tgtStart` is the line *after
+    // which* content should be inserted (0 = before line 1).
+    if (tgtStart === 0) {
+      return {
+        range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+        text: sourceText.length > 0 ? sourceText + '\n' : '',
+      };
+    }
+    const col = target.getLineMaxColumn ? target.getLineMaxColumn(tgtStart) : 1;
+    return {
+      range: { startLineNumber: tgtStart, startColumn: col, endLineNumber: tgtStart, endColumn: col },
+      text: sourceText.length > 0 ? '\n' + sourceText : '',
+    };
+  }
+
+  // Paired change: replace the target lines wholesale. Match the range
+  // and the replacement text on whether they include a trailing
+  // newline so the final buffer keeps consistent line endings.
+  const lineCount = target.getLineCount?.();
+  const replacingLastLine = lineCount != null && tgtEnd >= lineCount;
+  if (replacingLastLine) {
+    const maxCol = target.getLineMaxColumn ? target.getLineMaxColumn(tgtEnd) : Number.MAX_SAFE_INTEGER;
+    return {
+      range: { startLineNumber: tgtStart, startColumn: 1, endLineNumber: tgtEnd, endColumn: maxCol },
+      text: sourceText,
+    };
+  }
+  return {
+    range: { startLineNumber: tgtStart, startColumn: 1, endLineNumber: tgtEnd + 1, endColumn: 1 },
+    text: sourceText.length > 0 ? sourceText + '\n' : '',
+  };
+}
+
+function findChangeForSelection(
+  changes: MonacoLineChange[],
+  side: 'original' | 'modified',
+  sel: MonacoRange,
+): MonacoLineChange | null {
+  for (const c of changes) {
+    const start = side === 'original' ? c.originalStartLineNumber : c.modifiedStartLineNumber;
+    const end = side === 'original' ? c.originalEndLineNumber : c.modifiedEndLineNumber;
+    if (end === 0) {
+      // The source side has no lines for this change — the user can
+      // only "select" it by clicking the alignment line (`start`) or
+      // the line just after it.
+      if (sel.startLineNumber === start || sel.startLineNumber === start + 1) return c;
+      continue;
+    }
+    if (sel.startLineNumber <= end && sel.endLineNumber >= start) return c;
+  }
+  return null;
+}
+
+function readLines(model: MonacoModel, startLine: number, endLine: number): string {
+  const maxCol = model.getLineMaxColumn ? model.getLineMaxColumn(endLine) : Number.MAX_SAFE_INTEGER;
+  return model.getValueInRange({
+    startLineNumber: startLine,
+    startColumn: 1,
+    endLineNumber: endLine,
+    endColumn: maxCol,
+  });
 }
 
 export interface TextDiffViewProps {
@@ -271,11 +407,18 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
           contextMenuGroupId: 'awapi',
           contextMenuOrder: 1,
           run(ed) {
-            if (!editableRightRef.current || !modelsRef.current) return;
+            if (!editableRightRef.current || !modelsRef.current || !editorRef.current) return;
             const sel = ed.getSelection();
             if (!sel) return;
-            const text = modelsRef.current.original.getValueInRange(sel);
-            modelsRef.current.modified.pushEditOperations([], [{ range: sel, text }], () => null);
+            const op = computeCopyEdit(
+              editorRef.current,
+              modelsRef.current.original,
+              modelsRef.current.modified,
+              sel,
+              'toModified',
+            );
+            if (!op) return;
+            modelsRef.current.modified.pushEditOperations([], [op], () => null);
           },
         });
         const subCopyLeft = editor.getModifiedEditor().addAction({
@@ -285,11 +428,18 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
           contextMenuGroupId: 'awapi',
           contextMenuOrder: 1,
           run(ed) {
-            if (!editableLeftRef.current || !modelsRef.current) return;
+            if (!editableLeftRef.current || !modelsRef.current || !editorRef.current) return;
             const sel = ed.getSelection();
             if (!sel) return;
-            const text = modelsRef.current.modified.getValueInRange(sel);
-            modelsRef.current.original.pushEditOperations([], [{ range: sel, text }], () => null);
+            const op = computeCopyEdit(
+              editorRef.current,
+              modelsRef.current.modified,
+              modelsRef.current.original,
+              sel,
+              'toOriginal',
+            );
+            if (!op) return;
+            modelsRef.current.original.pushEditOperations([], [op], () => null);
           },
         });
         subscriptionsRef.current.push(subCopyRight, subCopyLeft);

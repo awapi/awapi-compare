@@ -7,6 +7,7 @@ import {
   type MonacoDiffEditor,
   type MonacoEditorInstance,
   type MonacoLike,
+  type MonacoLineChange,
   type MonacoModel,
   type TextDiffActions,
 } from './TextDiffView.js';
@@ -313,5 +314,127 @@ describe('<TextDiffView /> copy context-menu actions', () => {
 
     // Right model must remain unchanged.
     expect(r.getValue()).toBe('world');
+  });
+});
+
+describe('computeCopyEdit', () => {
+  // A line-aware in-memory model rich enough for the copy logic.
+  function lineModel(initial: string): MonacoModel {
+    let value = initial;
+    const lines = (): string[] => value.split('\n');
+    return {
+      getValue: () => value,
+      setValue: (v) => { value = v; },
+      onDidChangeContent: () => ({ dispose: () => undefined }),
+      dispose: () => undefined,
+      getLineCount: () => lines().length,
+      getLineMaxColumn: (line) => (lines()[line - 1]?.length ?? 0) + 1,
+      getValueInRange: (r) => {
+        const ls = lines();
+        if (r.startLineNumber === r.endLineNumber) {
+          const l = ls[r.startLineNumber - 1] ?? '';
+          return l.slice(r.startColumn - 1, r.endColumn - 1);
+        }
+        const out: string[] = [];
+        for (let i = r.startLineNumber; i <= r.endLineNumber; i += 1) {
+          const l = ls[i - 1] ?? '';
+          if (i === r.startLineNumber) out.push(l.slice(r.startColumn - 1));
+          else if (i === r.endLineNumber) out.push(l.slice(0, r.endColumn - 1));
+          else out.push(l);
+        }
+        return out.join('\n');
+      },
+      pushEditOperations: (_b, ops) => {
+        for (const op of ops) {
+          const before = (() => {
+            const ls = lines();
+            const out: string[] = [];
+            for (let i = 1; i < op.range.startLineNumber; i += 1) out.push(ls[i - 1] ?? '');
+            const startLine = ls[op.range.startLineNumber - 1] ?? '';
+            out.push(startLine.slice(0, op.range.startColumn - 1));
+            return out.join('\n');
+          })();
+          const after = (() => {
+            const ls = lines();
+            const out: string[] = [];
+            const endLine = ls[op.range.endLineNumber - 1] ?? '';
+            out.push(endLine.slice(op.range.endColumn - 1));
+            for (let i = op.range.endLineNumber + 1; i <= ls.length; i += 1) out.push(ls[i - 1] ?? '');
+            return out.join('\n');
+          })();
+          value = before + (op.text ?? '') + after;
+        }
+        return null;
+      },
+    };
+  }
+
+  function fakeEditor(changes: MonacoLineChange[]): MonacoDiffEditor {
+    return {
+      setModel: () => undefined,
+      layout: () => undefined,
+      dispose: () => undefined,
+      getOriginalEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
+      getModifiedEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
+      getLineChanges: () => changes,
+    };
+  }
+
+  it('inserts source lines at the alignment point when the target side has zero lines for the change', async () => {
+    // Mirrors the screenshot: right has lines 11 ("prom-client") and 12 ("test")
+    // that have no counterpart on the left. Copying right → left should
+    // *insert* after left line 9, not overwrite left line 11.
+    const { computeCopyEdit } = await import('./TextDiffView.js');
+    const left = lineModel(['{', '  "name": "alpha"', '  "fastify": "^4.0.0"', '}'].join('\n'));
+    const right = lineModel(
+      ['{', '  "name": "alpha"', '  "fastify": "^4.25.0"', '  "prom-client": "^15.0.0"', '  "test": "blabla3"', '}'].join('\n'),
+    );
+    const editor = fakeEditor([
+      // Pure insertion on left side: left has 0 lines, right contributes lines 4..5.
+      { originalStartLineNumber: 3, originalEndLineNumber: 0, modifiedStartLineNumber: 4, modifiedEndLineNumber: 5 },
+    ]);
+    // User's caret is on right line 4 (the "prom-client" line).
+    const sel = { startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 };
+
+    const op = computeCopyEdit(editor, right, left, sel, 'toOriginal');
+    expect(op).not.toBeNull();
+    left.pushEditOperations([], [op!], () => null);
+
+    expect(left.getValue()).toBe(
+      [
+        '{',
+        '  "name": "alpha"',
+        '  "fastify": "^4.0.0"',
+        '  "prom-client": "^15.0.0"',
+        '  "test": "blabla3"',
+        '}',
+      ].join('\n'),
+    );
+  });
+
+  it('replaces the matching block on the target side for a paired modify change', async () => {
+    const { computeCopyEdit } = await import('./TextDiffView.js');
+    const left = lineModel(['a', 'old1', 'old2', 'b'].join('\n'));
+    const right = lineModel(['a', 'NEW', 'b'].join('\n'));
+    const editor = fakeEditor([
+      { originalStartLineNumber: 2, originalEndLineNumber: 3, modifiedStartLineNumber: 2, modifiedEndLineNumber: 2 },
+    ]);
+    const sel = { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 };
+
+    const op = computeCopyEdit(editor, right, left, sel, 'toOriginal');
+    expect(op).not.toBeNull();
+    left.pushEditOperations([], [op!], () => null);
+
+    expect(left.getValue()).toBe(['a', 'NEW', 'b'].join('\n'));
+  });
+
+  it('returns null when the selection sits on matching content (no diff change)', async () => {
+    const { computeCopyEdit } = await import('./TextDiffView.js');
+    const left = lineModel('a\nb\nc');
+    const right = lineModel('a\nb\nc');
+    const editor = fakeEditor([]);
+    const sel = { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 };
+
+    expect(computeCopyEdit(editor, left, right, sel, 'toModified')).toBeNull();
   });
 });
