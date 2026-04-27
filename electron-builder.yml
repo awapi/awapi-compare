@@ -3,11 +3,11 @@ productName: AwapiCompare
 copyright: Copyright © 2026 Awapi
 
 directories:
-  buildResources: resources
-  output: release
+  buildResources: ../../resources
+  output: ../../release
 
 files:
-  - "src/desktop/out/**"
+  - "out/**"
   - "!**/*.map"
   - "!**/*.test.*"
   - "!**/tsconfig*.json"
@@ -32,11 +32,20 @@ win:
   target:
     - target: nsis
       arch: [x64, arm64]
+    - target: msi
+      arch: [x64, arm64]
 
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
+
+msi:
+  oneClick: false
+  perMachine: false
+  runAfterFinish: true
+  artifactName: ${productName}-${version}-${arch}.${ext}
 
 linux:
   category: Development

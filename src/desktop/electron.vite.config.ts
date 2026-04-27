@@ -4,7 +4,13 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // Workspace packages (`@awapi/*`) are bundled into the main process
+    // output so the packaged app does not depend on symlinked sources
+    // outside `src/desktop/` (electron-builder rejects those).
+    plugins: [externalizeDepsPlugin({ exclude: ['@awapi/shared', '@awapi/licensing'] })],
+    ssr: {
+      noExternal: ['@awapi/shared', '@awapi/licensing'],
+    },
     build: {
       outDir: 'out/main',
       rollupOptions: {

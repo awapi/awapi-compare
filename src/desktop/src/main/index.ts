@@ -24,12 +24,21 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  */
 const closeApprovedWindows = new WeakSet<BrowserWindow>();
 
+// Resolves to <repo>/resources/icon.png both in dev (electron-vite serves
+// the main process from src/desktop/out/main) and in packaged builds
+// where electron-builder copies resources/ next to the app bundle.
+// On macOS and Windows, electron-builder uses icon.icns / icon.ico for
+// the OS-level app icon; this PNG is the in-process window/dock icon
+// used during development and on Linux.
+const APP_ICON_PATH = join(__dirname, '../../../../resources/icon.png');
+
 function createMainWindow(services: Services): BrowserWindow {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
     show: false,
     title: 'AwapiCompare',
+    icon: APP_ICON_PATH,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

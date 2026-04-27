@@ -89,15 +89,19 @@ build:
 
 # Package an installer for the current OS.
 # Usage: just package           (current OS)
-#        just package mac       (dmg+zip, universal)
-#        just package win       (nsis, x64+arm64)
-#        just package linux     (AppImage+deb)
+#        just package mac       (dmg+zip, x64+arm64)
+#        just package win       (nsis exe + msi, x64+arm64)
+#        just package linux     (AppImage+deb, x64+arm64)
+#
+# Note: electron-builder is invoked from the repo root so it picks up
+# the root `electron-builder.yml`. `--projectDir` points it at the
+# packaged Electron app under `src/desktop/`.
 package target="": build notices
-    pnpm --filter @awapi/desktop exec electron-builder {{ if target == "" { "" } else if target == "mac" { "--mac" } else if target == "win" { "--win" } else if target == "linux" { "--linux" } else { "--" + target } }}
+    pnpm exec electron-builder --config electron-builder.yml --projectDir src/desktop {{ if target == "" { "" } else if target == "mac" { "--mac" } else if target == "win" { "--win" } else if target == "linux" { "--linux" } else { "--" + target } }}
 
 # Package for all platforms (CI only; requires cross-build tooling).
 package-all: build notices
-    pnpm --filter @awapi/desktop exec electron-builder -mwl
+    pnpm exec electron-builder --config electron-builder.yml --projectDir src/desktop -mwl
 
 # Regenerate THIRD_PARTY_NOTICES.md from all production deps.
 notices:
