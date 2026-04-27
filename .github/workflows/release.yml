@@ -13,6 +13,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -36,9 +38,7 @@ jobs:
 
       - name: Package & publish to GitHub Releases
         env:
-          # Scope to the awapi/awapi-compare releases only; rotate per
-          # docs/release-process.md.
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # v1 is intentionally unsigned. Disable electron-builder's
           # automatic certificate discovery so the build doesn't try to
           # sign with whatever identity may live on the runner. When

@@ -50,6 +50,7 @@ msi:
 linux:
   category: Development
   maintainer: Awapi <support@awapi.com>
+  artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: AppImage
       arch: [x64, arm64]
