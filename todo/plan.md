@@ -61,9 +61,9 @@ The foundation is complete. See `git log` and `docs/` for detail.
 
 ## Phase 11 — Release engineering (CI/CD)
 
-- [ ] Pull-request CI: lint, typecheck, unit tests, build on all three OSes
-- [ ] Tag-triggered release pipeline: build and publish installers for all three OSes to GitHub Releases
-- [ ] Secret slots reserved for future code-signing and license-backend credentials
+- [x] Pull-request CI: lint, typecheck, unit tests, build on all three OSes
+- [x] Tag-triggered release pipeline: build and publish installers for all three OSes to GitHub Releases
+- [x] Secret slots reserved for future code-signing and license-backend credentials
 
 ## Phase 12 — Testing strategy (cross-cutting)
 

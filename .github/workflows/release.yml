@@ -39,11 +39,19 @@ jobs:
           # Scope to the awapi/awapi-compare releases only; rotate per
           # docs/release-process.md.
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          # Signing secrets — empty in v1.
+          # v1 is intentionally unsigned. Disable electron-builder's
+          # automatic certificate discovery so the build doesn't try to
+          # sign with whatever identity may live on the runner. When
+          # signing certificates are provisioned, remove this line and
+          # populate the CSC_* / APPLE_* secrets below.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Signing secret slots — empty in v1; reserved for future use.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm --filter @awapi/desktop exec electron-builder --publish always
+          # License-backend slot (Phase 8); empty in v1.
+          KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
+        run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always
