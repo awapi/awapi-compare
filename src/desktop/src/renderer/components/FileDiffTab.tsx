@@ -288,7 +288,28 @@ function FileDiffBody({
     [data],
   );
 
-  const reload = useCallback(() => data.reload(), [data]);
+  const handleRefresh = useCallback(async () => {
+    if (!leftDirty && !rightDirty) {
+      data.reload();
+      return;
+    }
+    const choice = await window.awapi?.dialog?.confirmUnsaved?.({ name: relPath });
+    if (choice === 'cancel' || choice === undefined) return;
+    if (choice === 'save') {
+      const actions = textDiffActionsRef.current;
+      if (actions) {
+        try {
+          if (leftDirtyRef.current) await actions.saveLeft();
+          if (rightDirtyRef.current) await actions.saveRight();
+        } catch {
+          return;
+        }
+      }
+    } else {
+      textDiffActionsRef.current?.discardEdits();
+    }
+    data.reload();
+  }, [leftDirty, rightDirty, data, relPath]);
 
   // Triggered from the Monaco context menu ("Copy → Right" / "Copy
   // ← Left") when the destination side is not editable because it
@@ -434,8 +455,8 @@ function FileDiffBody({
         onLeftRootChange={setLeftPath}
         onRightRootChange={setRightPath}
         onModeChange={setMode}
-        onRefresh={reload}
-        onSubmitPaths={reload}
+        onRefresh={() => void handleRefresh()}
+        onSubmitPaths={() => void handleRefresh()}
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules ?? (() => undefined)}
         onOpenDiffOptions={onOpenDiffOptions}

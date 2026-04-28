@@ -13,6 +13,8 @@ export interface TextDiffActions {
   saveLeft(): Promise<void>;
   /** Read the current modified-side value and invoke `onSave('right', ...)`. */
   saveRight(): Promise<void>;
+  /** Reset both models to the last prop-supplied text and clear dirty flags (discard edits). */
+  discardEdits(): void;
 }
 
 /**
@@ -677,6 +679,10 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   // its OWN prop value actually changed since the last sync.
   const lastSyncedLeftRef = useRef<string | null>(null);
   const lastSyncedRightRef = useRef<string | null>(null);
+  const displayLeftTextRef = useRef(displayLeftText);
+  displayLeftTextRef.current = displayLeftText;
+  const displayRightTextRef = useRef(displayRightText);
+  displayRightTextRef.current = displayRightText;
   useEffect(() => {
     if (editorState !== 'ready') return;
     const m = modelsRef.current;
@@ -731,6 +737,22 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
     actionsRef.current = {
       saveLeft: () => handleSave('left'),
       saveRight: () => handleSave('right'),
+      discardEdits: () => {
+        const m = modelsRef.current;
+        if (!m) return;
+        const lt = displayLeftTextRef.current;
+        const rt = displayRightTextRef.current;
+        if (lt !== null) {
+          m.original.setValue(lt);
+          lastSyncedLeftRef.current = lt;
+          setLeftDirty(false);
+        }
+        if (rt !== null) {
+          m.modified.setValue(rt);
+          lastSyncedRightRef.current = rt;
+          setRightDirty(false);
+        }
+      },
     };
     return () => {
       if (actionsRef.current && actionsRef.current.saveLeft === handleSave) {
