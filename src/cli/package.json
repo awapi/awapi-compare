@@ -1,6 +1,6 @@
 {
   "name": "@awapi/cli",
-  "version": "0.1.3",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
