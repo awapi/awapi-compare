@@ -192,6 +192,60 @@ export function computeCopyEdit(
   const change = findChangeForSelection(changes, sourceSide, selection);
   if (!change) return null;
 
+  return computeChangeEdit(change, source, target, selection, sourceSide);
+}
+
+/**
+ * Like {@link computeCopyEdit} but returns an edit for **every** diff
+ * hunk that overlaps the selection.  This is the path taken by the
+ * context-menu actions so that a wide selection (e.g. Cmd+A) copies
+ * all visible changes in one shot rather than just the first one.
+ */
+export function computeCopyEdits(
+  editor: MonacoDiffEditor,
+  source: MonacoModel,
+  target: MonacoModel,
+  selection: MonacoRange,
+  direction: 'toModified' | 'toOriginal',
+): MonacoSingleEditOperation[] {
+  const changes = editor.getLineChanges?.() ?? null;
+  if (changes == null) {
+    return [{ range: selection, text: source.getValueInRange(selection) }];
+  }
+
+  const sourceSide = direction === 'toModified' ? 'original' : 'modified';
+  const ops: MonacoSingleEditOperation[] = [];
+  for (const change of changes) {
+    if (!changeIntersectsSelection(change, sourceSide, selection)) continue;
+    const op = computeChangeEdit(change, source, target, selection, sourceSide);
+    if (op) ops.push(op);
+  }
+  return ops;
+}
+
+function changeIntersectsSelection(
+  c: MonacoLineChange,
+  side: 'original' | 'modified',
+  sel: MonacoRange,
+): boolean {
+  const start = side === 'original' ? c.originalStartLineNumber : c.modifiedStartLineNumber;
+  const end = side === 'original' ? c.originalEndLineNumber : c.modifiedEndLineNumber;
+  if (end === 0) {
+    // Source side has no lines; the anchor is the line after which the
+    // target-only content sits (0 means before line 1 → anchor = 1).
+    const anchor = start === 0 ? 1 : start;
+    return sel.startLineNumber <= anchor && sel.endLineNumber >= anchor;
+  }
+  return sel.startLineNumber <= end && sel.endLineNumber >= start;
+}
+
+function computeChangeEdit(
+  change: MonacoLineChange,
+  source: MonacoModel,
+  target: MonacoModel,
+  selection: MonacoRange,
+  sourceSide: 'original' | 'modified',
+): MonacoSingleEditOperation | null {
   const srcStart = sourceSide === 'original' ? change.originalStartLineNumber : change.modifiedStartLineNumber;
   const srcEnd = sourceSide === 'original' ? change.originalEndLineNumber : change.modifiedEndLineNumber;
   const tgtStart = sourceSide === 'original' ? change.modifiedStartLineNumber : change.originalStartLineNumber;
@@ -521,15 +575,15 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
             }
             const sel = ed.getSelection();
             if (!sel) return;
-            const op = computeCopyEdit(
+            const ops = computeCopyEdits(
               editorRef.current,
               modelsRef.current.original,
               modelsRef.current.modified,
               sel,
               'toModified',
             );
-            if (!op) return;
-            modelsRef.current.modified.pushEditOperations([], [op], () => null);
+            if (ops.length === 0) return;
+            modelsRef.current.modified.pushEditOperations([], ops, () => null);
           },
         });
         const subCopyLeft = editor.getModifiedEditor().addAction({
@@ -549,15 +603,15 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
             }
             const sel = ed.getSelection();
             if (!sel) return;
-            const op = computeCopyEdit(
+            const ops = computeCopyEdits(
               editorRef.current,
               modelsRef.current.modified,
               modelsRef.current.original,
               sel,
               'toOriginal',
             );
-            if (!op) return;
-            modelsRef.current.original.pushEditOperations([], [op], () => null);
+            if (ops.length === 0) return;
+            modelsRef.current.original.pushEditOperations([], ops, () => null);
           },
         });
         subscriptionsRef.current.push(subCopyRight, subCopyLeft);

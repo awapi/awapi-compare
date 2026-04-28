@@ -145,6 +145,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                       isDir={isDir}
                       hasChildren={hasChildren}
                       expanded={expanded}
+                      exists={!!pair.left}
                       onToggle={() => toggle(pair.relPath)}
                     />
                     <span className="awapi-diff-cell__name">
@@ -183,6 +184,15 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                       style={{ width: indent }}
                       aria-hidden="true"
                     />
+                    <span
+                      className="awapi-diff-tree__chevron awapi-diff-tree__chevron--leaf"
+                      aria-hidden="true"
+                    />
+                    {pair.right && (
+                      <span className="awapi-diff-tree__icon" aria-hidden="true">
+                        {isDir ? '📁' : '📄'}
+                      </span>
+                    )}
                     <span className="awapi-diff-cell__name">
                       {pair.right?.name ?? ''}
                     </span>
@@ -218,11 +228,12 @@ interface TreeCellLeadProps {
   isDir: boolean;
   hasChildren: boolean;
   expanded: boolean;
+  exists: boolean;
   onToggle: () => void;
 }
 
 function TreeCellLead(props: TreeCellLeadProps): JSX.Element {
-  const { indent, isDir, hasChildren, expanded, onToggle } = props;
+  const { indent, isDir, hasChildren, expanded, exists, onToggle } = props;
   return (
     <>
       <span
@@ -248,9 +259,11 @@ function TreeCellLead(props: TreeCellLeadProps): JSX.Element {
           aria-hidden="true"
         />
       )}
-      <span className="awapi-diff-tree__icon" aria-hidden="true">
-        {isDir ? '📁' : '📄'}
-      </span>
+      {exists && (
+        <span className="awapi-diff-tree__icon" aria-hidden="true">
+          {isDir ? '📁' : '📄'}
+        </span>
+      )}
     </>
   );
 }

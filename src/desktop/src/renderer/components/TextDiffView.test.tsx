@@ -4,6 +4,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { FS_ERROR_EXTERNAL_MODIFICATION } from '@awapi/shared';
 import {
   TextDiffView,
+  computeCopyEdits,
   type MonacoDiffEditor,
   type MonacoEditorInstance,
   type MonacoLike,
@@ -502,5 +503,103 @@ describe('computeCopyEdit', () => {
     left.pushEditOperations([], [op!], () => null);
 
     expect(left.getValue()).toBe(['PORT=9090', 'DB_HOST=db.internal'].join('\n'));
+  });
+});
+
+describe('computeCopyEdits (multi-hunk)', () => {
+  function lineModel(initial: string): MonacoModel {
+    let value = initial;
+    const lines = (): string[] => value.split('\n');
+    return {
+      getValue: () => value,
+      setValue: (v) => { value = v; },
+      onDidChangeContent: () => ({ dispose: () => undefined }),
+      dispose: () => undefined,
+      getLineCount: () => lines().length,
+      getLineMaxColumn: (line) => (lines()[line - 1]?.length ?? 0) + 1,
+      getValueInRange: (r) => {
+        const ls = lines();
+        if (r.startLineNumber === r.endLineNumber) {
+          const l = ls[r.startLineNumber - 1] ?? '';
+          return l.slice(r.startColumn - 1, r.endColumn - 1);
+        }
+        const out: string[] = [];
+        for (let i = r.startLineNumber; i <= r.endLineNumber; i += 1) {
+          const l = ls[i - 1] ?? '';
+          if (i === r.startLineNumber) out.push(l.slice(r.startColumn - 1));
+          else if (i === r.endLineNumber) out.push(l.slice(0, r.endColumn - 1));
+          else out.push(l);
+        }
+        return out.join('\n');
+      },
+      pushEditOperations: (_b, ops) => {
+        // Apply all ops from last to first to avoid line-shift issues.
+        for (const op of [...ops].reverse()) {
+          const ls = lines();
+          const before = (() => {
+            const out: string[] = [];
+            for (let i = 1; i < op.range.startLineNumber; i += 1) out.push(ls[i - 1] ?? '');
+            const startLine = ls[op.range.startLineNumber - 1] ?? '';
+            out.push(startLine.slice(0, op.range.startColumn - 1));
+            return out.join('\n');
+          })();
+          const after = (() => {
+            const out: string[] = [];
+            const endLine = ls[op.range.endLineNumber - 1] ?? '';
+            out.push(endLine.slice(op.range.endColumn - 1));
+            for (let i = op.range.endLineNumber + 1; i <= ls.length; i += 1) out.push(ls[i - 1] ?? '');
+            return out.join('\n');
+          })();
+          value = before + (op.text ?? '') + after;
+        }
+        return null;
+      },
+    };
+  }
+
+  function fakeEditor(changes: MonacoLineChange[]): MonacoDiffEditor {
+    return {
+      setModel: () => undefined,
+      layout: () => undefined,
+      dispose: () => undefined,
+      getOriginalEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
+      getModifiedEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
+      getLineChanges: () => changes,
+    };
+  }
+
+  it('applies all diff hunks when the selection spans multiple changes (e.g. Cmd+A)', () => {
+    // Reproduces the user-reported bug: three separate diff hunks exist
+    // in the file. Cmd+A selects from line 1 to the last line.
+    // Previously only the first hunk was copied.
+    const left = lineModel(
+      ['PORT=8080', 'DB_HOST=localhost', 'SAME=true', 'LOG_LEVEL=info', 'SAME2=yes', 'TIMEOUT=30'].join('\n'),
+    );
+    const right = lineModel(
+      ['PORT=9090', 'DB_HOST=db.internal', 'SAME=true', 'LOG_LEVEL=debug', 'SAME2=yes', 'TIMEOUT=60'].join('\n'),
+    );
+    const editor = fakeEditor([
+      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
+      { originalStartLineNumber: 4, originalEndLineNumber: 4, modifiedStartLineNumber: 4, modifiedEndLineNumber: 4 },
+      { originalStartLineNumber: 6, originalEndLineNumber: 6, modifiedStartLineNumber: 6, modifiedEndLineNumber: 6 },
+    ]);
+    // Cmd+A: select all 6 lines on the right side.
+    const sel = { startLineNumber: 1, startColumn: 1, endLineNumber: 6, endColumn: 9 };
+
+    const ops = computeCopyEdits(editor, right, left, sel, 'toOriginal');
+    expect(ops.length).toBe(3);
+    left.pushEditOperations([], ops, () => null);
+
+    // Left should now match right completely.
+    expect(left.getValue()).toBe(right.getValue());
+  });
+
+  it('returns empty array when selection covers only matching lines', () => {
+    const left = lineModel('a\nb\nc');
+    const right = lineModel('a\nb\nc');
+    const editor = fakeEditor([]);
+    const sel = { startLineNumber: 1, startColumn: 1, endLineNumber: 3, endColumn: 2 };
+
+    expect(computeCopyEdits(editor, right, left, sel, 'toOriginal')).toEqual([]);
   });
 });
