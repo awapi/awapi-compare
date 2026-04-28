@@ -102,6 +102,8 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.FsStat, (_e, req) => wrap(() => fs.stat(req)));
   ipcMain.handle(IpcChannel.FsCopy, (_e, req) => wrap(() => fs.copy(req)));
   ipcMain.handle(IpcChannel.FsWrite, (_e, req) => wrap(() => fs.write(req)));
+  ipcMain.handle(IpcChannel.FsRm, (_e, req) => wrap(() => fs.rm(req)));
+  ipcMain.handle(IpcChannel.FsRename, (_e, req) => wrap(() => fs.rename(req)));
 
   ipcMain.handle(IpcChannel.SessionSave, (_e, s) => wrap(() => session.save(s)));
   ipcMain.handle(IpcChannel.SessionLoad, (_e, id: string) => wrap(() => session.load(id)));

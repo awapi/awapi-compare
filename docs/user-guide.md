@@ -148,6 +148,23 @@ again** checkbox. Tick it to skip the prompt for the rest of the
 session (and future launches). You can re-enable the prompt at any
 time from **Preferences → Folder compare**.
 
+## Renaming and deleting
+
+Right-click any row in the folder-compare view to access:
+
+- **Rename…** — change the basename of the selected entry. When both
+  sides exist at the same relative path they are renamed together
+  (the new name is applied to each side's parent directory).
+  Keyboard: `F2`.
+- **Delete** — permanently remove the selected entry. A confirmation
+  dialog lists the absolute path(s) that will be deleted; folders
+  are removed recursively. When both sides exist they are both
+  deleted. Keyboard: `Del`.
+
+Both actions surface filesystem errors (e.g. permission denied,
+destination already exists) inline at the bottom of the compare tab
+and the view is refreshed automatically afterwards.
+
 ## Preferences
 
 Open via **Edit → Preferences…** (or **AwapiCompare → Preferences…**

@@ -13,7 +13,7 @@ export interface DiffTableProps {
   theme: ThemeName;
   onSelect?: (relPath: string) => void;
   onActivate?: (relPath: string) => void;
-  onContextMenu?: (relPath: string, x: number, y: number) => void;
+  onContextMenu?: (relPath: string, side: 'left' | 'right', x: number, y: number) => void;
 }
 
 const ROW_HEIGHT = 24;
@@ -85,7 +85,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
       >
         {rows.length === 0 ? (
           <div className="awapi-diff-table__empty">
-            Pick a left and right folder, then click Compare.
+            Pick a left or right folder to list its contents, or both to compare.
           </div>
         ) : (
           <div
@@ -122,10 +122,24 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                     if (!onContextMenu) return;
                     event.preventDefault();
                     onSelect?.(pair.relPath);
-                    onContextMenu(pair.relPath, event.clientX, event.clientY);
+                    // Detect which side of the row was clicked. Cells
+                    // carry a `data-side` attribute; the centre status
+                    // cell falls back to the side that has an entry.
+                    const target = event.target as HTMLElement | null;
+                    const cell = target?.closest('[data-side]') as
+                      | HTMLElement
+                      | null;
+                    const attr = cell?.dataset.side;
+                    let side: 'left' | 'right';
+                    if (attr === 'left' || attr === 'right') {
+                      side = attr;
+                    } else {
+                      side = pair.left ? 'left' : 'right';
+                    }
+                    onContextMenu(pair.relPath, side, event.clientX, event.clientY);
                   }}
                 >
-                  <div className="awapi-diff-cell" role="gridcell">
+                  <div className="awapi-diff-cell" role="gridcell" data-side="left">
                     <TreeCellLead
                       indent={indent}
                       isDir={isDir}
@@ -140,6 +154,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
+                    data-side="left"
                   >
                     {pair.left && pair.left.type !== 'dir'
                       ? formatSize(pair.left.size)
@@ -148,6 +163,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
+                    data-side="left"
                   >
                     {formatMtime(pair.left?.mtimeMs)}
                   </div>
@@ -159,7 +175,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                   >
                     {statusGlyph(displayStatus)}
                   </div>
-                  <div className="awapi-diff-cell" role="gridcell">
+                  <div className="awapi-diff-cell" role="gridcell" data-side="right">
                     {/* Right pane mirrors the left indentation so rows
                         line up across the divider. */}
                     <span
@@ -174,6 +190,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
+                    data-side="right"
                   >
                     {pair.right && pair.right.type !== 'dir'
                       ? formatSize(pair.right.size)
@@ -182,6 +199,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
+                    data-side="right"
                   >
                     {formatMtime(pair.right?.mtimeMs)}
                   </div>

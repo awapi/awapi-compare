@@ -1,4 +1,5 @@
-import type { ChangeEvent, JSX, KeyboardEvent, ReactNode } from 'react';
+import { useId } from 'react';
+import type { ChangeEvent, FormEvent, JSX, KeyboardEvent, ReactNode } from 'react';
 import type { CompareMode } from '@awapi/shared';
 import type { ThemeName } from '../state/themeStore.js';
 import type { ViewFilter } from '../viewFilter.js';
@@ -19,6 +20,14 @@ export interface ToolbarProps {
   onOpenRules(): void;
   onPickLeftFolder?(): void;
   onPickRightFolder?(): void;
+  /**
+   * Called when the user clicks the "folder up" button next to the
+   * left / right path input. Implementations should resolve the
+   * parent directory of the current value and update the path. The
+   * button is hidden when no handler is provided.
+   */
+  onGoUpLeft?(): void;
+  onGoUpRight?(): void;
   onOpenDiffOptions?(): void;
   onViewFilterChange?(filter: ViewFilter): void;
   /**
@@ -56,6 +65,15 @@ export interface ToolbarProps {
   rightDirty?: boolean;
   /** Side currently being saved, or `null` when idle. */
   saving?: 'left' | 'right' | null;
+  /**
+   * Optional list of recent values to surface in the left / right
+   * path inputs as a native dropdown (HTML `<datalist>`). The list is
+   * read-only from the toolbar's perspective; ordering is preserved
+   * (newest first). When omitted, the input renders as a plain text
+   * field (no dropdown chrome).
+   */
+  leftRecents?: readonly string[];
+  rightRecents?: readonly string[];
 }
 
 const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
@@ -117,6 +135,8 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onOpenRules,
     onPickLeftFolder,
     onPickRightFolder,
+    onGoUpLeft,
+    onGoUpRight,
     onOpenDiffOptions,
     onViewFilterChange,
     onSubmitPaths,
@@ -130,19 +150,41 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     leftDirty = false,
     rightDirty = false,
     saving = null,
+    leftRecents,
+    rightRecents,
   } = props;
 
-  const canCompare = !scanning && leftRoot.trim() !== '' && rightRoot.trim() !== '';
+  // Stable per-input ids so the <datalist> can be wired up via the
+  // input's `list` attribute without colliding when multiple toolbars
+  // are mounted (e.g. several compare tabs).
+  const reactId = useId();
+  const leftListId = `awapi-recents-left-${reactId}`;
+  const rightListId = `awapi-recents-right-${reactId}`;
+
+  const canCompare = !scanning && (leftRoot.trim() !== '' || rightRoot.trim() !== '');
   const leftLabel = pathLabel === 'file' ? 'Left file' : 'Left folder';
   const rightLabel = pathLabel === 'file' ? 'Right file' : 'Right folder';
   const leftPlaceholder = pathLabel === 'file' ? 'Left file\u2026' : 'Left folder\u2026';
   const rightPlaceholder = pathLabel === 'file' ? 'Right file\u2026' : 'Right folder\u2026';
   const browseTitle = pathLabel === 'file' ? 'Browse for file' : 'Browse for folder';
+  const upTitle = 'Go to parent folder';
 
   const handlePathKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     (onSubmitPaths ?? onRefresh)();
+  };
+
+  // Picking a value from a `<datalist>` fires an `input` event whose
+  // `inputType` is `insertReplacementText` in Chromium. When that
+  // happens we treat it as a commit so the user doesn't also need to
+  // press Enter to load the chosen folder / file. The standard
+  // `onChange` handler still owns the actual value update.
+  const handlePathInput = (e: FormEvent<HTMLInputElement>): void => {
+    const native = e.nativeEvent as InputEvent;
+    if (native.inputType === 'insertReplacementText') {
+      (onSubmitPaths ?? onRefresh)();
+    }
   };
 
   return (
@@ -262,16 +304,37 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
       </header>
       <div className="awapi-pathbar" role="group" aria-label={pathLabel === 'file' ? 'File paths' : 'Folder paths'}>
         <div className="awapi-pathbar__side">
+          {onGoUpLeft ? (
+            <button
+              type="button"
+              className="awapi-pathbar__pick"
+              aria-label={`Go up from ${leftLabel.toLowerCase()}`}
+              title={upTitle}
+              disabled={!leftRoot.trim()}
+              onClick={onGoUpLeft}
+            >
+              <span aria-hidden="true">↑</span>
+            </button>
+          ) : null}
           <input
             type="text"
             placeholder={leftPlaceholder}
             aria-label={leftLabel}
             value={leftRoot}
+            list={leftRecents && leftRecents.length > 0 ? leftListId : undefined}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               onLeftRootChange(e.target.value)
             }
+            onInput={handlePathInput}
             onKeyDown={handlePathKeyDown}
           />
+          {leftRecents && leftRecents.length > 0 ? (
+            <datalist id={leftListId}>
+              {leftRecents.map((value) => (
+                <option key={value} value={value} />
+              ))}
+            </datalist>
+          ) : null}
           <button
             type="button"
             className="awapi-pathbar__pick"
@@ -284,16 +347,37 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           </button>
         </div>
         <div className="awapi-pathbar__side">
+          {onGoUpRight ? (
+            <button
+              type="button"
+              className="awapi-pathbar__pick"
+              aria-label={`Go up from ${rightLabel.toLowerCase()}`}
+              title={upTitle}
+              disabled={!rightRoot.trim()}
+              onClick={onGoUpRight}
+            >
+              <span aria-hidden="true">↑</span>
+            </button>
+          ) : null}
           <input
             type="text"
             placeholder={rightPlaceholder}
             aria-label={rightLabel}
             value={rightRoot}
+            list={rightRecents && rightRecents.length > 0 ? rightListId : undefined}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               onRightRootChange(e.target.value)
             }
+            onInput={handlePathInput}
             onKeyDown={handlePathKeyDown}
           />
+          {rightRecents && rightRecents.length > 0 ? (
+            <datalist id={rightListId}>
+              {rightRecents.map((value) => (
+                <option key={value} value={value} />
+              ))}
+            </datalist>
+          ) : null}
           <button
             type="button"
             className="awapi-pathbar__pick"

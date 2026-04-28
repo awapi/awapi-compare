@@ -1,4 +1,5 @@
 import {
+  FS_ERROR_DESTINATION_EXISTS,
   FS_ERROR_EXTERNAL_MODIFICATION,
   FS_ERROR_FILE_TOO_LARGE,
   MAX_TEXT_FILE_BYTES,
@@ -11,6 +12,9 @@ import {
   type FsReadChunkRequest,
   type FsReadRequest,
   type FsReadResult,
+  type FsRenameRequest,
+  type FsRmRequest,
+  type FsRmResult,
   type FsScanRequest,
   type FsScanResult,
   type FsStatRequest,
@@ -73,6 +77,10 @@ export interface FsIo {
     isDirectory(): boolean;
     isSymbolicLink(): boolean;
   }>;
+  /** Used by `fs.rm`. */
+  rm(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
+  /** Used by `fs.rename`. */
+  rename(from: string, to: string): Promise<void>;
 }
 
 /**
@@ -80,6 +88,7 @@ export interface FsIo {
  * distinguish recoverable cases (large file / external modification)
  * from generic failures. Re-exported from `@awapi/shared` to keep the
  * symbol importable from main-side modules.
+  FS_ERROR_DESTINATION_EXISTS,
  */
 export {
   FS_ERROR_FILE_TOO_LARGE,
@@ -141,29 +150,41 @@ export class FsService {
       this.emitScanProgress({ scanned, currentPath });
     };
 
+    // A side with an empty/whitespace-only root is treated as "not yet
+    // selected" — we skip scanning it entirely so the renderer can list
+    // a single side's contents while the user is still picking the
+    // other folder. The pair classifier already handles
+    // left-only / right-only naturally.
+    const leftRootProvided = req.leftRoot.trim().length > 0;
+    const rightRootProvided = req.rightRoot.trim().length > 0;
+
     await Promise.all([
-      collectSide(
-        req.leftRoot,
-        options,
-        compiledRules,
-        diffOptions,
-        leftMap,
-        (relPath, message) => {
-          errors.push({ side: 'left', relPath, message });
-        },
-        emitProgress,
-      ),
-      collectSide(
-        req.rightRoot,
-        options,
-        compiledRules,
-        diffOptions,
-        rightMap,
-        (relPath, message) => {
-          errors.push({ side: 'right', relPath, message });
-        },
-        emitProgress,
-      ),
+      leftRootProvided
+        ? collectSide(
+            req.leftRoot,
+            options,
+            compiledRules,
+            diffOptions,
+            leftMap,
+            (relPath, message) => {
+              errors.push({ side: 'left', relPath, message });
+            },
+            emitProgress,
+          )
+        : Promise.resolve(),
+      rightRootProvided
+        ? collectSide(
+            req.rightRoot,
+            options,
+            compiledRules,
+            diffOptions,
+            rightMap,
+            (relPath, message) => {
+              errors.push({ side: 'right', relPath, message });
+            },
+            emitProgress,
+          )
+        : Promise.resolve(),
     ]);
 
     const keys = new Set<string>([...leftMap.keys(), ...rightMap.keys()]);
@@ -241,6 +262,14 @@ export class FsService {
 
   copy(req: FsCopyRequest): Promise<FsCopyResult> {
     return this.copyImpl(req);
+  }
+
+  rm(req: FsRmRequest): Promise<FsRmResult> {
+    return this.rmImpl(req);
+  }
+
+  rename(req: FsRenameRequest): Promise<void> {
+    return this.renameImpl(req);
   }
 
   write(req: FsWriteRequest): Promise<void> {
@@ -414,6 +443,43 @@ export class FsService {
     } catch (err) {
       result.errors.push({ path: from, message: errMessage(err) });
     }
+  }
+
+  private async rmImpl(req: FsRmRequest): Promise<FsRmResult> {
+    const result: FsRmResult = { deleted: 0, errors: [] };
+    const seen = new Set<string>();
+    for (const path of req.paths) {
+      if (!path || seen.has(path)) continue;
+      seen.add(path);
+      try {
+        await this.io.rm(path, { recursive: true, force: false });
+        result.deleted += 1;
+      } catch (err) {
+        result.errors.push({ path, message: errMessage(err) });
+      }
+    }
+    return result;
+  }
+
+  private async renameImpl(req: FsRenameRequest): Promise<void> {
+    if (req.from === req.to) return;
+    // Reject when the destination already exists so renames cannot
+    // silently clobber a sibling.
+    let destExists = false;
+    try {
+      await this.io.lstat(req.to);
+      destExists = true;
+    } catch {
+      destExists = false;
+    }
+    if (destExists) {
+      throw new FsCodedError(
+        `fs.rename: destination already exists: ${req.to}`,
+        FS_ERROR_DESTINATION_EXISTS,
+        { to: req.to },
+      );
+    }
+    await this.io.rename(req.from, req.to);
   }
 
   private async readChunkImpl(req: FsReadChunkRequest): Promise<Uint8Array> {

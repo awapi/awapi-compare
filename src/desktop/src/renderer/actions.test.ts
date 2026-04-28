@@ -41,6 +41,7 @@ describe('isActionEnabled', () => {
       'open',
       'copyLeftToRight',
       'copyRightToLeft',
+      'rename',
       'delete',
       'markSame',
       'exclude',
@@ -85,6 +86,14 @@ describe('isActionEnabled', () => {
     );
   });
 
+  it('rename requires at least one side', () => {
+    const empty: ComparedPair = { relPath: 'x', status: 'identical' };
+    expect(isActionEnabled('rename', { pair: empty })).toBe(false);
+    expect(isActionEnabled('rename', { pair: pair('left-only', { left: true }) })).toBe(
+      true,
+    );
+  });
+
   it('open is disabled for error pairs', () => {
     expect(isActionEnabled('open', { pair: pair('error') })).toBe(false);
   });
@@ -120,13 +129,17 @@ describe('isActionEnabled', () => {
 });
 
 describe('buildRowMenuItems', () => {
-  it('produces every action in a stable order with labels and accelerators', () => {
+  it('produces every action in a stable order with labels and accelerators, separated into logical groups', () => {
     const items = buildRowMenuItems({ pair: pair('different') });
-    expect(items.map((i) => i.action)).toEqual([
+    const actions = items
+      .filter((i) => i.type !== 'separator')
+      .map((i) => (i.type !== 'separator' ? i.action : null));
+    expect(actions).toEqual([
       'open',
       'compare',
       'copyLeftToRight',
       'copyRightToLeft',
+      'rename',
       'delete',
       'markSame',
       'exclude',
@@ -134,7 +147,10 @@ describe('buildRowMenuItems', () => {
       'useAsLeftFolderOnly',
       'useAsRightFolderOnly',
     ]);
+    // 4 separators between 5 groups.
+    expect(items.filter((i) => i.type === 'separator')).toHaveLength(4);
     for (const item of items) {
+      if (item.type === 'separator') continue;
       expect(item.label).toBe(ROW_ACTION_LABELS[item.action]);
       expect(item.accelerator).toBe(ROW_ACTION_ACCELERATORS[item.action]);
     }
@@ -142,16 +158,26 @@ describe('buildRowMenuItems', () => {
 
   it('marks unavailable actions as disabled but still includes them', () => {
     const items = buildRowMenuItems({ pair: pair('left-only', { left: true }) });
-    const disabled = items.filter((i) => i.disabled).map((i) => i.action);
+    const disabled = items
+      .filter((i) => i.type !== 'separator' && i.disabled)
+      .map((i) => (i.type !== 'separator' ? i.action : null));
     expect(disabled).toEqual(expect.arrayContaining(['copyRightToLeft', 'markSame']));
     expect(disabled).not.toContain('compare');
-    expect(items).toHaveLength(10);
+    // 11 actions + 4 separators.
+    expect(items).toHaveLength(15);
   });
 
   it('disables every row action when no pair is focused', () => {
     const items = buildRowMenuItems({});
-    expect(items.find((i) => i.action === 'compare')?.disabled).toBe(false);
-    for (const item of items.filter((i) => i.action !== 'compare')) {
+    const compareItem = items.find(
+      (i) => i.type !== 'separator' && i.action === 'compare',
+    );
+    expect(compareItem && compareItem.type !== 'separator' && compareItem.disabled).toBe(
+      false,
+    );
+    for (const item of items) {
+      if (item.type === 'separator') continue;
+      if (item.action === 'compare') continue;
       expect(item.disabled).toBe(true);
     }
   });

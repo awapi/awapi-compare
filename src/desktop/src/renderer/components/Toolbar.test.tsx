@@ -143,4 +143,80 @@ describe('<Toolbar />', () => {
     await userEvent.keyboard('{Enter}');
     expect(handlers.onRefresh).toHaveBeenCalledTimes(1);
   });
+
+  it('hides the up buttons when no go-up handlers are provided', () => {
+    renderToolbar({ leftRoot: '/a/b', rightRoot: '/c/d' });
+    expect(
+      screen.queryByRole('button', { name: /go up from left folder/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /go up from right folder/i }),
+    ).toBeNull();
+  });
+
+  it('clicking the up buttons invokes the go-up handlers', async () => {
+    const onGoUpLeft = vi.fn();
+    const onGoUpRight = vi.fn();
+    renderToolbar({
+      leftRoot: '/a/b',
+      rightRoot: '/c/d',
+      onGoUpLeft,
+      onGoUpRight,
+    });
+    await userEvent.click(
+      screen.getByRole('button', { name: /go up from left folder/i }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: /go up from right folder/i }),
+    );
+    expect(onGoUpLeft).toHaveBeenCalledTimes(1);
+    expect(onGoUpRight).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the up button when its path is empty', () => {
+    renderToolbar({
+      leftRoot: '',
+      rightRoot: '/c/d',
+      onGoUpLeft: vi.fn(),
+      onGoUpRight: vi.fn(),
+    });
+    expect(
+      screen.getByRole('button', { name: /go up from left folder/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /go up from right folder/i }),
+    ).toBeEnabled();
+  });
+
+  it('renders <datalist> options for recent paths and links them to the inputs', () => {
+    renderToolbar({
+      leftRoot: '',
+      rightRoot: '',
+      leftRecents: ['/recent/left/a', '/recent/left/b'],
+      rightRecents: ['/recent/right/x'],
+    });
+    const left = screen.getByLabelText('Left folder') as HTMLInputElement;
+    const right = screen.getByLabelText('Right folder') as HTMLInputElement;
+    expect(left.getAttribute('list')).toBeTruthy();
+    expect(right.getAttribute('list')).toBeTruthy();
+    const leftListId = left.getAttribute('list')!;
+    const rightListId = right.getAttribute('list')!;
+    const leftList = document.getElementById(leftListId) as HTMLDataListElement;
+    const rightList = document.getElementById(rightListId) as HTMLDataListElement;
+    expect(Array.from(leftList.querySelectorAll('option')).map((o) => o.value)).toEqual([
+      '/recent/left/a',
+      '/recent/left/b',
+    ]);
+    expect(Array.from(rightList.querySelectorAll('option')).map((o) => o.value)).toEqual([
+      '/recent/right/x',
+    ]);
+  });
+
+  it('omits the datalist when no recents are provided', () => {
+    renderToolbar({ leftRoot: '', rightRoot: '' });
+    const left = screen.getByLabelText('Left folder');
+    const right = screen.getByLabelText('Right folder');
+    expect(left.hasAttribute('list')).toBe(false);
+    expect(right.hasAttribute('list')).toBe(false);
+  });
 });

@@ -10,6 +10,9 @@ import type {
   FsReadChunkRequest,
   FsReadRequest,
   FsReadResult,
+  FsRenameRequest,
+  FsRmRequest,
+  FsRmResult,
   FsScanRequest,
   FsScanResult,
   FsStatRequest,
@@ -38,6 +41,10 @@ const api: AwapiApi = {
     hash: (path: string): Promise<string> => ipcRenderer.invoke(IpcChannel.FsHash, path),
     stat: (req: FsStatRequest): Promise<FsStatResult> =>
       ipcRenderer.invoke(IpcChannel.FsStat, req),
+    rm: (req: FsRmRequest): Promise<FsRmResult> =>
+      ipcRenderer.invoke(IpcChannel.FsRm, req),
+    rename: (req: FsRenameRequest): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.FsRename, req),
     copy: (req: FsCopyRequest): Promise<FsCopyResult> =>
       ipcRenderer.invoke(IpcChannel.FsCopy, req),
     write: (req: FsWriteRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.FsWrite, req),

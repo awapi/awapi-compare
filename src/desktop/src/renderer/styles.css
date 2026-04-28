@@ -477,6 +477,107 @@ body,
   flex: 1 1 auto;
 }
 
+.awapi-statusbar__chip--error {
+  position: relative;
+}
+
+.awapi-statusbar__chip-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  font: inherit;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.awapi-statusbar__chip-button:hover:not(:disabled) {
+  border-color: var(--awapi-border);
+  background: var(--awapi-panel-alt);
+}
+
+.awapi-statusbar__chip-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.awapi-statusbar__chip-button[aria-expanded='true'] {
+  border-color: var(--awapi-border);
+  background: var(--awapi-panel-alt);
+}
+
+.awapi-statusbar__popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  min-width: 280px;
+  max-width: 480px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--awapi-panel);
+  color: var(--awapi-text);
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  z-index: 50;
+  font-size: 12px;
+}
+
+.awapi-statusbar__popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--awapi-border);
+  font-weight: 600;
+}
+
+.awapi-statusbar__popover-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.awapi-statusbar__popover-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+}
+
+.awapi-statusbar__popover-item {
+  padding: 4px 10px;
+}
+
+.awapi-statusbar__popover-item + .awapi-statusbar__popover-item {
+  border-top: 1px solid var(--awapi-border);
+}
+
+.awapi-statusbar__popover-path {
+  font-family: var(--awapi-font-mono, monospace);
+  word-break: break-all;
+}
+
+.awapi-statusbar__popover-message {
+  margin-top: 2px;
+  color: var(--awapi-status-error);
+  word-break: break-word;
+}
+
+.awapi-statusbar__popover-footer {
+  padding: 6px 10px;
+  border-top: 1px solid var(--awapi-border);
+  color: var(--awapi-text-muted);
+}
+
 /* ---- Tabs ------------------------------------------------------------ */
 
 .awapi-tabs {
@@ -494,7 +595,7 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 7px 16px;
   background: var(--awapi-panel-alt);
   color: var(--awapi-text-muted);
   border: 1px solid var(--awapi-border);
@@ -857,6 +958,12 @@ body,
   color: var(--awapi-text-muted);
   font-size: 11px;
   margin-left: 16px;
+}
+
+.awapi-context-menu__separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--awapi-border);
 }
 
 /* ---- Modal & Rules editor ----------------------------------------- */

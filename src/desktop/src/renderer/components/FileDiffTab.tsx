@@ -10,7 +10,7 @@ import {
 import { useFileDiffData } from '../useFileDiffData.js';
 import { joinPath, extname } from '../paths.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
-import { useThemeStore, useWorkspaceStore } from '../state/stores.js';
+import { useThemeStore, useWorkspaceStore, useRecentsStore } from '../state/stores.js';
 import {
   registerTabSaveHandler,
   unregisterTabSaveHandler,
@@ -174,6 +174,13 @@ function FileDiffBody({
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
 
+  // Recent file paths (15 newest per side), surfaced in the toolbar's
+  // path inputs as a native combobox.
+  const fileRecents = useRecentsStore((s) => s.recents);
+  const addRecent = useRecentsStore((s) => s.add);
+  const leftRecents = fileRecents['file:left'];
+  const rightRecents = fileRecents['file:right'];
+
   const setTabDirty = useWorkspaceStore((s) => s.setTabDirty);
   const handleDirtyChange = useCallback(
     (state: { left: boolean; right: boolean }) => {
@@ -214,6 +221,20 @@ function FileDiffBody({
     rightPath: rightPath.trim() ? rightPath : null,
     extensionHint: extname(leftPath || rightPath || relPath),
   });
+
+  // Record file paths in the recents list once their content has
+  // successfully loaded. This avoids polluting the dropdown with
+  // typos / missing files.
+  useEffect(() => {
+    if (data.left.state === 'ready' && data.left.path) {
+      addRecent('file', 'left', data.left.path);
+    }
+  }, [data.left.state, data.left.path, addRecent]);
+  useEffect(() => {
+    if (data.right.state === 'ready' && data.right.path) {
+      addRecent('file', 'right', data.right.path);
+    }
+  }, [data.right.state, data.right.path, addRecent]);
 
   // True iff the user has not changed paths since the tab opened, in
   // which case the parent-session-supplied `pair` (with its status
@@ -263,8 +284,11 @@ function FileDiffBody({
       defaultPath: leftPath || rightPath || undefined,
       title: 'Select left file',
     });
-    if (picked) setLeftPath(picked);
-  }, [leftPath, rightPath]);
+    if (picked) {
+      setLeftPath(picked);
+      addRecent('file', 'left', picked);
+    }
+  }, [leftPath, rightPath, addRecent]);
 
   const onPickRightFile = useCallback(async () => {
     if (!window.awapi?.dialog?.pickFile) return;
@@ -272,8 +296,11 @@ function FileDiffBody({
       defaultPath: rightPath || leftPath || undefined,
       title: 'Select right file',
     });
-    if (picked) setRightPath(picked);
-  }, [leftPath, rightPath]);
+    if (picked) {
+      setRightPath(picked);
+      addRecent('file', 'right', picked);
+    }
+  }, [leftPath, rightPath, addRecent]);
 
   const scanning = data.left.state === 'loading' || data.right.state === 'loading';
 
@@ -294,6 +321,8 @@ function FileDiffBody({
         mode={mode}
         scanning={scanning}
         viewFilter={viewFilter}
+        leftRecents={leftRecents}
+        rightRecents={rightRecents}
         onViewFilterChange={setViewFilter}
         theme={theme}
         onLeftRootChange={setLeftPath}

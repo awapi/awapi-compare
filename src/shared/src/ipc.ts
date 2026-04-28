@@ -24,6 +24,8 @@ export const IpcChannel = {
   FsStat: 'fs.stat',
   FsCopy: 'fs.copy',
   FsWrite: 'fs.write',
+  FsRm: 'fs.rm',
+  FsRename: 'fs.rename',
   SessionSave: 'session.save',
   SessionLoad: 'session.load',
   SessionList: 'session.list',
@@ -80,6 +82,37 @@ export interface FsCopyResult {
   skipped: number;
   errors: Array<{ path: string; message: string }>;
 }
+
+/**
+ * Delete one or more filesystem entries (files or directories). Each
+ * path is processed independently; per-path errors are collected
+ * rather than aborting the batch. Directories are removed
+ * recursively.
+ */
+export interface FsRmRequest {
+  paths: string[];
+}
+
+export interface FsRmResult {
+  deleted: number;
+  errors: Array<{ path: string; message: string }>;
+}
+
+/**
+ * Rename (move) a filesystem entry. The destination must not already
+ * exist; callers that want to overwrite must delete first. Cross-
+ * device renames are not supported (callers should use copy + rm).
+ */
+export interface FsRenameRequest {
+  from: string;
+  to: string;
+}
+
+/**
+ * Error code returned by `fs.rename` when the destination path
+ * already exists.
+ */
+export const FS_ERROR_DESTINATION_EXISTS = 'E_DEST_EXISTS';
 
 export interface FsReadChunkRequest {
   path: string;
@@ -300,6 +333,8 @@ export interface AwapiApi {
     stat(req: FsStatRequest): Promise<FsStatResult>;
     copy(req: FsCopyRequest): Promise<FsCopyResult>;
     write(req: FsWriteRequest): Promise<void>;
+    rm(req: FsRmRequest): Promise<FsRmResult>;
+    rename(req: FsRenameRequest): Promise<void>;
     onScanProgress(cb: (p: ScanProgress) => void): () => void;
   };
   session: {

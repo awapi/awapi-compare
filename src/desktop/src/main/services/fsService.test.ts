@@ -60,6 +60,10 @@ function ioOf(fs: unknown): FsIo {
         .then(() => undefined),
     copyFile: (from, to) =>
       (realFs as unknown as { promises: { copyFile(from: string, to: string): Promise<void> } }).promises.copyFile(from, to),
+    rm: (p, opts) =>
+      (realFs as unknown as { promises: { rm(p: string, opts?: { recursive?: boolean; force?: boolean }): Promise<void> } }).promises.rm(p, opts),
+    rename: (from, to) =>
+      (realFs as unknown as { promises: { rename(from: string, to: string): Promise<void> } }).promises.rename(from, to),
     open: (p, flags) =>
       Promise.resolve({
         async read(buf: Uint8Array, off: number, len: number, pos: number | null) {
@@ -161,6 +165,29 @@ describe('FsService.scan', () => {
     const fs = makeFs({ '/l/a': 'x' });
     const r = await svc(fs).scan(req({ leftRoot: '/l', rightRoot: '/missing' }));
     expect(r.pairs.some((p) => p.status === 'error')).toBe(true);
+  });
+
+  it('lists left-only entries when the right root is empty (single-side listing)', async () => {
+    const fs = makeFs({
+      '/l/a.txt': 'hello',
+      '/l/sub/b.txt': 'world',
+    });
+    const r = await svc(fs).scan(req({ leftRoot: '/l', rightRoot: '' }));
+    const byPath = new Map(r.pairs.map((p) => [p.relPath, p]));
+    expect(byPath.get('a.txt')?.status).toBe('left-only');
+    expect(byPath.get('sub')?.status).toBe('left-only');
+    expect(byPath.get('sub/b.txt')?.status).toBe('left-only');
+    // Nothing was scanned on the right side, so no error pairs.
+    expect(r.pairs.every((p) => p.status !== 'error')).toBe(true);
+  });
+
+  it('lists right-only entries when the left root is empty (single-side listing)', async () => {
+    const fs = makeFs({ '/r/a.txt': 'hello' });
+    const r = await svc(fs).scan(req({ leftRoot: '   ', rightRoot: '/r' }));
+    const p = r.pairs.find((x) => x.relPath === 'a.txt');
+    expect(p?.status).toBe('right-only');
+    expect(p?.left).toBeUndefined();
+    expect(p?.right).toBeDefined();
   });
 });
 
@@ -382,5 +409,60 @@ describe('FsService.copy', () => {
     expect(r.copied).toBe(0);
     expect(r.errors).toHaveLength(1);
     expect(r.errors[0]?.path).toBe('/missing.txt');
+  });
+});
+
+describe('FsService.rm', () => {
+  it('deletes a single file', async () => {
+    const fs = makeFs({ '/a.txt': 'hi' });
+    const r = await svc(fs).rm({ paths: ['/a.txt'] });
+    expect(r).toEqual({ deleted: 1, errors: [] });
+    await expect(svc(fs).stat({ path: '/a.txt' })).rejects.toBeDefined();
+  });
+
+  it('removes a directory recursively', async () => {
+    const fs = makeFs({ '/d/x.txt': 'x', '/d/sub/y.txt': 'y' });
+    const r = await svc(fs).rm({ paths: ['/d'] });
+    expect(r.deleted).toBe(1);
+    expect(r.errors).toEqual([]);
+    await expect(svc(fs).stat({ path: '/d' })).rejects.toBeDefined();
+  });
+
+  it('records errors for missing paths and continues with the rest', async () => {
+    const fs = makeFs({ '/keep.txt': 'k' });
+    const r = await svc(fs).rm({ paths: ['/missing.txt', '/keep.txt'] });
+    expect(r.deleted).toBe(1);
+    expect(r.errors).toHaveLength(1);
+    expect(r.errors[0]?.path).toBe('/missing.txt');
+  });
+
+  it('de-duplicates repeated paths and ignores blanks', async () => {
+    const fs = makeFs({ '/a.txt': 'a' });
+    const r = await svc(fs).rm({ paths: ['/a.txt', '/a.txt', ''] });
+    expect(r.deleted).toBe(1);
+    expect(r.errors).toEqual([]);
+  });
+});
+
+describe('FsService.rename', () => {
+  it('renames a file in place', async () => {
+    const fs = makeFs({ '/a.txt': 'hi' });
+    await svc(fs).rename({ from: '/a.txt', to: '/b.txt' });
+    const after = await svc(fs).read({ path: '/b.txt' });
+    expect(new TextDecoder().decode(after.data)).toBe('hi');
+  });
+
+  it('rejects when the destination already exists', async () => {
+    const fs = makeFs({ '/a.txt': 'a', '/b.txt': 'b' });
+    await expect(
+      svc(fs).rename({ from: '/a.txt', to: '/b.txt' }),
+    ).rejects.toBeInstanceOf(FsCodedError);
+  });
+
+  it('is a no-op when from === to', async () => {
+    const fs = makeFs({ '/a.txt': 'a' });
+    await expect(
+      svc(fs).rename({ from: '/a.txt', to: '/a.txt' }),
+    ).resolves.toBeUndefined();
   });
 });

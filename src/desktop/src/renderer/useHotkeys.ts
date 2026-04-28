@@ -20,6 +20,7 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
   { action: 'copyLeftToRight', key: 'arrowright', alt: true },
   { action: 'copyRightToLeft', key: 'arrowleft', alt: true },
   { action: 'delete', key: 'delete' },
+  { action: 'rename', key: 'f2' },
   { action: 'markSame', key: 'm', ctrlOrMeta: true },
   { action: 'exclude', key: 'e', ctrlOrMeta: true },
 ];

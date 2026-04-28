@@ -2,7 +2,8 @@ import type { JSX, KeyboardEvent } from 'react';
 import { useEffect, useRef } from 'react';
 import type { RowAction } from '../actions.js';
 
-export interface ContextMenuItem {
+export interface ContextMenuActionItem {
+  type?: 'action';
   action: RowAction;
   label: string;
   /** When true the item is rendered but cannot be activated. */
@@ -10,6 +11,12 @@ export interface ContextMenuItem {
   /** Display-only accelerator (e.g. "Alt+→"). */
   accelerator?: string;
 }
+
+export interface ContextMenuSeparator {
+  type: 'separator';
+}
+
+export type ContextMenuItem = ContextMenuActionItem | ContextMenuSeparator;
 
 export interface ContextMenuProps {
   /** Position in viewport coordinates. */
@@ -54,7 +61,7 @@ export function ContextMenu({
 
   const handleItemKey = (
     event: KeyboardEvent<HTMLButtonElement>,
-    item: ContextMenuItem,
+    item: ContextMenuActionItem,
   ): void => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -71,26 +78,37 @@ export function ContextMenu({
       data-testid="context-menu"
       style={{ position: 'fixed', top: y, left: x }}
     >
-      {items.map((item) => (
-        <button
-          key={item.action}
-          type="button"
-          role="menuitem"
-          className="awapi-context-menu__item"
-          disabled={item.disabled}
-          onClick={() => {
-            if (!item.disabled) onSelect(item.action);
-          }}
-          onKeyDown={(event) => handleItemKey(event, item)}
-        >
-          <span className="awapi-context-menu__label">{item.label}</span>
-          {item.accelerator ? (
-            <span className="awapi-context-menu__accel" aria-hidden="true">
-              {item.accelerator}
-            </span>
-          ) : null}
-        </button>
-      ))}
+      {items.map((item, index) => {
+        if (item.type === 'separator') {
+          return (
+            <div
+              key={`sep-${index}`}
+              role="separator"
+              className="awapi-context-menu__separator"
+            />
+          );
+        }
+        return (
+          <button
+            key={item.action}
+            type="button"
+            role="menuitem"
+            className="awapi-context-menu__item"
+            disabled={item.disabled}
+            onClick={() => {
+              if (!item.disabled) onSelect(item.action);
+            }}
+            onKeyDown={(event) => handleItemKey(event, item)}
+          >
+            <span className="awapi-context-menu__label">{item.label}</span>
+            {item.accelerator ? (
+              <span className="awapi-context-menu__accel" aria-hidden="true">
+                {item.accelerator}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 }

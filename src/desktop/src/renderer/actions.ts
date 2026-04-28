@@ -12,6 +12,7 @@ export type RowAction =
   | 'compare'
   | 'copyLeftToRight'
   | 'copyRightToLeft'
+  | 'rename'
   | 'delete'
   | 'markSame'
   | 'exclude'
@@ -29,6 +30,7 @@ export const ROW_ACTION_LABELS: Readonly<Record<RowAction, string>> = {
   compare: 'Compare',
   copyLeftToRight: 'Copy → Right',
   copyRightToLeft: 'Copy ← Left',
+  rename: 'Rename…',
   delete: 'Delete',
   markSame: 'Mark same',
   exclude: 'Exclude',
@@ -42,6 +44,7 @@ export const ROW_ACTION_ACCELERATORS: Readonly<Record<RowAction, string>> = {
   compare: 'F5',
   copyLeftToRight: 'Alt+→',
   copyRightToLeft: 'Alt+←',
+  rename: 'F2',
   delete: 'Del',
   markSame: 'Ctrl+M',
   exclude: 'Ctrl+E',
@@ -54,6 +57,7 @@ const PAIR_REQUIRED: ReadonlySet<RowAction> = new Set<RowAction>([
   'open',
   'copyLeftToRight',
   'copyRightToLeft',
+  'rename',
   'delete',
   'markSame',
   'exclude',
@@ -85,6 +89,7 @@ export function isActionEnabled(action: RowAction, ctx: RowActionContext): boole
   if (NEEDS_RIGHT.has(action) && !pair.right) return false;
   if (NEEDS_BOTH.has(action) && (!pair.left || !pair.right)) return false;
   if (action === 'delete' && !pair.left && !pair.right) return false;
+  if (action === 'rename' && !pair.left && !pair.right) return false;
   if (action === 'open' && pair.status === ('error' satisfies DiffStatus)) return false;
   if (action === 'useAsLeftFolderOnly' && pair.left?.type !== 'dir') return false;
   if (action === 'useAsRightFolderOnly' && pair.right?.type !== 'dir') return false;
@@ -103,24 +108,28 @@ export function isActionEnabled(action: RowAction, ctx: RowActionContext): boole
 /**
  * Build the row context-menu item list given the focused pair. The
  * order matches the application menu so users build muscle memory.
+ * Logical groups (separated by dividers): view → sync → mutate →
+ * annotate → navigate.
  */
 export function buildRowMenuItems(ctx: RowActionContext): ContextMenuItem[] {
-  const order: RowAction[] = [
-    'open',
-    'compare',
-    'copyLeftToRight',
-    'copyRightToLeft',
-    'delete',
-    'markSame',
-    'exclude',
-    'openSelectedFolders',
-    'useAsLeftFolderOnly',
-    'useAsRightFolderOnly',
+  const groups: RowAction[][] = [
+    ['open', 'compare'],
+    ['copyLeftToRight', 'copyRightToLeft'],
+    ['rename', 'delete'],
+    ['markSame', 'exclude'],
+    ['openSelectedFolders', 'useAsLeftFolderOnly', 'useAsRightFolderOnly'],
   ];
-  return order.map((action) => ({
-    action,
-    label: ROW_ACTION_LABELS[action],
-    accelerator: ROW_ACTION_ACCELERATORS[action],
-    disabled: !isActionEnabled(action, ctx),
-  }));
+  const items: ContextMenuItem[] = [];
+  groups.forEach((group, i) => {
+    if (i > 0) items.push({ type: 'separator' });
+    for (const action of group) {
+      items.push({
+        action,
+        label: ROW_ACTION_LABELS[action],
+        accelerator: ROW_ACTION_ACCELERATORS[action],
+        disabled: !isActionEnabled(action, ctx),
+      });
+    }
+  });
+  return items;
 }
