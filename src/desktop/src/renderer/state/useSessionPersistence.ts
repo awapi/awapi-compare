@@ -32,6 +32,5 @@ export function useSessionPersistence(tabId: string): void {
 
     return () => clearTimeout(handle);
     // rules/diffOptions are objects; list them so deep changes trigger saves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leftRoot, rightRoot, mode, rules, diffOptions]);
 }
