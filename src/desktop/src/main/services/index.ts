@@ -1,4 +1,5 @@
 import type { BrowserWindow, IpcMain } from 'electron';
+import { app, shell } from 'electron';
 
 import { IpcChannel, type InitialCompareSession } from '@awapi/shared';
 
@@ -122,6 +123,20 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.UpdaterCheck, () => wrap(() => updater.check()));
   ipcMain.handle(IpcChannel.UpdaterDownload, () => wrap(() => updater.download()));
   ipcMain.handle(IpcChannel.UpdaterInstall, () => wrap(() => updater.install()));
+
+  ipcMain.handle(IpcChannel.AppOpenExternal, (_e, url: string) =>
+    shell.openExternal(url),
+  );
+
+  ipcMain.handle(IpcChannel.AppGetInfo, () => ({
+    name: app.getName(),
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    platform: process.platform,
+    arch: process.arch,
+  }));
 
   // SFTP deferred to v1.1 — reserve channel, reject cleanly.
   ipcMain.handle(IpcChannel.SftpConnect, (_e, req) =>

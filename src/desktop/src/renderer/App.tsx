@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
+import { AboutDialog } from './components/AboutDialog.js';
 import { CompareTabBody } from './components/CompareTabBody.js';
 import { DiffOptionsDialog } from './components/DiffOptionsDialog.js';
 import { FileDiffTab } from './components/FileDiffTab.js';
 import { PreferencesDialog } from './components/PreferencesDialog.js';
 import { Tabs } from './components/Tabs.js';
 import { RulesEditor, type RulesScope } from './components/RulesEditor.js';
+import { UpdateCheckDialog } from './components/UpdateCheckDialog.js';
 import {
   usePreferencesStore,
   useRulesStore,
@@ -34,6 +36,12 @@ export function App(): JSX.Element {
   const [rulesScope, setRulesScope] = useState<RulesScope>('global');
   const [diffOptionsOpen, setDiffOptionsOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [updateCheckResult, setUpdateCheckResult] = useState<{
+    available: boolean;
+    version?: string;
+    url?: string;
+  } | null>(null);
 
   const confirmOverwriteOnCopy = usePreferencesStore(
     (s) => s.confirmOverwriteOnCopy,
@@ -249,6 +257,12 @@ export function App(): JSX.Element {
     if (!window.awapi?.app?.onMenuAction) return;
     return window.awapi.app.onMenuAction((menuAction) => {
       if (menuAction === 'edit.preferences') setPreferencesOpen(true);
+      if (menuAction === 'help.about') setAboutOpen(true);
+      if (menuAction === 'help.checkForUpdates') {
+        void window.awapi.updater.check().then((result) => {
+          setUpdateCheckResult(result);
+        });
+      }
     });
   }, []);
 
@@ -335,6 +349,15 @@ export function App(): JSX.Element {
           onClose={() => setPreferencesOpen(false)}
         />
       ) : null}
+      {updateCheckResult !== null ? (
+        <UpdateCheckDialog
+          available={updateCheckResult.available}
+          version={updateCheckResult.version}
+          url={updateCheckResult.url}
+          onClose={() => setUpdateCheckResult(null)}
+        />
+      ) : null}
+      {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
     </div>
   );
 }

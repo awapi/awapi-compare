@@ -1067,6 +1067,20 @@ body,
   margin-top: 2px;
 }
 
+.awapi-link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--awapi-accent, #4a9eff);
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}
+
+.awapi-link-button:hover {
+  opacity: 0.8;
+}
+
 .awapi-prefs__group {
   border: 1px solid var(--awapi-border);
   border-radius: 3px;

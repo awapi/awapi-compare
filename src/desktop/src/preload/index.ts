@@ -73,7 +73,7 @@ const api: AwapiApi = {
     deactivate: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LicenseDeactivate),
   },
   updater: {
-    check: (): Promise<{ available: boolean; version?: string }> =>
+    check: (): Promise<{ available: boolean; version?: string; url?: string }> =>
       ipcRenderer.invoke(IpcChannel.UpdaterCheck),
     download: (): Promise<void> => ipcRenderer.invoke(IpcChannel.UpdaterDownload),
     install: (): Promise<void> => ipcRenderer.invoke(IpcChannel.UpdaterInstall),
@@ -94,6 +94,17 @@ const api: AwapiApi = {
     closeWindow: (): void => {
       ipcRenderer.send(IpcChannel.AppCloseWindow);
     },
+    openExternal: (url: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.AppOpenExternal, url),
+    getInfo: (): Promise<{
+      name: string;
+      version: string;
+      electron: string;
+      chrome: string;
+      node: string;
+      platform: string;
+      arch: string;
+    }> => ipcRenderer.invoke(IpcChannel.AppGetInfo),
   },
   dialog: {
     pickFolder: (req?: DialogPickFolderRequest): Promise<string | null> =>

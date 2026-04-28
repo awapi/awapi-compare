@@ -43,6 +43,8 @@ export const IpcChannel = {
   AppGetInitialCompare: 'app.getInitialCompare',
   AppRequestClose: 'app.requestClose',
   AppCloseWindow: 'app.closeWindow',
+  AppOpenExternal: 'app.openExternal',
+  AppGetInfo: 'app.getInfo',
   DialogPickFolder: 'dialog.pickFolder',
   DialogPickFile: 'dialog.pickFile',
   DialogConfirmUnsaved: 'dialog.confirmUnsaved',
@@ -353,7 +355,7 @@ export interface AwapiApi {
     deactivate(): Promise<void>;
   };
   updater: {
-    check(): Promise<{ available: boolean; version?: string }>;
+    check(): Promise<{ available: boolean; version?: string; url?: string }>;
     download(): Promise<void>;
     install(): Promise<void>;
   };
@@ -382,6 +384,22 @@ export interface AwapiApi {
      * the renderer after it has prompted about unsaved changes.
      */
     closeWindow(): void;
+    /**
+     * Open a URL in the system's default browser.
+     */
+    openExternal(url: string): Promise<void>;
+    /**
+     * Resolve app metadata from the main process.
+     */
+    getInfo(): Promise<{
+      name: string;
+      version: string;
+      electron: string;
+      chrome: string;
+      node: string;
+      platform: string;
+      arch: string;
+    }>;
   };
   dialog: {
     /**
