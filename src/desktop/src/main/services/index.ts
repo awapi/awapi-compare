@@ -10,7 +10,7 @@ import { FsCodedError, FsService } from './fsService.js';
 import { HashService } from './hashService.js';
 import { LicenseService } from './licenseService.js';
 import { RulesService, type RulesServiceDeps } from './rulesService.js';
-import { SessionService } from './sessionService.js';
+import { SessionService, type SessionServiceDeps } from './sessionService.js';
 import { SftpService } from './sftpService.js';
 import { UpdaterService } from './updaterService.js';
 
@@ -38,6 +38,8 @@ export interface Services {
 export interface CreateServicesOptions {
   /** Persistence options for the global rules store. */
   rules?: RulesServiceDeps;
+  /** Persistence options for the session store. */
+  session?: SessionServiceDeps;
   /** Optional overrides for the native dialog service (used by tests). */
   dialog?: DialogServiceDeps;
   /** Initial compare session from CLI parsing. */
@@ -50,7 +52,7 @@ export function createServices(options: CreateServicesOptions = {}): Services {
     hash: new HashService(),
     diff: new DiffService(),
     rules: new RulesService(options.rules),
-    session: new SessionService(),
+    session: new SessionService(options.session),
     sftp: new SftpService(),
     license: new LicenseService(),
     updater: new UpdaterService(),

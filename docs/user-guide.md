@@ -148,6 +148,15 @@ again** checkbox. Tick it to skip the prompt for the rest of the
 session (and future launches). You can re-enable the prompt at any
 time from **Preferences → Folder compare**.
 
+Inside the **file-diff view**, the editor's right-click menu also
+exposes **Copy → Right** and **Copy ← Left** for moving the current
+text selection between the two open buffers. When the destination
+side does not exist yet (e.g. the file-diff tab was opened from a
+left-only folder-compare row), picking either menu item instead
+prompts to **create** the missing file as a whole-file copy of the
+source side. Once created, the new file loads into the editor and
+selection-level copy resumes its normal behaviour.
+
 ## Renaming and deleting
 
 Right-click any row in the folder-compare view to access:

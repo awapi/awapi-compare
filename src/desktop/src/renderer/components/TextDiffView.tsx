@@ -399,6 +399,16 @@ export interface TextDiffViewProps {
    * disk.
    */
   viewFilter?: ViewFilter;
+  /**
+   * Optional escape hatch for "Copy → Right" / "Copy ← Left" when the
+   * destination side is not editable because it does not exist yet.
+   * The host (file-diff tab) supplies this when the target side is
+   * `'absent'` and the source side is `'ready'`; selecting the menu
+   * item then surfaces a create-confirm prompt instead of silently
+   * doing nothing. `'toRight'` means copy the original (left) onto a
+   * non-existent right; `'toLeft'` is the inverse.
+   */
+  onCreateMissingSide?: (direction: 'toLeft' | 'toRight') => void;
 }
 
 /**
@@ -419,6 +429,7 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
     actionsRef,
     monacoLoader = defaultLoader,
     viewFilter = 'all',
+    onCreateMissingSide,
   } = props;
 
   // Apply the All/Diffs/Same filter to the buffers fed to Monaco. The
@@ -438,6 +449,10 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   editableRightRef.current = editableRight;
   const editableLeftRef = useRef(editableLeft);
   editableLeftRef.current = editableLeft;
+  // Mirror the create-missing callback into a ref so the Monaco
+  // actions registered once at mount always call the latest closure.
+  const onCreateMissingSideRef = useRef(onCreateMissingSide);
+  onCreateMissingSideRef.current = onCreateMissingSide;
   // Holds the latest `handleSave` so keybindings registered once at
   // mount can invoke the current callback (which closes over
   // `onSave`).
@@ -495,7 +510,15 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
           contextMenuGroupId: 'awapi',
           contextMenuOrder: 1,
           run(ed) {
-            if (!editableRightRef.current || !modelsRef.current || !editorRef.current) return;
+            if (!modelsRef.current || !editorRef.current) return;
+            if (!editableRightRef.current) {
+              // Right side is not editable. The most common reason is
+              // that it does not exist yet (file-diff tab opened from
+              // a left-only folder-compare row). Surface the create
+              // prompt instead of silently no-oping.
+              onCreateMissingSideRef.current?.('toRight');
+              return;
+            }
             const sel = ed.getSelection();
             if (!sel) return;
             const op = computeCopyEdit(
@@ -516,7 +539,14 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
           contextMenuGroupId: 'awapi',
           contextMenuOrder: 1,
           run(ed) {
-            if (!editableLeftRef.current || !modelsRef.current || !editorRef.current) return;
+            if (!modelsRef.current || !editorRef.current) return;
+            if (!editableLeftRef.current) {
+              // Left side is not editable — typically because it does
+              // not exist yet. Surface the create prompt rather than
+              // silently no-oping.
+              onCreateMissingSideRef.current?.('toLeft');
+              return;
+            }
             const sel = ed.getSelection();
             if (!sel) return;
             const op = computeCopyEdit(

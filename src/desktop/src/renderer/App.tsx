@@ -59,28 +59,47 @@ export function App(): JSX.Element {
     })();
   }, [rulesLoaded, setGlobalRules, markRulesLoaded]);
 
-  // Pre-populate the first compare tab from CLI args / env vars at
-  // launch (e.g. `awapi-compare --type folder --left ./a --right ./b`).
-  // Runs exactly once per renderer instance.
+  // Pre-populate the first compare tab from CLI args (highest priority)
+  // or, as a fallback, restore the last persisted session. Runs once.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      if (!window.awapi?.app?.getInitialCompare) return;
+      if (!window.awapi) return;
+      const firstCompareTab = useWorkspaceStore
+        .getState()
+        .tabs.find((t) => t.kind === 'compare');
+      if (!firstCompareTab) return;
+      const session = getSessionStore(firstCompareTab.id).getState();
+      // Don't clobber an in-progress edit (e.g. HMR re-mount).
+      if (session.leftRoot || session.rightRoot) return;
+
+      // 1. Try CLI args.
       try {
-        const initial = await window.awapi.app.getInitialCompare();
-        if (cancelled || !initial) return;
-        const firstCompareTab = useWorkspaceStore
-          .getState()
-          .tabs.find((t) => t.kind === 'compare');
-        if (!firstCompareTab) return;
-        const session = getSessionStore(firstCompareTab.id).getState();
-        // Don't clobber an in-progress edit (e.g. HMR re-mount).
-        if (session.leftRoot || session.rightRoot) return;
-        session.setLeftRoot(initial.leftRoot);
-        session.setRightRoot(initial.rightRoot);
-        session.setMode(initial.mode);
+        const initial = await window.awapi.app?.getInitialCompare?.();
+        if (!cancelled && initial) {
+          session.setLeftRoot(initial.leftRoot);
+          session.setRightRoot(initial.rightRoot);
+          session.setMode(initial.mode);
+          return;
+        }
       } catch (err) {
         console.warn('[awapi] failed to read initial compare:', err);
+      }
+
+      // 2. Restore last persisted session.
+      if (cancelled) return;
+      try {
+        const sessions = await window.awapi.session?.list?.();
+        if (cancelled || !sessions?.length) return;
+        const latest = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        if (latest) {
+          session.loadSnapshot({
+            ...latest,
+            diffOptions: latest.diffOptions ?? DEFAULT_DIFF_OPTIONS,
+          });
+        }
+      } catch (err) {
+        console.warn('[awapi] failed to restore last session:', err);
       }
     })();
     return () => {

@@ -93,10 +93,15 @@ void app.whenReady().then(async () => {
     // eslint-disable-next-line no-console
     console.error(`[awapi] CLI argument error: ${msg}`);
   }
+  const sessionsDir = join(app.getPath('userData'), 'sessions');
   const services = createServices({
     rules: {
       filePath: rulesFile,
       dirPath: dirname(rulesFile),
+      fs: fsPromises,
+    },
+    session: {
+      dirPath: sessionsDir,
       fs: fsPromises,
     },
     dialog: {

@@ -8,7 +8,7 @@ import {
   type DiffStatus,
 } from '@awapi/shared';
 import { useFileDiffData } from '../useFileDiffData.js';
-import { joinPath, extname } from '../paths.js';
+import { joinPath, basename, extname } from '../paths.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
 import { useThemeStore, useWorkspaceStore, useRecentsStore } from '../state/stores.js';
 import {
@@ -22,6 +22,7 @@ import { Toolbar } from './Toolbar.js';
 import { TextDiffView, type TextDiffActions } from './TextDiffView.js';
 import { HexDiffView } from './HexDiffView.js';
 import { ImageDiffView } from './ImageDiffView.js';
+import { CreateMissingSideDialog } from './CreateMissingSideDialog.js';
 
 export interface FileDiffTabProps {
   /** Pair-key (relPath) the tab is bound to. */
@@ -162,6 +163,17 @@ function FileDiffBody({
   const [leftDirty, setLeftDirty] = useState(false);
   const [rightDirty, setRightDirty] = useState(false);
   const [saving, setSaving] = useState<'left' | 'right' | null>(null);
+  // Confirmation dialog state for "Copy → Right" / "Copy ← Left"
+  // when the destination side does not exist yet. The destination
+  // path is computed from the current side path (if non-empty) or
+  // derived from the parent folder-compare roots + the source side's
+  // relPath.
+  const [createPrompt, setCreatePrompt] = useState<{
+    direction: 'leftToRight' | 'rightToLeft';
+    sourcePath: string;
+    destinationPath: string;
+    target: string;
+  } | null>(null);
   const textDiffActionsRef = useRef<TextDiffActions | null>(null);
   // Mirror dirty state into refs so the tab save handler (registered
   // once on mount) can read the LATEST values without re-registering
@@ -278,6 +290,86 @@ function FileDiffBody({
 
   const reload = useCallback(() => data.reload(), [data]);
 
+  // Triggered from the Monaco context menu ("Copy → Right" / "Copy
+  // ← Left") when the destination side is not editable because it
+  // does not exist yet. We surface a confirmation dialog instead of
+  // silently no-oping; on confirm the source file is copied verbatim
+  // (no overwrite — the destination is supposed to be missing) and
+  // the destination path is set, so `useFileDiffData` reloads it.
+  const requestCreateMissingSide = useCallback(
+    (direction: 'toLeft' | 'toRight') => {
+      if (!window.awapi) return;
+      const sourceSide = direction === 'toLeft' ? data.right : data.left;
+      if (sourceSide.state !== 'ready' || !sourceSide.path) {
+        setSaveError(
+          `Cannot create ${direction === 'toLeft' ? 'left' : 'right'} file: source file is not loaded.`,
+        );
+        return;
+      }
+      // Prefer an explicitly-set destination path; otherwise derive
+      // it from the parent folder-compare roots + the existing
+      // side's relPath.
+      let destPath = (direction === 'toLeft' ? leftPath : rightPath).trim();
+      if (!destPath) {
+        const sourceEntry = direction === 'toLeft' ? initialPair?.right : initialPair?.left;
+        const destRoot = direction === 'toLeft' ? roots?.leftRoot : roots?.rightRoot;
+        if (sourceEntry && destRoot) {
+          destPath = joinPath(destRoot, sourceEntry.relPath);
+        }
+      }
+      if (!destPath) {
+        setSaveError(
+          `Set a ${direction === 'toLeft' ? 'left' : 'right'} file path before copying.`,
+        );
+        return;
+      }
+      setSaveError(null);
+      setCreatePrompt({
+        direction: direction === 'toLeft' ? 'rightToLeft' : 'leftToRight',
+        sourcePath: sourceSide.path,
+        destinationPath: destPath,
+        target: basename(destPath),
+      });
+    },
+    [data.left, data.right, leftPath, rightPath, initialPair, roots],
+  );
+
+  const performCreateMissingSide = useCallback(
+    async (prompt: {
+      direction: 'leftToRight' | 'rightToLeft';
+      sourcePath: string;
+      destinationPath: string;
+    }) => {
+      if (!window.awapi) return;
+      try {
+        const result = await window.awapi.fs.copy({
+          from: prompt.sourcePath,
+          to: prompt.destinationPath,
+          overwrite: false,
+        });
+        if (result.errors.length > 0) {
+          const first = result.errors[0];
+          setSaveError(`Create failed: ${first?.message ?? 'unknown error'}`);
+          return;
+        }
+        // Point the destination side at the newly-created file. If
+        // the path was already set (e.g. user typed it), the value
+        // is unchanged — fall back to a side-reload so the new
+        // bytes are picked up.
+        if (prompt.direction === 'rightToLeft') {
+          if (leftPath !== prompt.destinationPath) setLeftPath(prompt.destinationPath);
+          else data.reloadSide('left');
+        } else {
+          if (rightPath !== prompt.destinationPath) setRightPath(prompt.destinationPath);
+          else data.reloadSide('right');
+        }
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [data, leftPath, rightPath],
+  );
+
   const onPickLeftFile = useCallback(async () => {
     if (!window.awapi?.dialog?.pickFile) return;
     const picked = await window.awapi.dialog.pickFile({
@@ -306,6 +398,20 @@ function FileDiffBody({
 
   const editableLeft = data.left.state === 'ready' && viewFilter === 'all';
   const editableRight = data.right.state === 'ready' && viewFilter === 'all';
+  // Surface the Monaco "Copy → Right" / "Copy ← Left" actions as a
+  // create-confirm flow when the destination side does not yet
+  // exist. Only enable when the SOURCE side is loaded; otherwise the
+  // copy would have nothing to write.
+  const canCreateLeft = data.left.state === 'absent' && data.right.state === 'ready';
+  const canCreateRight = data.right.state === 'absent' && data.left.state === 'ready';
+  const handleCreateMissingSide = useCallback(
+    (direction: 'toLeft' | 'toRight') => {
+      if (direction === 'toLeft' && !canCreateLeft) return;
+      if (direction === 'toRight' && !canCreateRight) return;
+      requestCreateMissingSide(direction);
+    },
+    [canCreateLeft, canCreateRight, requestCreateMissingSide],
+  );
   const handleSaveLeftClick = useCallback(() => {
     void textDiffActionsRef.current?.saveLeft();
   }, []);
@@ -361,10 +467,27 @@ function FileDiffBody({
             onDirtyChange={handleDirtyChange}
             onSavingChange={setSaving}
             actionsRef={textDiffActionsRef}
+            onCreateMissingSide={
+              canCreateLeft || canCreateRight ? handleCreateMissingSide : undefined
+            }
           />
         )}
       </div>
       <FileDiffLegend status={pair?.status} theme={theme} />
+      {createPrompt ? (
+        <CreateMissingSideDialog
+          direction={createPrompt.direction}
+          target={createPrompt.target}
+          sourcePath={createPrompt.sourcePath}
+          destinationPath={createPrompt.destinationPath}
+          onCancel={() => setCreatePrompt(null)}
+          onConfirm={() => {
+            const prompt = createPrompt;
+            setCreatePrompt(null);
+            void performCreateMissingSide(prompt);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
@@ -378,6 +501,7 @@ function FileDiffViewSwitcher({
   onSavingChange,
   actionsRef,
   viewFilter,
+  onCreateMissingSide,
 }: {
   relPath: string;
   data: ReturnType<typeof useFileDiffData>;
@@ -387,6 +511,7 @@ function FileDiffViewSwitcher({
   onSavingChange?: (saving: 'left' | 'right' | null) => void;
   actionsRef?: React.MutableRefObject<TextDiffActions | null>;
   viewFilter: ViewFilter;
+  onCreateMissingSide?: (direction: 'toLeft' | 'toRight') => void;
 }): JSX.Element {
   const blockingState = unconfirmedOrTooLarge(data);
   if (blockingState === 'unconfirmed') {
@@ -441,6 +566,7 @@ function FileDiffViewSwitcher({
           onDirtyChange={onDirtyChange}
           onSavingChange={onSavingChange}
           actionsRef={actionsRef}
+          onCreateMissingSide={onCreateMissingSide}
         />
       ) : kind === 'image' ? (
         <ImageDiffView left={left} right={right} imageFormat={sniffResult.imageFormat} />

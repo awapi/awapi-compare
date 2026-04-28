@@ -9,6 +9,7 @@ import { DeleteConfirmDialog } from './DeleteConfirmDialog.js';
 import { RenameDialog } from './RenameDialog.js';
 import { emptyDiffSummary, summarize } from '../diffSummary.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
+import { useSessionPersistence } from '../state/useSessionPersistence.js';
 import {
   useWorkspaceStore,
   useThemeStore,
@@ -88,6 +89,9 @@ export function CompareTabBody({
 }: CompareTabBodyProps): JSX.Element {
   // Per-tab session store (lazy created/cached in the registry).
   const useSession = useMemo(() => getSessionStore(tabId), [tabId]);
+
+  // Auto-save session config to disk on change.
+  useSessionPersistence(tabId);
 
   const leftRoot = useSession((s) => s.leftRoot);
   const rightRoot = useSession((s) => s.rightRoot);
