@@ -97,11 +97,11 @@ build:
 # the root `electron-builder.yml`. `--projectDir` points it at the
 # packaged Electron app under `src/desktop/`.
 package target="": build notices
-    pnpm exec electron-builder --config electron-builder.yml --projectDir src/desktop {{ if target == "" { "" } else if target == "mac" { "--mac" } else if target == "win" { "--win" } else if target == "linux" { "--linux" } else { "--" + target } }}
+    ./src/desktop/node_modules/.bin/electron-builder --config {{justfile_directory()}}/electron-builder.yml --projectDir src/desktop {{ if target == "" { "" } else if target == "mac" { "--mac" } else if target == "win" { "--win" } else if target == "linux" { "--linux" } else { "--" + target } }}
 
 # Package for all platforms (CI only; requires cross-build tooling).
 package-all: build notices
-    pnpm exec electron-builder --config electron-builder.yml --projectDir src/desktop -mwl
+    ./src/desktop/node_modules/.bin/electron-builder --config {{justfile_directory()}}/electron-builder.yml --projectDir src/desktop -mwl
 
 # Regenerate THIRD_PARTY_NOTICES.md from all production deps.
 notices:

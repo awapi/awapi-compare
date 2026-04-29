@@ -15,6 +15,28 @@
 2. A 14-day trial begins automatically.
 3. Pick two folders to compare.
 
+## Drag and drop
+
+Drop folders or files from your file manager onto either half of a
+compare tab to set that side:
+
+- **Folder-compare tab.**
+  - Drop a **folder** onto the left or right half → that side's root
+    is set and the comparison runs.
+  - Drop a **single file** onto the left or right half → a new
+    file-compare tab opens with that side seeded.
+  - Drop **two files at once** onto the body → a new file-compare tab
+    opens with both sides seeded (left = first file, right = second).
+- **File-compare tab.**
+  - Drop a **file** onto the left or right half → that side's path is
+    set.
+  - Drop **two files at once** → both sides are set (left = first
+    file, right = second), regardless of pointer position.
+  - Folders are ignored on a file-compare tab — drop them onto a
+    folder-compare tab instead.
+
+The half under the pointer is highlighted while you drag.
+
 ## Command line / launch flags
 
 AwapiCompare can be launched with a folder pair pre-loaded into the

@@ -12,6 +12,7 @@ import { HashService } from './hashService.js';
 import { LicenseService } from './licenseService.js';
 import { RulesService, type RulesServiceDeps } from './rulesService.js';
 import { SessionService, type SessionServiceDeps } from './sessionService.js';
+import { ShellIntegrationService } from './shellIntegrationService.js';
 import { SftpService } from './sftpService.js';
 import { UpdaterService } from './updaterService.js';
 
@@ -28,6 +29,7 @@ export interface Services {
   updater: UpdaterService;
   cli: CliService;
   dialog: DialogService;
+  shellIntegration: ShellIntegrationService;
   /**
    * Initial compare session injected from CLI args / env vars at
    * launch. The renderer reads this once on startup. `null` when the
@@ -45,6 +47,8 @@ export interface CreateServicesOptions {
   dialog?: DialogServiceDeps;
   /** Initial compare session from CLI parsing. */
   initialCompare?: InitialCompareSession | null;
+  /** Shell integration service instance (created in main/index.ts). */
+  shellIntegration?: ShellIntegrationService;
 }
 
 export function createServices(options: CreateServicesOptions = {}): Services {
@@ -59,6 +63,7 @@ export function createServices(options: CreateServicesOptions = {}): Services {
     updater: new UpdaterService(),
     cli: new CliService(),
     dialog: new DialogService(options.dialog),
+    shellIntegration: options.shellIntegration ?? new ShellIntegrationService(''),
     initialCompare: options.initialCompare ?? null,
   };
 }
@@ -136,6 +141,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
     node: process.versions.node,
     platform: process.platform,
     arch: process.arch,
+    isPackaged: app.isPackaged,
   }));
 
   // SFTP deferred to v1.1 — reserve channel, reject cleanly.
@@ -156,6 +162,16 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   );
 
   ipcMain.handle(IpcChannel.AppGetInitialCompare, () => services.initialCompare);
+
+  ipcMain.handle(IpcChannel.ShellIntegrationStatus, () =>
+    wrap(() => services.shellIntegration.isRegistered()),
+  );
+  ipcMain.handle(IpcChannel.ShellIntegrationRegister, () =>
+    wrap(() => services.shellIntegration.register(app.getPath('exe'))),
+  );
+  ipcMain.handle(IpcChannel.ShellIntegrationUnregister, () =>
+    wrap(() => services.shellIntegration.unregister()),
+  );
 }
 
 /**

@@ -23,6 +23,8 @@ import { useHotkeys } from '../useHotkeys.js';
 import { filterPairs } from '../viewFilter.js';
 import { joinPath } from '../paths.js';
 import { parentDir } from '../pathUtils.js';
+import { useDropPaths } from '../useDropPaths.js';
+import type { DropSide } from '../useDropPaths.js';
 import type { ComparedPair, MenuAction } from '@awapi/shared';
 
 const MENU_TO_ROW: Partial<Record<MenuAction, RowAction>> = {
@@ -533,6 +535,60 @@ export function CompareTabBody({
 
   const closeContextMenu = useCallback(() => setMenu(null), []);
 
+  // Drag-and-drop:
+  //   • Folder dropped → set that side's root and re-run the compare.
+  //   • File dropped → open a new file-diff tab seeded with that path
+  //     on the dropped side. If two files were dropped at once, both
+  //     sides are seeded regardless of pointer position.
+  //   • Mixed (folder + file) → folder wins; treated as a folder drop.
+  const handleDropPaths = useCallback(
+    async (side: DropSide, paths: string[]) => {
+      if (!window.awapi?.fs?.stat || paths.length === 0) return;
+      const stats = await Promise.all(
+        paths.map(async (p) => {
+          try {
+            const s = await window.awapi.fs.stat({ path: p });
+            return { path: p, type: s.type };
+          } catch {
+            return { path: p, type: 'other' as const };
+          }
+        }),
+      );
+      const folder = stats.find((s) => s.type === 'dir');
+      if (folder) {
+        if (side === 'left') setLeftRoot(folder.path);
+        else setRightRoot(folder.path);
+        addRecent('folder', side, folder.path);
+        return;
+      }
+      const files = stats.filter((s) => s.type === 'file').map((s) => s.path);
+      if (files.length === 0) return;
+      let leftFile: string | undefined;
+      let rightFile: string | undefined;
+      if (files.length >= 2) {
+        leftFile = files[0];
+        rightFile = files[1];
+      } else if (side === 'left') {
+        leftFile = files[0];
+      } else {
+        rightFile = files[0];
+      }
+      if (leftFile) addRecent('file', 'left', leftFile);
+      if (rightFile) addRecent('file', 'right', rightFile);
+      const titleParts = [leftFile, rightFile].filter((p): p is string => Boolean(p));
+      const title = titleParts
+        .map((p) => p.split(/[\\/]/u).filter(Boolean).pop() ?? p)
+        .join(' ↔ ');
+      const relPath = `dropped:${leftFile ?? ''}|${rightFile ?? ''}`;
+      openFileDiffTab(relPath, title || 'File diff', undefined, {
+        left: leftFile,
+        right: rightFile,
+      });
+    },
+    [setLeftRoot, setRightRoot, addRecent, openFileDiffTab],
+  );
+  const { dropProps, hoverSide } = useDropPaths({ onDrop: handleDropPaths });
+
   const menuItems = useMemo(() => {
     if (!menu) return [];
     const pair = pairs.find((p) => p.relPath === menu.relPath);
@@ -540,7 +596,10 @@ export function CompareTabBody({
   }, [menu, pairs]);
 
   return (
-    <div className="awapi-compare-body">
+    <div
+      className={`awapi-compare-body${hoverSide ? ` awapi-compare-body--drop-${hoverSide}` : ''}`}
+      {...dropProps}
+    >
       <Toolbar
         leftRoot={leftRoot}
         rightRoot={rightRoot}

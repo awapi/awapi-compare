@@ -11,12 +11,14 @@ import type { CompareMode, InitialCompareSession } from '@awapi/shared';
  * Usage:
  *
  *   awapi-compare --type folder --left ./a --right ./b [--mode quick|thorough|binary]
+ *   awapi-compare --register-shell           # register Windows Explorer context menu
+ *   awapi-compare --unregister-shell         # remove Windows Explorer context menu
  *
  * Environment variables (handy for `just dev`):
  *
  *   AWAPI_LEFT, AWAPI_RIGHT, AWAPI_TYPE, AWAPI_MODE
  *
- * Returns `null` when neither flag nor env var is set. Throws on
+ * Returns `null` when no recognised flag or env var is set. Throws on
  * malformed input. Unknown flags are ignored — Electron and
  * `electron-vite` inject their own (e.g. `--remote-debugging-port`)
  * which we must not reject.
@@ -26,12 +28,20 @@ export interface ParseDesktopArgsOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+/** Discriminated union of all recognised CLI actions. */
+export type DesktopArgs =
+  | { kind: 'compare'; session: InitialCompareSession }
+  | { kind: 'openLeft'; path: string }
+  | { kind: 'registerShell' }
+  | { kind: 'unregisterShell' }
+  | null;
+
 const MODES: ReadonlySet<CompareMode> = new Set(['quick', 'thorough', 'binary']);
 
 export function parseDesktopArgs(
   argv: readonly string[],
   options: ParseDesktopArgsOptions = {},
-): InitialCompareSession | null {
+): DesktopArgs {
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
 
@@ -39,6 +49,8 @@ export function parseDesktopArgs(
   let right: string | undefined;
   let mode: CompareMode | undefined;
   let typeSeen = false;
+  let registerShell = false;
+  let unregisterShell = false;
 
   const requireValue = (raw: string | undefined, flag: string): string => {
     if (raw === undefined || raw.startsWith('--')) {
@@ -80,11 +92,19 @@ export function parseDesktopArgs(
       mode = assertMode(requireValue(argv[++i], '--mode'));
     } else if (arg?.startsWith('--mode=')) {
       mode = assertMode(arg.slice('--mode='.length));
+    } else if (arg === '--register-shell') {
+      registerShell = true;
+    } else if (arg === '--unregister-shell') {
+      unregisterShell = true;
     }
     // anything else is ignored (Electron internal flags, etc.)
   }
 
-  // Env-var fallbacks.
+  // Shell management actions take priority over everything else.
+  if (registerShell) return { kind: 'registerShell' };
+  if (unregisterShell) return { kind: 'unregisterShell' };
+
+  // Normal compare session via --left / --right (or env-var fallbacks).
   if (left === undefined) {
     const v = env['AWAPI_LEFT'];
     if (v && v.length > 0) left = v;
@@ -103,14 +123,24 @@ export function parseDesktopArgs(
   }
 
   if (left === undefined && right === undefined) return null;
-  if (left === undefined || right === undefined) {
-    throw new Error('Both --left and --right are required when either is provided');
+  if (left === undefined) {
+    throw new Error('--right requires --left to also be provided');
+  }
+
+  const resolvedLeft = isAbsolute(left) ? left : resolve(cwd, left);
+
+  // --left without --right: open the app with only the left side populated.
+  if (right === undefined) {
+    return { kind: 'openLeft', path: resolvedLeft };
   }
 
   return {
-    type: 'folder',
-    leftRoot: isAbsolute(left) ? left : resolve(cwd, left),
-    rightRoot: isAbsolute(right) ? right : resolve(cwd, right),
-    mode: mode ?? 'quick',
+    kind: 'compare',
+    session: {
+      type: 'folder',
+      leftRoot: resolvedLeft,
+      rightRoot: isAbsolute(right) ? right : resolve(cwd, right),
+      mode: mode ?? 'quick',
+    },
   };
 }

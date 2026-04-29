@@ -113,6 +113,33 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+.awapi-compare-body--drop-left::after,
+.awapi-compare-body--drop-right::after,
+.awapi-file-diff--drop-left::after,
+.awapi-file-diff--drop-right::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  pointer-events: none;
+  background: rgba(56, 139, 253, 0.12);
+  border: 2px dashed rgba(56, 139, 253, 0.6);
+  box-sizing: border-box;
+  z-index: 50;
+}
+
+.awapi-compare-body--drop-left::after,
+.awapi-file-diff--drop-left::after {
+  left: 0;
+}
+
+.awapi-compare-body--drop-right::after,
+.awapi-file-diff--drop-right::after {
+  right: 0;
 }
 
 .awapi-compare-body__error {
@@ -645,6 +672,7 @@ body,
   overflow: hidden;
   background: var(--awapi-bg);
   color: var(--awapi-text);
+  position: relative;
 }
 
 .awapi-file-diff__content {

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   AwapiApi,
   DialogConfirmUnsavedChoice,
@@ -104,7 +104,15 @@ const api: AwapiApi = {
       node: string;
       platform: string;
       arch: string;
+      isPackaged: boolean;
     }> => ipcRenderer.invoke(IpcChannel.AppGetInfo),
+    getPathForFile: (file: File): string => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return '';
+      }
+    },
   },
   dialog: {
     pickFolder: (req?: DialogPickFolderRequest): Promise<string | null> =>
@@ -115,6 +123,11 @@ const api: AwapiApi = {
       req?: DialogConfirmUnsavedRequest,
     ): Promise<DialogConfirmUnsavedChoice> =>
       ipcRenderer.invoke(IpcChannel.DialogConfirmUnsaved, req ?? {}),
+  },
+  shell: {
+    status: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.ShellIntegrationStatus),
+    register: (): Promise<void> => ipcRenderer.invoke(IpcChannel.ShellIntegrationRegister),
+    unregister: (): Promise<void> => ipcRenderer.invoke(IpcChannel.ShellIntegrationUnregister),
   },
 };
 

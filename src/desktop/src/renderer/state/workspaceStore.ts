@@ -25,6 +25,14 @@ export interface FileDiffTab {
    */
   parentCompareTabId?: string;
   /**
+   * Optional initial absolute paths for the left / right file. Used
+   * by the drag-and-drop flow to open an ad-hoc file diff that has
+   * no parent compare scan to derive paths from. When set, these
+   * override the pair-derived seeds inside the file-diff body.
+   */
+  initialLeftPath?: string;
+  initialRightPath?: string;
+  /**
    * True when the tab has unsaved edits. Rendered as a leading `*`
    * marker on the tab title (VS Code-style).
    */
@@ -54,6 +62,7 @@ export interface WorkspaceState {
     relPath: string,
     title?: string,
     parentCompareTabId?: string,
+    initialPaths?: { left?: string; right?: string },
   ): string;
   /**
    * Open a brand-new (empty) compare tab and focus it. Returns the new
@@ -134,7 +143,7 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
       set({ activeTabId: id });
     },
 
-    openFileDiffTab: (relPath, title, parentCompareTabId) => {
+    openFileDiffTab: (relPath, title, parentCompareTabId, initialPaths) => {
       const existing = get().tabs.find(
         (t): t is FileDiffTab => t.kind === 'fileDiff' && t.relPath === relPath,
       );
@@ -149,6 +158,8 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
         relPath,
         title: title ?? defaultTitleFor(relPath),
         parentCompareTabId,
+        ...(initialPaths?.left ? { initialLeftPath: initialPaths.left } : {}),
+        ...(initialPaths?.right ? { initialRightPath: initialPaths.right } : {}),
       };
       set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }));
       return id;

@@ -13,6 +13,10 @@ export interface PreferencesDialogProps {
   onSave(next: Preferences): void;
   /** Close without saving. */
   onClose(): void;
+  /**
+   * Host platform string — reserved for future platform-specific sections.
+   */
+  platform?: string;
 }
 
 /**
@@ -23,7 +27,11 @@ export interface PreferencesDialogProps {
  * they previously dismissed with "Don't ask again".
  */
 export function PreferencesDialog(props: PreferencesDialogProps): JSX.Element {
-  const { value, onSave, onClose } = props;
+  const {
+    value,
+    onSave,
+    onClose,
+  } = props;
   const [draft, setDraft] = useState<Preferences>(() => ({ ...value }));
 
   useEffect(() => {

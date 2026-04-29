@@ -12,10 +12,13 @@ describe('parseDesktopArgs', () => {
 
   it('parses --left/--right with default mode and folder type', () => {
     expect(parseDesktopArgs(['--left', './a', '--right', './b'], opts)).toEqual({
-      type: 'folder',
-      leftRoot: '/work/a',
-      rightRoot: '/work/b',
-      mode: 'quick',
+      kind: 'compare',
+      session: {
+        type: 'folder',
+        leftRoot: '/work/a',
+        rightRoot: '/work/b',
+        mode: 'quick',
+      },
     });
   });
 
@@ -23,17 +26,23 @@ describe('parseDesktopArgs', () => {
     expect(
       parseDesktopArgs(['--type=folder', '--left=./a', '--right=./b', '--mode=thorough'], opts),
     ).toEqual({
-      type: 'folder',
-      leftRoot: '/work/a',
-      rightRoot: '/work/b',
-      mode: 'thorough',
+      kind: 'compare',
+      session: {
+        type: 'folder',
+        leftRoot: '/work/a',
+        rightRoot: '/work/b',
+        mode: 'thorough',
+      },
     });
   });
 
   it('keeps absolute paths unchanged', () => {
     const r = parseDesktopArgs(['--left', '/x/a', '--right', '/y/b'], opts);
-    expect(r?.leftRoot).toBe('/x/a');
-    expect(r?.rightRoot).toBe('/y/b');
+    expect(r?.kind).toBe('compare');
+    if (r?.kind === 'compare') {
+      expect(r.session.leftRoot).toBe('/x/a');
+      expect(r.session.rightRoot).toBe('/y/b');
+    }
   });
 
   it('falls back to AWAPI_LEFT / AWAPI_RIGHT / AWAPI_MODE env vars', () => {
@@ -43,10 +52,13 @@ describe('parseDesktopArgs', () => {
         env: { AWAPI_LEFT: './a', AWAPI_RIGHT: '/abs/b', AWAPI_MODE: 'binary' },
       }),
     ).toEqual({
-      type: 'folder',
-      leftRoot: '/work/a',
-      rightRoot: '/abs/b',
-      mode: 'binary',
+      kind: 'compare',
+      session: {
+        type: 'folder',
+        leftRoot: '/work/a',
+        rightRoot: '/abs/b',
+        mode: 'binary',
+      },
     });
   });
 
@@ -57,10 +69,13 @@ describe('parseDesktopArgs', () => {
         env: { AWAPI_LEFT: './env-a', AWAPI_RIGHT: './env-b' },
       }),
     ).toEqual({
-      type: 'folder',
-      leftRoot: '/work/cli-a',
-      rightRoot: '/work/cli-b',
-      mode: 'quick',
+      kind: 'compare',
+      session: {
+        type: 'folder',
+        leftRoot: '/work/cli-a',
+        rightRoot: '/work/cli-b',
+        mode: 'quick',
+      },
     });
   });
 
@@ -69,7 +84,8 @@ describe('parseDesktopArgs', () => {
       ['--remote-debugging-port=0', '--left', '/a', '--right', '/b', '--inspect'],
       opts,
     );
-    expect(r?.leftRoot).toBe('/a');
+    expect(r?.kind).toBe('compare');
+    if (r?.kind === 'compare') expect(r.session.leftRoot).toBe('/a');
   });
 
   it('rejects non-folder --type', () => {
@@ -89,8 +105,30 @@ describe('parseDesktopArgs', () => {
     expect(() => parseDesktopArgs(['--left', '--right', '/b'], opts)).toThrow(/--left/);
   });
 
-  it('rejects asymmetric --left without --right', () => {
-    expect(() => parseDesktopArgs(['--left', '/a'], opts)).toThrow(/Both --left and --right/);
-    expect(() => parseDesktopArgs(['--right', '/b'], opts)).toThrow(/Both --left and --right/);
+  it('returns openLeft when --left is given without --right', () => {
+    expect(parseDesktopArgs(['--left', '/a'], opts)).toEqual({ kind: 'openLeft', path: '/a' });
+  });
+
+  it('resolves --left relative path for openLeft', () => {
+    expect(parseDesktopArgs(['--left', './rel'], opts)).toEqual({ kind: 'openLeft', path: '/work/rel' });
+  });
+
+  it('rejects --right without --left', () => {
+    expect(() => parseDesktopArgs(['--right', '/b'], opts)).toThrow(/--right requires --left/);
+  });
+
+  // ---- shell integration args ------------------------------------------
+
+  it('parses --register-shell', () => {
+    expect(parseDesktopArgs(['--register-shell'], opts)).toEqual({ kind: 'registerShell' });
+  });
+
+  it('parses --unregister-shell', () => {
+    expect(parseDesktopArgs(['--unregister-shell'], opts)).toEqual({ kind: 'unregisterShell' });
+  });
+
+  it('--register-shell takes priority over --left/--right', () => {
+    const r = parseDesktopArgs(['--register-shell', '--left', '/a', '--right', '/b'], opts);
+    expect(r?.kind).toBe('registerShell');
   });
 });

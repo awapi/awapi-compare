@@ -63,9 +63,7 @@ describe('buildMenuTemplate', () => {
       'view.toggleTheme',
       'view.expandAll',
       'view.collapseAll',
-      'help.docs',
       'help.checkForUpdates',
-      'help.viewLicense',
       'help.about',
     ];
     for (const a of expected) expect(actions.has(a)).toBe(true);
@@ -133,9 +131,7 @@ describe('buildMenuTemplate', () => {
       'view.toggleTheme',
       'view.expandAll',
       'view.collapseAll',
-      'help.docs',
       'help.checkForUpdates',
-      'help.viewLicense',
       'help.about',
     ];
     for (const a of collectActions(t)) expect(allowed).toContain(a);

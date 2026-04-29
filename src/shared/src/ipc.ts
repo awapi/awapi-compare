@@ -48,6 +48,9 @@ export const IpcChannel = {
   DialogPickFolder: 'dialog.pickFolder',
   DialogPickFile: 'dialog.pickFile',
   DialogConfirmUnsaved: 'dialog.confirmUnsaved',
+  ShellIntegrationStatus: 'shell.status',
+  ShellIntegrationRegister: 'shell.register',
+  ShellIntegrationUnregister: 'shell.unregister',
 } as const;
 
 export type IpcChannelId = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -253,8 +256,8 @@ export interface InitialCompareSession {
   type: 'folder';
   /** Absolute path. */
   leftRoot: string;
-  /** Absolute path. */
-  rightRoot: string;
+  /** Absolute path. Omit to leave the right side empty (user will pick later). */
+  rightRoot?: string;
   mode: CompareMode;
 }
 
@@ -317,9 +320,7 @@ export type MenuAction =
   | 'view.expandAll'
   | 'view.collapseAll'
   // Help
-  | 'help.docs'
   | 'help.checkForUpdates'
-  | 'help.viewLicense'
   | 'help.about';
 
 /**
@@ -399,7 +400,17 @@ export interface AwapiApi {
       node: string;
       platform: string;
       arch: string;
+      /** `true` when running as a packaged production build; `false` in dev. */
+      isPackaged: boolean;
     }>;
+    /**
+     * Resolve the absolute on-disk path of a `File` object obtained
+     * from a native drag-and-drop event. Wraps Electron's
+     * `webUtils.getPathForFile`. Returns an empty string when the
+     * file does not correspond to a real path on disk (e.g. a
+     * `File` constructed in-renderer).
+     */
+    getPathForFile(file: File): string;
   };
   dialog: {
     /**
@@ -417,6 +428,19 @@ export interface AwapiApi {
      * the user's choice.
      */
     confirmUnsaved(req?: DialogConfirmUnsavedRequest): Promise<DialogConfirmUnsavedChoice>;
+  };
+  /**
+   * macOS Finder / Windows Explorer shell integration.
+   * Register/unregister context-menu entries (Quick Actions on macOS,
+   * registry entries on Windows). Only surfaces on supported platforms.
+   */
+  shell: {
+    /** Returns `true` when context-menu entries are currently installed. */
+    status(): Promise<boolean>;
+    /** Installs context-menu entries for the running app. */
+    register(): Promise<void>;
+    /** Removes previously installed context-menu entries. */
+    unregister(): Promise<void>;
   };
 }
 

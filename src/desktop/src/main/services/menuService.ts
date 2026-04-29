@@ -107,9 +107,7 @@ export function buildMenuTemplate(opts: BuildMenuOptions): MenuNode[] {
     role: 'help',
     label: '&Help',
     submenu: [
-      { label: 'Documentation', action: 'help.docs' },
       { label: 'Check for Updates…', action: 'help.checkForUpdates' },
-      { label: 'View License', action: 'help.viewLicense' },
       ...(isMac
         ? []
         : ([

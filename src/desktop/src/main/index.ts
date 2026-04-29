@@ -13,6 +13,7 @@ import {
   registerIpcHandlers,
   type Services,
 } from './services/index.js';
+import { ShellIntegrationService } from './services/shellIntegrationService.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -74,26 +75,61 @@ function createMainWindow(services: Services): BrowserWindow {
 }
 
 void app.whenReady().then(async () => {
-  const rulesFile = join(app.getPath('userData'), 'rules.json');
-  let initialCompare: InitialCompareSession | null = null;
+  const userDataPath = app.getPath('userData');
+  const shellIntegration = new ShellIntegrationService(userDataPath);
+
+  let args = null;
   try {
     // Skip the executable + script paths in `process.argv`. In packaged
     // builds argv[0] is the Electron binary and argv[1+] are user args;
     // in `electron-vite dev` the same shape holds.
-    initialCompare = parseDesktopArgs(process.argv.slice(1));
-    if (initialCompare) {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[awapi] launching with ${initialCompare.type} compare: ` +
-          `${initialCompare.leftRoot} ↔ ${initialCompare.rightRoot} (${initialCompare.mode})`,
-      );
-    }
+    args = parseDesktopArgs(process.argv.slice(1));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     // eslint-disable-next-line no-console
     console.error(`[awapi] CLI argument error: ${msg}`);
   }
-  const sessionsDir = join(app.getPath('userData'), 'sessions');
+
+  // --register-shell / --unregister-shell: manage Explorer context menu entries.
+  if (args?.kind === 'registerShell') {
+    try {
+      await shellIntegration.register(app.getPath('exe'));
+      // eslint-disable-next-line no-console
+      console.log('[awapi] Shell integration registered');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[awapi] Shell integration registration failed:', err);
+    }
+    app.quit();
+    return;
+  }
+  if (args?.kind === 'unregisterShell') {
+    await shellIntegration.unregister();
+    // eslint-disable-next-line no-console
+    console.log('[awapi] Shell integration unregistered');
+    app.quit();
+    return;
+  }
+
+  // Resolve the initial compare session.
+  let initialCompare: InitialCompareSession | null = null;
+
+  if (args?.kind === 'openLeft') {
+    // --left without --right: open app with left side pre-populated, right empty.
+    initialCompare = { type: 'folder', leftRoot: args.path, mode: 'quick' };
+    // eslint-disable-next-line no-console
+    console.log(`[awapi] opening with left side: ${args.path}`);
+  } else if (args?.kind === 'compare') {
+    initialCompare = args.session;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[awapi] launching with ${initialCompare.type} compare: ` +
+        `${initialCompare.leftRoot} ↔ ${initialCompare.rightRoot} (${initialCompare.mode})`,
+    );
+  }
+
+  const rulesFile = join(userDataPath, 'rules.json');
+  const sessionsDir = join(userDataPath, 'sessions');
   const services = createServices({
     rules: {
       filePath: rulesFile,
@@ -109,6 +145,7 @@ void app.whenReady().then(async () => {
         BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null,
     },
     initialCompare,
+    shellIntegration,
   });
   // Register IPC handlers BEFORE any potentially-failing async work so a
   // bad rules.json on disk can never leave handlers un-registered (which

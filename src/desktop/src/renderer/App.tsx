@@ -42,11 +42,25 @@ export function App(): JSX.Element {
     version?: string;
     url?: string;
   } | null>(null);
+  const [platform, setPlatform] = useState<string | undefined>(undefined);
 
   const confirmOverwriteOnCopy = usePreferencesStore(
     (s) => s.confirmOverwriteOnCopy,
   );
   const setPreferences = usePreferencesStore((s) => s.setPreferences);
+
+  // Fetch platform once on mount.
+  useEffect(() => {
+    void (async () => {
+      if (!window.awapi) return;
+      try {
+        const info = await window.awapi.app.getInfo();
+        setPlatform(info.platform);
+      } catch {
+        // non-critical — shell section simply won't appear
+      }
+    })();
+  }, []);
 
   // Load global rules from main on mount.
   useEffect(() => {
@@ -86,7 +100,7 @@ export function App(): JSX.Element {
         const initial = await window.awapi.app?.getInitialCompare?.();
         if (!cancelled && initial) {
           session.setLeftRoot(initial.leftRoot);
-          session.setRightRoot(initial.rightRoot);
+          if (initial.rightRoot) session.setRightRoot(initial.rightRoot);
           session.setMode(initial.mode);
           return;
         }
@@ -266,6 +280,8 @@ export function App(): JSX.Element {
     });
   }, []);
 
+  // (Shell registration status fetch removed — macOS Finder integration not supported)
+
   return (
     <div className="awapi-app">
       <Tabs
@@ -300,6 +316,8 @@ export function App(): JSX.Element {
                   relPath={tab.relPath}
                   parentCompareTabId={tab.parentCompareTabId}
                   tabId={tab.id}
+                  initialLeftPath={tab.initialLeftPath}
+                  initialRightPath={tab.initialRightPath}
                   onOpenRules={() => setRulesEditorOpen(true)}
                   onOpenDiffOptions={() => setDiffOptionsOpen(true)}
                 />
@@ -347,6 +365,7 @@ export function App(): JSX.Element {
             setPreferencesOpen(false);
           }}
           onClose={() => setPreferencesOpen(false)}
+          platform={platform}
         />
       ) : null}
       {updateCheckResult !== null ? (

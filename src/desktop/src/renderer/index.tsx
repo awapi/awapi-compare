@@ -17,6 +17,18 @@ try {
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
 
+// Defensive guard: prevent the browser from navigating the window to
+// file:// URLs when a drag-drop misses the wired drop target. Drop
+// targets that want to handle the event still call preventDefault
+// in their own handlers; this listener is a no-op for them because
+// drop events bubble.
+window.addEventListener('dragover', (e: DragEvent) => {
+  e.preventDefault();
+});
+window.addEventListener('drop', (e: DragEvent) => {
+  e.preventDefault();
+});
+
 createRoot(root).render(
   <StrictMode>
     <App />

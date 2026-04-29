@@ -23,6 +23,8 @@ import { TextDiffView, type TextDiffActions } from './TextDiffView.js';
 import { HexDiffView } from './HexDiffView.js';
 import { ImageDiffView } from './ImageDiffView.js';
 import { CreateMissingSideDialog } from './CreateMissingSideDialog.js';
+import { useDropPaths } from '../useDropPaths.js';
+import type { DropSide } from '../useDropPaths.js';
 
 export interface FileDiffTabProps {
   /** Pair-key (relPath) the tab is bound to. */
@@ -40,6 +42,14 @@ export interface FileDiffTabProps {
    * title can render an unsaved-changes marker.
    */
   tabId?: string;
+  /**
+   * Optional absolute initial paths for the left / right file. When
+   * provided they take precedence over any pair-derived seeds. Used
+   * by the drag-and-drop flow which can launch a file-diff tab from
+   * outside an existing compare scan.
+   */
+  initialLeftPath?: string;
+  initialRightPath?: string;
   /** Open the global rules editor (toolbar `Rules` button). */
   onOpenRules?: () => void;
   /** Open the diff-options dialog (toolbar `Match` button). */
@@ -63,6 +73,8 @@ export function FileDiffTab({
   pair: pairProp,
   parentCompareTabId,
   tabId,
+  initialLeftPath,
+  initialRightPath,
   onOpenRules,
   onOpenDiffOptions,
 }: FileDiffTabProps): JSX.Element {
@@ -73,6 +85,8 @@ export function FileDiffTab({
         initialPair={pairProp}
         roots={null}
         tabId={tabId}
+        initialLeftPath={initialLeftPath}
+        initialRightPath={initialRightPath}
         onOpenRules={onOpenRules}
         onOpenDiffOptions={onOpenDiffOptions}
       />
@@ -84,6 +98,8 @@ export function FileDiffTab({
       pairProp={pairProp}
       parentCompareTabId={parentCompareTabId}
       tabId={tabId}
+      initialLeftPath={initialLeftPath}
+      initialRightPath={initialRightPath}
       onOpenRules={onOpenRules}
       onOpenDiffOptions={onOpenDiffOptions}
     />
@@ -95,6 +111,8 @@ function SessionBoundFileDiffBody({
   pairProp,
   parentCompareTabId,
   tabId,
+  initialLeftPath,
+  initialRightPath,
   onOpenRules,
   onOpenDiffOptions,
 }: {
@@ -102,6 +120,8 @@ function SessionBoundFileDiffBody({
   pairProp?: ComparedPair;
   parentCompareTabId: string;
   tabId?: string;
+  initialLeftPath?: string;
+  initialRightPath?: string;
   onOpenRules?: () => void;
   onOpenDiffOptions?: () => void;
 }): JSX.Element {
@@ -124,6 +144,8 @@ function SessionBoundFileDiffBody({
       initialPair={initialPair}
       roots={roots}
       tabId={tabId}
+      initialLeftPath={initialLeftPath}
+      initialRightPath={initialRightPath}
       onOpenRules={onOpenRules}
       onOpenDiffOptions={onOpenDiffOptions}
     />
@@ -135,6 +157,8 @@ function FileDiffBody({
   initialPair,
   roots,
   tabId,
+  initialLeftPath,
+  initialRightPath,
   onOpenRules,
   onOpenDiffOptions,
 }: {
@@ -142,18 +166,26 @@ function FileDiffBody({
   initialPair?: ComparedPair;
   roots: RootPair | null;
   tabId?: string;
+  initialLeftPath?: string;
+  initialRightPath?: string;
   onOpenRules?: () => void;
   onOpenDiffOptions?: () => void;
 }): JSX.Element {
   // Compute the initial absolute paths exactly once. Subsequent edits
   // (via the path inputs / Swap button / Browse) are owned by local
   // state, so the file tab is independent of the parent session.
-  const [seededLeft] = useState<string>(() =>
-    initialPair?.left && roots ? joinPath(roots.leftRoot, initialPair.left.relPath) : '',
-  );
-  const [seededRight] = useState<string>(() =>
-    initialPair?.right && roots ? joinPath(roots.rightRoot, initialPair.right.relPath) : '',
-  );
+  const [seededLeft] = useState<string>(() => {
+    if (initialLeftPath) return initialLeftPath;
+    return initialPair?.left && roots
+      ? joinPath(roots.leftRoot, initialPair.left.relPath)
+      : '';
+  });
+  const [seededRight] = useState<string>(() => {
+    if (initialRightPath) return initialRightPath;
+    return initialPair?.right && roots
+      ? joinPath(roots.rightRoot, initialPair.right.relPath)
+      : '';
+  });
 
   const [leftPath, setLeftPath] = useState<string>(seededLeft);
   const [rightPath, setRightPath] = useState<string>(seededRight);
@@ -440,8 +472,58 @@ function FileDiffBody({
     void textDiffActionsRef.current?.saveRight();
   }, []);
 
+  // Drag-and-drop: dropping a file onto the left/right half of the
+  // file-diff body sets that side's path. Folders are ignored — a
+  // file-diff tab compares two specific files. When two files are
+  // dropped at once, both sides are set regardless of pointer.
+  const handleDropPaths = useCallback(
+    async (side: DropSide, paths: string[]) => {
+      if (!window.awapi?.fs?.stat || paths.length === 0) return;
+      const stats = await Promise.all(
+        paths.map(async (p) => {
+          try {
+            const s = await window.awapi.fs.stat({ path: p });
+            return { path: p, type: s.type };
+          } catch {
+            return { path: p, type: 'other' as const };
+          }
+        }),
+      );
+      const files = stats.filter((s) => s.type === 'file').map((s) => s.path);
+      if (files.length === 0) return;
+      if (files.length >= 2) {
+        const left = files[0];
+        const right = files[1];
+        if (left !== undefined) {
+          setLeftPath(left);
+          addRecent('file', 'left', left);
+        }
+        if (right !== undefined) {
+          setRightPath(right);
+          addRecent('file', 'right', right);
+        }
+        return;
+      }
+      const only = files[0];
+      if (only === undefined) return;
+      if (side === 'left') {
+        setLeftPath(only);
+        addRecent('file', 'left', only);
+      } else {
+        setRightPath(only);
+        addRecent('file', 'right', only);
+      }
+    },
+    [addRecent],
+  );
+  const { dropProps, hoverSide } = useDropPaths({ onDrop: handleDropPaths });
+
   return (
-    <section className="awapi-file-diff" aria-label={`File diff for ${relPath}`}>
+    <section
+      className={`awapi-file-diff${hoverSide ? ` awapi-file-diff--drop-${hoverSide}` : ''}`}
+      aria-label={`File diff for ${relPath}`}
+      {...dropProps}
+    >
       <Toolbar
         leftRoot={leftPath}
         rightRoot={rightPath}
