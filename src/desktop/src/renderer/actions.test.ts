@@ -146,9 +146,10 @@ describe('buildRowMenuItems', () => {
       'openSelectedFolders',
       'useAsLeftFolderOnly',
       'useAsRightFolderOnly',
+      'revealInFolder',
     ]);
-    // 4 separators between 5 groups.
-    expect(items.filter((i) => i.type === 'separator')).toHaveLength(4);
+    // 5 separators between 6 groups.
+    expect(items.filter((i) => i.type === 'separator')).toHaveLength(5);
     for (const item of items) {
       if (item.type === 'separator') continue;
       expect(item.label).toBe(ROW_ACTION_LABELS[item.action]);
@@ -163,8 +164,8 @@ describe('buildRowMenuItems', () => {
       .map((i) => (i.type !== 'separator' ? i.action : null));
     expect(disabled).toEqual(expect.arrayContaining(['copyRightToLeft', 'markSame']));
     expect(disabled).not.toContain('compare');
-    // 11 actions + 4 separators.
-    expect(items).toHaveLength(15);
+    // 12 actions + 5 separators.
+    expect(items).toHaveLength(17);
   });
 
   it('disables every row action when no pair is focused', () => {

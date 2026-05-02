@@ -1505,3 +1505,82 @@ body,
   padding: 0;
   margin: 0;
 }
+
+/* ---- Open Session dialog -------------------------------------------- */
+
+.awapi-modal--medium {
+  max-width: 680px;
+  min-height: 0;
+}
+
+.awapi-session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.awapi-session-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  border-radius: 3px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--awapi-text);
+  font: inherit;
+}
+
+.awapi-session-list__item:hover {
+  background: var(--awapi-row-hover, rgba(255, 255, 255, 0.05));
+  border-color: var(--awapi-accent);
+}
+
+.awapi-session-list__name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.awapi-session-list__roots {
+  font-size: 11px;
+  color: var(--awapi-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.awapi-session-list__date {
+  font-size: 11px;
+  color: var(--awapi-muted);
+}
+
+/* ---- Save Session dialog -------------------------------------------- */
+
+.awapi-save-session__label {
+  font-size: 12px;
+  color: var(--awapi-muted);
+  margin-bottom: 2px;
+}
+
+.awapi-save-session__input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--awapi-bg);
+  color: var(--awapi-text);
+  border: 1px solid var(--awapi-border);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.awapi-save-session__input:focus {
+  outline: none;
+  border-color: var(--awapi-accent);
+}

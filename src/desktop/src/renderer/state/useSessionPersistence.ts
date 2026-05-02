@@ -15,6 +15,7 @@ export function useSessionPersistence(tabId: string): void {
 
   const leftRoot = useSession((s) => s.leftRoot);
   const rightRoot = useSession((s) => s.rightRoot);
+  const name = useSession((s) => s.name);
   const mode = useSession((s) => s.mode);
   const rules = useSession((s) => s.rules);
   const diffOptions = useSession((s) => s.diffOptions);
@@ -32,5 +33,5 @@ export function useSessionPersistence(tabId: string): void {
 
     return () => clearTimeout(handle);
     // rules/diffOptions are objects; list them so deep changes trigger saves.
-  }, [leftRoot, rightRoot, mode, rules, diffOptions]);
+  }, [leftRoot, rightRoot, name, mode, rules, diffOptions]);
 }

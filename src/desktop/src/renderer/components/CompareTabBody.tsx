@@ -41,12 +41,21 @@ interface ContextMenuState {
   side: 'left' | 'right';
 }
 
-interface OverwritePromptState {
+interface OverwriteQueueItem {
   direction: 'leftToRight' | 'rightToLeft';
   from: string;
   to: string;
   target: string;
   detail: string;
+}
+
+interface OverwritePromptState extends OverwriteQueueItem {
+  /** Items waiting to be confirmed after this one. */
+  remaining: OverwriteQueueItem[];
+  /** Errors collected from copies already executed in this batch. */
+  accumulatedErrors: string[];
+  /** True once at least one copy in this batch has been executed. */
+  anyExecuted: boolean;
 }
 
 interface DeletePromptState {
@@ -142,6 +151,14 @@ export function CompareTabBody({
     useState<OverwritePromptState | null>(null);
   const [deletePrompt, setDeletePrompt] = useState<DeletePromptState | null>(null);
   const [renamePrompt, setRenamePrompt] = useState<RenamePromptState | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(
+    new Set<string>(),
+  );
+
+  // Clear multi-selection when a new scan result arrives.
+  useEffect(() => {
+    setSelectedPaths(new Set<string>());
+  }, [pairs]);
 
   // Keep tab title in sync with the chosen folder pair.
   useEffect(() => {
@@ -271,25 +288,80 @@ export function CompareTabBody({
     [pairs, openFileDiffTab, tabId],
   );
 
-  const performCopy = useCallback(
-    async (from: string, to: string, overwrite: boolean) => {
-      if (!window.awapi) return;
+  const executeCopy = useCallback(
+    async (from: string, to: string, overwrite: boolean): Promise<string[]> => {
+      if (!window.awapi) return [];
       try {
         const result = await window.awapi.fs.copy({ from, to, overwrite });
-        if (result.errors.length > 0) {
-          const first = result.errors[0];
+        return result.errors.map((e) => e.message);
+      } catch (err) {
+        return [err instanceof Error ? err.message : String(err)];
+      }
+    },
+    [],
+  );
+
+  const performCopy = useCallback(
+    async (from: string, to: string, overwrite: boolean) => {
+      const errors = await executeCopy(from, to, overwrite);
+      if (errors.length > 0) {
+        setError(
+          `Copy completed with ${errors.length} error${errors.length === 1 ? '' : 's'}: ${errors[0] ?? 'unknown error'}`,
+        );
+      } else {
+        setError(null);
+      }
+      await runCompare();
+    },
+    [executeCopy, runCompare, setError],
+  );
+
+  const requestMultiCopy = useCallback(
+    async (
+      direction: 'leftToRight' | 'rightToLeft',
+      copies: Array<{ from: string; to: string; overwrite: boolean; target: string; detail: string }>,
+    ) => {
+      if (copies.length === 0) return;
+      // Items that skip the dialog (no overwrite, or pref disabled).
+      const needsConfirm = confirmOverwriteOnCopy
+        ? copies.filter((c) => c.overwrite)
+        : [];
+      const noConfirm = confirmOverwriteOnCopy
+        ? copies.filter((c) => !c.overwrite)
+        : copies;
+      // Execute the non-confirming items first.
+      const batchErrors: string[] = [];
+      for (const c of noConfirm) {
+        const errs = await executeCopy(c.from, c.to, c.overwrite);
+        batchErrors.push(...errs);
+      }
+      if (needsConfirm.length === 0) {
+        if (batchErrors.length > 0) {
           setError(
-            `Copy completed with ${result.errors.length} error${result.errors.length === 1 ? '' : 's'}: ${first?.message ?? 'unknown error'}`,
+            `Copy completed with ${batchErrors.length} error${batchErrors.length === 1 ? '' : 's'}: ${batchErrors[0] ?? 'unknown error'}`,
           );
         } else {
           setError(null);
         }
         await runCompare();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        return;
       }
+      // Show the first overwrite dialog; the rest go into the queue.
+      const first = needsConfirm[0];
+      if (!first) return;
+      const rest = needsConfirm.slice(1);
+      setOverwritePrompt({
+        direction,
+        from: first.from,
+        to: first.to,
+        target: first.target,
+        detail: first.detail,
+        remaining: rest.map((c) => ({ direction, from: c.from, to: c.to, target: c.target, detail: c.detail })),
+        accumulatedErrors: batchErrors,
+        anyExecuted: noConfirm.length > 0,
+      });
     },
-    [runCompare, setError],
+    [confirmOverwriteOnCopy, executeCopy, runCompare, setError],
   );
 
   const requestCopy = useCallback(
@@ -318,6 +390,9 @@ export function CompareTabBody({
           to,
           target: sourceEntry.name || sourceEntry.relPath,
           detail: to,
+          remaining: [],
+          accumulatedErrors: [],
+          anyExecuted: false,
         });
         return;
       }
@@ -451,7 +526,12 @@ export function CompareTabBody({
     async (action: RowAction, relPath?: string, side?: 'left' | 'right') => {
       const targetPath = relPath ?? selected ?? null;
       const pair = targetPath ? pairs.find((p) => p.relPath === targetPath) : undefined;
-      if (!isActionEnabled(action, { pair })) return;
+      // Multi-selection copy bypasses the single-pair enabled check; each pair
+      // is validated individually in the loop below.
+      const isMultiCopy =
+        selectedPaths.size > 1 &&
+        (action === 'copyLeftToRight' || action === 'copyRightToLeft');
+      if (!isMultiCopy && !isActionEnabled(action, { pair })) return;
       switch (action) {
         case 'compare':
           await runCompare();
@@ -484,21 +564,65 @@ export function CompareTabBody({
             }
           }
           return;
-        case 'copyLeftToRight':
+        case 'copyLeftToRight': {
+          if (selectedPaths.size > 1) {
+            const copies: Array<{ from: string; to: string; overwrite: boolean; target: string; detail: string }> = [];
+            for (const p of selectedPaths) {
+              const cp = pairs.find((pa) => pa.relPath === p);
+              if (!cp || !isActionEnabled('copyLeftToRight', { pair: cp })) continue;
+              if (!leftRoot || !rightRoot) continue;
+              const srcEntry = cp.left;
+              if (!srcEntry) continue;
+              const from = joinPath(leftRoot, srcEntry.relPath);
+              const to = joinPath(rightRoot, srcEntry.relPath);
+              copies.push({ from, to, overwrite: !!cp.right, target: srcEntry.name || srcEntry.relPath, detail: to });
+            }
+            void requestMultiCopy('leftToRight', copies);
+            return;
+          }
           if (pair) requestCopy('leftToRight', pair);
           return;
-        case 'copyRightToLeft':
+        }
+        case 'copyRightToLeft': {
+          if (selectedPaths.size > 1) {
+            const copies: Array<{ from: string; to: string; overwrite: boolean; target: string; detail: string }> = [];
+            for (const p of selectedPaths) {
+              const cp = pairs.find((pa) => pa.relPath === p);
+              if (!cp || !isActionEnabled('copyRightToLeft', { pair: cp })) continue;
+              if (!leftRoot || !rightRoot) continue;
+              const srcEntry = cp.right;
+              if (!srcEntry) continue;
+              const from = joinPath(rightRoot, srcEntry.relPath);
+              const to = joinPath(leftRoot, srcEntry.relPath);
+              copies.push({ from, to, overwrite: !!cp.left, target: srcEntry.name || srcEntry.relPath, detail: to });
+            }
+            void requestMultiCopy('rightToLeft', copies);
+            return;
+          }
           if (pair) requestCopy('rightToLeft', pair);
           return;
+        }
         case 'rename':
           if (pair) requestRename(pair, side);
           return;
         case 'delete':
           if (pair) requestDelete(pair, side);
           return;
+        case 'revealInFolder': {
+          if (!pair) return;
+          const revealEntry =
+            (side === 'left' ? pair.left : side === 'right' ? pair.right : null) ??
+            pair.left ??
+            pair.right;
+          const revealRoot = revealEntry === pair.left ? leftRoot : rightRoot;
+          if (revealEntry && revealRoot) {
+            window.awapi?.app.revealInFolder(joinPath(revealRoot, revealEntry.relPath));
+          }
+          return;
+        }
       }
     },
-    [pairs, selected, runCompare, openSelected, markSame, excludePath, setError, setLeftRoot, setRightRoot, leftRoot, rightRoot, requestCopy, requestDelete, requestRename],
+    [pairs, selected, selectedPaths, runCompare, openSelected, markSame, excludePath, setError, setLeftRoot, setRightRoot, leftRoot, rightRoot, requestMultiCopy, requestCopy, requestDelete, requestRename],
   );
 
   // Hotkeys + app-menu actions only fire on the active tab.
@@ -525,6 +649,78 @@ export function CompareTabBody({
     });
     return () => off?.();
   }, [isActive, runCompare, toggleTheme, dispatchAction]);
+
+  const handleSelectionChange = useCallback(
+    (paths: ReadonlySet<string>, primary: string | null) => {
+      setSelectedPaths(paths);
+      setSelectedPath(primary);
+    },
+    [setSelectedPath],
+  );
+
+  const handleOverwriteConfirm = useCallback(
+    (remember: boolean) => {
+      const prompt = overwritePrompt;
+      if (!prompt) return;
+      if (remember) setConfirmOverwriteOnCopy(false);
+      void (async () => {
+        const errs = await executeCopy(prompt.from, prompt.to, true);
+        const allErrors = [...prompt.accumulatedErrors, ...errs];
+        if (remember || prompt.remaining.length === 0) {
+          // "Don't ask again" checked, or last item: drain remaining silently.
+          const finalErrors = [...allErrors];
+          for (const item of prompt.remaining) {
+            const e = await executeCopy(item.from, item.to, true);
+            finalErrors.push(...e);
+          }
+          setOverwritePrompt(null);
+          if (finalErrors.length > 0) {
+            setError(
+              `Copy completed with ${finalErrors.length} error${finalErrors.length === 1 ? '' : 's'}: ${finalErrors[0] ?? 'unknown error'}`,
+            );
+          } else {
+            setError(null);
+          }
+          await runCompare();
+        } else {
+          // Advance to the next item in the queue.
+          const next = prompt.remaining[0];
+          const rest = prompt.remaining.slice(1);
+          if (!next) {
+            setOverwritePrompt(null);
+            await runCompare();
+            return;
+          }
+          setOverwritePrompt({ ...next, remaining: rest, accumulatedErrors: allErrors, anyExecuted: true });
+        }
+      })();
+    },
+    [overwritePrompt, executeCopy, setConfirmOverwriteOnCopy, runCompare, setError],
+  );
+
+  const handleOverwriteCancel = useCallback(() => {
+    const prompt = overwritePrompt;
+    if (!prompt) return;
+    if (prompt.remaining.length === 0) {
+      setOverwritePrompt(null);
+      if (prompt.anyExecuted) {
+        if (prompt.accumulatedErrors.length > 0) {
+          setError(
+            `Copy completed with ${prompt.accumulatedErrors.length} error${prompt.accumulatedErrors.length === 1 ? '' : 's'}: ${prompt.accumulatedErrors[0] ?? 'unknown error'}`,
+          );
+        } else {
+          setError(null);
+        }
+        void runCompare();
+      }
+    } else {
+      // Skip this item and show the next.
+      const next = prompt.remaining[0];
+      const rest = prompt.remaining.slice(1);
+      if (!next) { setOverwritePrompt(null); return; }
+      setOverwritePrompt({ ...next, remaining: rest, accumulatedErrors: prompt.accumulatedErrors, anyExecuted: prompt.anyExecuted });
+    }
+  }, [overwritePrompt, runCompare, setError]);
 
   const handleContextMenu = useCallback(
     (relPath: string, side: 'left' | 'right', x: number, y: number) => {
@@ -554,11 +750,18 @@ export function CompareTabBody({
           }
         }),
       );
-      const folder = stats.find((s) => s.type === 'dir');
-      if (folder) {
-        if (side === 'left') setLeftRoot(folder.path);
-        else setRightRoot(folder.path);
-        addRecent('folder', side, folder.path);
+      const folders = stats.filter((s) => s.type === 'dir');
+      if (folders.length >= 2) {
+        setLeftRoot(folders[0].path);
+        setRightRoot(folders[1].path);
+        addRecent('folder', 'left', folders[0].path);
+        addRecent('folder', 'right', folders[1].path);
+        return;
+      }
+      if (folders.length === 1) {
+        if (side === 'left') setLeftRoot(folders[0].path);
+        else setRightRoot(folders[0].path);
+        addRecent('folder', side, folders[0].path);
         return;
       }
       const files = stats.filter((s) => s.type === 'file').map((s) => s.path);
@@ -651,9 +854,9 @@ export function CompareTabBody({
       />
       <DiffTable
         pairs={visiblePairs}
-        selectedPath={selected}
+        selectedPaths={selectedPaths}
         theme={theme}
-        onSelect={setSelectedPath}
+        onSelectionChange={handleSelectionChange}
         onActivate={openSelected}
         onContextMenu={handleContextMenu}
       />
@@ -688,13 +891,8 @@ export function CompareTabBody({
           direction={overwritePrompt.direction}
           target={overwritePrompt.target}
           detail={overwritePrompt.detail}
-          onCancel={() => setOverwritePrompt(null)}
-          onConfirm={(remember) => {
-            const prompt = overwritePrompt;
-            setOverwritePrompt(null);
-            if (remember) setConfirmOverwriteOnCopy(false);
-            void performCopy(prompt.from, prompt.to, true);
-          }}
+          onCancel={handleOverwriteCancel}
+          onConfirm={handleOverwriteConfirm}
         />
       ) : null}
       {deletePrompt ? (

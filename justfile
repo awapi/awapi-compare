@@ -27,7 +27,7 @@ clean:
 #   just dev ./left ./right [mode]
 #   just dev "" ""               # start with no preloaded session
 # `mode` defaults to "quick" (one of: quick | thorough | binary).
-dev left="" right="" mode="quick":
+dev left="samples/folderA" right="samples/folderB" mode="quick":
     #!/usr/bin/env bash
     set -euo pipefail
     # Resolve paths against the repo root (where `just` was invoked) so

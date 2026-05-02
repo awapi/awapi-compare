@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ComparedPair } from '@awapi/shared';
 import { getPalette, statusLabel } from '../theme.js';
@@ -9,9 +9,9 @@ import { buildTreeRows, collectDirPaths } from '../treeRows.js';
 
 export interface DiffTableProps {
   pairs: readonly ComparedPair[];
-  selectedPath?: string | null;
+  selectedPaths?: ReadonlySet<string>;
   theme: ThemeName;
-  onSelect?: (relPath: string) => void;
+  onSelectionChange?: (paths: ReadonlySet<string>, primary: string | null) => void;
   onActivate?: (relPath: string) => void;
   onContextMenu?: (relPath: string, side: 'left' | 'right', x: number, y: number) => void;
 }
@@ -26,9 +26,20 @@ const INDENT_PX = 16;
  * flat list. Expansion state is tracked locally by relPath.
  */
 export function DiffTable(props: DiffTableProps): JSX.Element {
-  const { pairs, selectedPath, theme, onSelect, onActivate, onContextMenu } = props;
+  const { pairs, selectedPaths, theme, onSelectionChange, onActivate, onContextMenu } = props;
   const palette = getPalette(theme);
   const parentRef = useRef<HTMLDivElement>(null);
+  const anchorPathRef = useRef<string | null>(null);
+
+  // Drag-to-select state. We use refs so the mouseenter handler doesn't
+  // close over stale values from the render that initiated the drag.
+  const dragAnchorIdxRef = useRef<number | null>(null);
+  const dragBaseSelectionRef = useRef<ReadonlySet<string>>(new Set());
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
+  // Kept in sync below (after rows is computed) so mouseenter handlers
+  // always read the latest virtualised row list without stale closures.
+  const rowsRef = useRef<ReturnType<typeof buildTreeRows>>([]);
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -46,6 +57,16 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
   }, [pairs, expanded]);
 
   const rows = useMemo(() => buildTreeRows(pairs, collapsed), [pairs, collapsed]);
+  rowsRef.current = rows;
+
+  // End drag-select when the mouse button is released anywhere.
+  useEffect(() => {
+    const onMouseUp = () => {
+      dragAnchorIdxRef.current = null;
+    };
+    window.addEventListener('mouseup', onMouseUp);
+    return () => window.removeEventListener('mouseup', onMouseUp);
+  }, []);
 
   const toggle = useCallback((relPath: string) => {
     setExpanded((prev) => {
@@ -96,7 +117,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
               const row = rows[virtualRow.index];
               if (!row) return null;
               const { pair, depth, isDir, hasChildren, expanded, displayStatus } = row;
-              const isSelected = selectedPath === pair.relPath;
+              const isSelected = selectedPaths?.has(pair.relPath) ?? false;
               const color = palette.status[displayStatus];
               const indent = depth * INDENT_PX;
               return (
@@ -113,7 +134,52 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                     transform: `translateY(${virtualRow.start}px)`,
                     color,
                   }}
-                  onClick={() => onSelect?.(pair.relPath)}
+                  onClick={(e) => {
+                    const isShift = e.shiftKey;
+                    const isCtrl = e.ctrlKey || e.metaKey;
+                    if (isShift && anchorPathRef.current !== null) {
+                      const anchorIdx = rows.findIndex(
+                        (r) => r.pair.relPath === anchorPathRef.current,
+                      );
+                      const clickedIdx = virtualRow.index;
+                      const lo = Math.min(anchorIdx, clickedIdx);
+                      const hi = Math.max(anchorIdx, clickedIdx);
+                      const range = new Set(
+                        rows.slice(lo, hi + 1).map((r) => r.pair.relPath),
+                      );
+                      onSelectionChange?.(range, pair.relPath);
+                    } else if (isCtrl) {
+                      const next = new Set(selectedPaths ?? []);
+                      if (next.has(pair.relPath)) next.delete(pair.relPath);
+                      else next.add(pair.relPath);
+                      anchorPathRef.current = pair.relPath;
+                      onSelectionChange?.(next, pair.relPath);
+                    } else {
+                      anchorPathRef.current = pair.relPath;
+                      onSelectionChange?.(new Set([pair.relPath]), pair.relPath);
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    // Start drag-select only on plain left button (no modifier).
+                    if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey) return;
+                    e.preventDefault(); // prevent focus/text-selection side-effects
+                    dragAnchorIdxRef.current = virtualRow.index;
+                    // Snapshot the current selection so Ctrl+drag (not
+                    // implemented yet) would be additive; for plain drag we
+                    // start fresh from this row.
+                    dragBaseSelectionRef.current = new Set();
+                    anchorPathRef.current = pair.relPath;
+                    onSelectionChangeRef.current?.(new Set([pair.relPath]), pair.relPath);
+                  }}
+                  onMouseEnter={() => {
+                    if (dragAnchorIdxRef.current === null) return;
+                    const lo = Math.min(dragAnchorIdxRef.current, virtualRow.index);
+                    const hi = Math.max(dragAnchorIdxRef.current, virtualRow.index);
+                    const range = new Set(
+                      rowsRef.current.slice(lo, hi + 1).map((r) => r.pair.relPath),
+                    );
+                    onSelectionChangeRef.current?.(range, pair.relPath);
+                  }}
                   onDoubleClick={() => {
                     if (isDir && hasChildren) toggle(pair.relPath);
                     else onActivate?.(pair.relPath);
@@ -121,7 +187,12 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                   onContextMenu={(event) => {
                     if (!onContextMenu) return;
                     event.preventDefault();
-                    onSelect?.(pair.relPath);
+                    // If right-clicking a row not already in the selection,
+                    // single-select it; otherwise keep the multi-selection.
+                    if (!(selectedPaths?.has(pair.relPath) ?? false)) {
+                      anchorPathRef.current = pair.relPath;
+                      onSelectionChange?.(new Set([pair.relPath]), pair.relPath);
+                    }
                     // Detect which side of the row was clicked. Cells
                     // carry a `data-side` attribute; the centre status
                     // cell falls back to the side that has an entry.

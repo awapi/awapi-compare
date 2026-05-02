@@ -24,4 +24,11 @@ export const useWorkspaceStore = createWorkspaceStore({
 export const useThemeStore = createThemeStore();
 export const useRulesStore = createRulesStore();
 export const usePreferencesStore = createPreferencesStore();
-export const useRecentsStore = createRecentsStore();
+export const useRecentsStore = createRecentsStore({
+  storage: null,
+  onSave: (map) => {
+    void window.awapi?.recents
+      ?.set(map as Record<string, string[]>)
+      .catch(() => {});
+  },
+});

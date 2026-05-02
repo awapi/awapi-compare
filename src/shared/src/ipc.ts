@@ -44,6 +44,7 @@ export const IpcChannel = {
   AppRequestClose: 'app.requestClose',
   AppCloseWindow: 'app.closeWindow',
   AppOpenExternal: 'app.openExternal',
+  AppRevealInFolder: 'app.revealInFolder',
   AppGetInfo: 'app.getInfo',
   DialogPickFolder: 'dialog.pickFolder',
   DialogPickFile: 'dialog.pickFile',
@@ -51,6 +52,8 @@ export const IpcChannel = {
   ShellIntegrationStatus: 'shell.status',
   ShellIntegrationRegister: 'shell.register',
   ShellIntegrationUnregister: 'shell.unregister',
+  RecentsGet: 'recents.get',
+  RecentsSet: 'recents.set',
 } as const;
 
 export type IpcChannelId = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -390,7 +393,11 @@ export interface AwapiApi {
      */
     openExternal(url: string): Promise<void>;
     /**
-     * Resolve app metadata from the main process.
+     * Open the system file manager (Finder on macOS, Explorer on Windows)
+     * with the item at `path` selected.
+     */
+    revealInFolder(path: string): void;
+    /**
      */
     getInfo(): Promise<{
       name: string;
@@ -428,6 +435,16 @@ export interface AwapiApi {
      * the user's choice.
      */
     confirmUnsaved(req?: DialogConfirmUnsavedRequest): Promise<DialogConfirmUnsavedChoice>;
+  };
+  /**
+   * Recent paths the user has opened. Persisted to disk so they are
+   * shared between dev mode (localhost origin) and packaged builds.
+   */
+  recents: {
+    /** Load all buckets from disk. */
+    get(): Promise<Record<string, string[]>>;
+    /** Persist all buckets to disk. */
+    set(data: Record<string, string[]>): Promise<void>;
   };
   /**
    * macOS Finder / Windows Explorer shell integration.

@@ -4,7 +4,9 @@ import { AboutDialog } from './components/AboutDialog.js';
 import { CompareTabBody } from './components/CompareTabBody.js';
 import { DiffOptionsDialog } from './components/DiffOptionsDialog.js';
 import { FileDiffTab } from './components/FileDiffTab.js';
+import { OpenSessionDialog } from './components/OpenSessionDialog.js';
 import { PreferencesDialog } from './components/PreferencesDialog.js';
+import { SaveSessionDialog } from './components/SaveSessionDialog.js';
 import { Tabs } from './components/Tabs.js';
 import { RulesEditor, type RulesScope } from './components/RulesEditor.js';
 import { UpdateCheckDialog } from './components/UpdateCheckDialog.js';
@@ -13,10 +15,11 @@ import {
   useRulesStore,
   useThemeStore,
   useWorkspaceStore,
+  useRecentsStore,
 } from './state/stores.js';
 import { getSessionStore } from './state/sessionRegistry.js';
 import { getTabSaveHandler } from './state/tabSaveRegistry.js';
-import { DEFAULT_DIFF_OPTIONS, type DiffOptions, type Rule } from '@awapi/shared';
+import { DEFAULT_DIFF_OPTIONS, type DiffOptions, type Rule, type Session } from '@awapi/shared';
 
 export function App(): JSX.Element {
   const theme = useThemeStore((s) => s.theme);
@@ -43,6 +46,9 @@ export function App(): JSX.Element {
     url?: string;
   } | null>(null);
   const [platform, setPlatform] = useState<string | undefined>(undefined);
+  const [openSessionOpen, setOpenSessionOpen] = useState(false);
+  const [saveSessionOpen, setSaveSessionOpen] = useState(false);
+  const [saveSessionInitialName, setSaveSessionInitialName] = useState('');
 
   const confirmOverwriteOnCopy = usePreferencesStore(
     (s) => s.confirmOverwriteOnCopy,
@@ -58,6 +64,19 @@ export function App(): JSX.Element {
         setPlatform(info.platform);
       } catch {
         // non-critical — shell section simply won't appear
+      }
+    })();
+  }, []);
+
+  // Load recent paths from disk once on mount.
+  useEffect(() => {
+    void (async () => {
+      if (!window.awapi?.recents) return;
+      try {
+        const data = await window.awapi.recents.get();
+        useRecentsStore.getState().load(data);
+      } catch (err) {
+        console.warn('[awapi] failed to load recents:', err);
       }
     })();
   }, []);
@@ -108,20 +127,35 @@ export function App(): JSX.Element {
         console.warn('[awapi] failed to read initial compare:', err);
       }
 
-      // 2. Restore last persisted session.
+      // 2. Restore all persisted sessions as compare tabs, sorted oldest-first
+      //    so the most-recently-updated session ends up in the last (active) tab.
       if (cancelled) return;
       try {
-        const sessions = await window.awapi.session?.list?.();
-        if (cancelled || !sessions?.length) return;
-        const latest = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        if (latest) {
-          session.loadSnapshot({
-            ...latest,
-            diffOptions: latest.diffOptions ?? DEFAULT_DIFF_OPTIONS,
+        const all = await window.awapi.session?.list?.();
+        if (cancelled || !all?.length) return;
+        const sorted = [...all]
+          .filter((s) => s.leftRoot || s.rightRoot)
+          .sort((a, b) => a.updatedAt - b.updatedAt);
+        const [oldest, ...rest] = sorted;
+        if (!oldest) return;
+        // Load the oldest session into the already-open first compare tab.
+        session.loadSnapshot({
+          ...oldest,
+          diffOptions: oldest.diffOptions ?? DEFAULT_DIFF_OPTIONS,
+        });
+        // Open a new compare tab for each subsequent session.
+        for (const s of rest) {
+          if (cancelled) return;
+          const tabId = useWorkspaceStore.getState().openCompareTab(s.name ?? 'Compare');
+          getSessionStore(tabId).getState().loadSnapshot({
+            ...s,
+            diffOptions: s.diffOptions ?? DEFAULT_DIFF_OPTIONS,
           });
         }
+        // openCompareTab already activates each new tab in turn, leaving
+        // the most-recently-updated session as the active tab.
       } catch (err) {
-        console.warn('[awapi] failed to restore last session:', err);
+        console.warn('[awapi] failed to restore sessions:', err);
       }
     })();
     return () => {
@@ -264,12 +298,76 @@ export function App(): JSX.Element {
     });
   }, []);
 
+  /** Returns the active compare tab's session store, or null. */
+  const getActiveCompareStore = () => {
+    const id = activeCompareId;
+    if (!id) return null;
+    return getSessionStore(id).getState();
+  };
+
+  /** Persist the active compare session via IPC after optionally setting a name. */
+  const persistSession = (name?: string): void => {
+    const store = getActiveCompareStore();
+    if (!store) return;
+    if (name !== undefined) store.setName(name);
+    const snapshot = store.toSnapshot();
+    void window.awapi?.session?.save(snapshot).catch((err: unknown) => {
+      console.warn('[awapi] session save failed:', err);
+    });
+  };
+
+  /** Load a saved session into the active compare tab. */
+  const loadSessionIntoActiveTab = (session: Session): void => {
+    if (!activeCompareId) return;
+    const now = Date.now();
+    getSessionStore(activeCompareId)
+      .getState()
+      .loadSnapshot({
+        ...session,
+        id: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+        diffOptions: session.diffOptions ?? DEFAULT_DIFF_OPTIONS,
+      });
+  };
+
   // Listen for the global Preferences menu action (CmdOrCtrl+,). The
   // listener is mounted once at app level so it works regardless of
   // which tab is currently active.
   useEffect(() => {
     if (!window.awapi?.app?.onMenuAction) return;
     return window.awapi.app.onMenuAction((menuAction) => {
+      if (menuAction === 'session.new') {
+        openCompareTab();
+        return;
+      }
+      if (menuAction === 'session.open') {
+        setOpenSessionOpen(true);
+        return;
+      }
+      if (menuAction === 'session.save') {
+        const store = getActiveCompareStore();
+        if (!store) return;
+        if (store.name) {
+          // Already named — save silently.
+          persistSession();
+        } else {
+          // Prompt for a name first.
+          setSaveSessionInitialName('');
+          setSaveSessionOpen(true);
+        }
+        return;
+      }
+      if (menuAction === 'session.saveAs') {
+        const store = getActiveCompareStore();
+        setSaveSessionInitialName(store?.name ?? '');
+        setSaveSessionOpen(true);
+        return;
+      }
+      if (menuAction === 'session.closeTab') {
+        tryCloseTab(activeTabId);
+        return;
+      }
       if (menuAction === 'edit.preferences') setPreferencesOpen(true);
       if (menuAction === 'help.about') setAboutOpen(true);
       if (menuAction === 'help.checkForUpdates') {
@@ -278,7 +376,8 @@ export function App(): JSX.Element {
         });
       }
     });
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId, activeCompareId]);
 
   // (Shell registration status fetch removed — macOS Finder integration not supported)
 
@@ -377,6 +476,25 @@ export function App(): JSX.Element {
         />
       ) : null}
       {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
+      {openSessionOpen ? (
+        <OpenSessionDialog
+          onOpen={(session) => {
+            loadSessionIntoActiveTab(session);
+            setOpenSessionOpen(false);
+          }}
+          onClose={() => setOpenSessionOpen(false)}
+        />
+      ) : null}
+      {saveSessionOpen ? (
+        <SaveSessionDialog
+          initialName={saveSessionInitialName}
+          onSave={(name) => {
+            persistSession(name);
+            setSaveSessionOpen(false);
+          }}
+          onClose={() => setSaveSessionOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

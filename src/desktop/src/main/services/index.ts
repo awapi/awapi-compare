@@ -12,6 +12,7 @@ import { HashService } from './hashService.js';
 import { LicenseService } from './licenseService.js';
 import { RulesService, type RulesServiceDeps } from './rulesService.js';
 import { SessionService, type SessionServiceDeps } from './sessionService.js';
+import { RecentsService, type RecentsServiceDeps } from './recentsService.js';
 import { ShellIntegrationService } from './shellIntegrationService.js';
 import { SftpService } from './sftpService.js';
 import { UpdaterService } from './updaterService.js';
@@ -24,6 +25,7 @@ export interface Services {
   diff: DiffService;
   rules: RulesService;
   session: SessionService;
+  recents: RecentsService;
   sftp: SftpService;
   license: LicenseService;
   updater: UpdaterService;
@@ -43,6 +45,8 @@ export interface CreateServicesOptions {
   rules?: RulesServiceDeps;
   /** Persistence options for the session store. */
   session?: SessionServiceDeps;
+  /** Persistence options for the recents store. */
+  recents?: RecentsServiceDeps;
   /** Optional overrides for the native dialog service (used by tests). */
   dialog?: DialogServiceDeps;
   /** Initial compare session from CLI parsing. */
@@ -58,6 +62,7 @@ export function createServices(options: CreateServicesOptions = {}): Services {
     diff: new DiffService(),
     rules: new RulesService(options.rules),
     session: new SessionService(options.session),
+    recents: new RecentsService(options.recents),
     sftp: new SftpService(),
     license: new LicenseService(),
     updater: new UpdaterService(),
@@ -101,7 +106,7 @@ function translateError<T>(err: unknown): Promise<T> {
  * progress events back to the renderer via `webContents.send`.
  */
 export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void {
-  const { fs, hash, rules, session, license, updater } = services;
+  const { fs, hash, rules, session, recents, license, updater } = services;
 
   ipcMain.handle(IpcChannel.FsScan, (_e, req) => wrap(() => fs.scan(req)));
   ipcMain.handle(IpcChannel.FsRead, (_e, req) => wrap(() => fs.read(req)));
@@ -121,6 +126,9 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.RulesSet, (_e, r) => wrap(() => rules.set(r)));
   ipcMain.handle(IpcChannel.RulesTest, (_e, req) => wrap(() => rules.test(req)));
 
+  ipcMain.handle(IpcChannel.RecentsGet, () => wrap(() => recents.get()));
+  ipcMain.handle(IpcChannel.RecentsSet, (_e, data) => wrap(() => recents.set(data)));
+
   ipcMain.handle(IpcChannel.LicenseStatus, () => wrap(() => license.status()));
   ipcMain.handle(IpcChannel.LicenseActivate, (_e, req) => wrap(() => license.activate(req)));
   ipcMain.handle(IpcChannel.LicenseDeactivate, () => wrap(() => license.deactivate()));
@@ -132,6 +140,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.AppOpenExternal, (_e, url: string) =>
     shell.openExternal(url),
   );
+
+  ipcMain.on(IpcChannel.AppRevealInFolder, (_e, path: string) => {
+    shell.showItemInFolder(path);
+  });
 
   ipcMain.handle(IpcChannel.AppGetInfo, () => ({
     name: app.getName(),

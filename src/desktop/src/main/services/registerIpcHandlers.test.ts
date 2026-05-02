@@ -10,10 +10,14 @@ interface Handler {
 
 function fakeIpcMain() {
   const handlers = new Map<string, Handler>();
+  const onListeners = new Map<string, Handler>();
   return {
     handle: vi.fn((channel: string, handler: Handler) => {
       if (handlers.has(channel)) throw new Error(`double-registered: ${channel}`);
       handlers.set(channel, handler);
+    }),
+    on: vi.fn((channel: string, handler: Handler) => {
+      onListeners.set(channel, handler);
     }),
     invoke: async (channel: string, ...args: unknown[]): Promise<unknown> => {
       const h = handlers.get(channel);
@@ -36,7 +40,9 @@ describe('registerIpcHandlers', () => {
         c !== IpcChannel.FsScanProgress &&
         c !== IpcChannel.AppMenuAction &&
         c !== IpcChannel.AppRequestClose &&
-        c !== IpcChannel.AppCloseWindow,
+        c !== IpcChannel.AppCloseWindow &&
+        // Fire-and-forget send channel (uses ipcMain.on, not handle).
+        c !== IpcChannel.AppRevealInFolder,
     );
     expect(mockIpc.channels().sort()).toEqual([...expected].sort());
   });

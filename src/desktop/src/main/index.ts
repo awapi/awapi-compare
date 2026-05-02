@@ -130,6 +130,7 @@ void app.whenReady().then(async () => {
 
   const rulesFile = join(userDataPath, 'rules.json');
   const sessionsDir = join(userDataPath, 'sessions');
+  const recentsFile = join(userDataPath, 'recents.json');
   const services = createServices({
     rules: {
       filePath: rulesFile,
@@ -138,6 +139,11 @@ void app.whenReady().then(async () => {
     },
     session: {
       dirPath: sessionsDir,
+      fs: fsPromises,
+    },
+    recents: {
+      filePath: recentsFile,
+      dirPath: userDataPath,
       fs: fsPromises,
     },
     dialog: {

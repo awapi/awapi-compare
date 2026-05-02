@@ -42,6 +42,8 @@ export interface RecentsState {
   clear(kind: RecentsKind, side: RecentsSide): void;
   /** Clear every bucket. */
   reset(): void;
+  /** Bulk-load from disk data (called once on startup from IPC). */
+  load(data: Record<string, unknown>): void;
 }
 
 export interface CreateRecentsStoreOptions {
@@ -49,6 +51,11 @@ export interface CreateRecentsStoreOptions {
   storage?: Pick<Storage, 'getItem' | 'setItem'> | null;
   /** Initial bucket override (skips the storage probe). */
   initial?: Partial<RecentsMap>;
+  /**
+   * Called after every mutation (add/clear/reset) with the updated map.
+   * Used by the app-level singleton to sync changes to disk via IPC.
+   */
+  onSave?: (map: RecentsMap) => void;
 }
 
 const STORAGE_KEY = 'awapi.recents';
@@ -107,6 +114,7 @@ export function createRecentsStore(opts: CreateRecentsStoreOptions = {}) {
   const storage = opts.storage === undefined ? defaultStorage() : opts.storage;
   const persist = (next: RecentsMap): void => {
     storage?.setItem(STORAGE_KEY, JSON.stringify(next));
+    opts.onSave?.(next);
   };
 
   return create<RecentsState>((set, getState) => ({
@@ -142,6 +150,17 @@ export function createRecentsStore(opts: CreateRecentsStoreOptions = {}) {
       };
       persist(nextMap);
       set({ recents: nextMap });
+    },
+
+    load: (data) => {
+      set({
+        recents: {
+          'folder:left': sanitize(data['folder:left']),
+          'folder:right': sanitize(data['folder:right']),
+          'file:left': sanitize(data['file:left']),
+          'file:right': sanitize(data['file:right']),
+        },
+      });
     },
   }));
 }

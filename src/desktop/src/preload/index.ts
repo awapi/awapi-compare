@@ -60,6 +60,11 @@ const api: AwapiApi = {
       ipcRenderer.invoke(IpcChannel.SessionLoad, id),
     list: (): Promise<Session[]> => ipcRenderer.invoke(IpcChannel.SessionList),
   },
+  recents: {
+    get: (): Promise<Record<string, string[]>> => ipcRenderer.invoke(IpcChannel.RecentsGet),
+    set: (data: Record<string, string[]>): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.RecentsSet, data),
+  },
   rules: {
     get: (): Promise<Rule[]> => ipcRenderer.invoke(IpcChannel.RulesGet),
     set: (rules: Rule[]): Promise<void> => ipcRenderer.invoke(IpcChannel.RulesSet, rules),
@@ -96,6 +101,9 @@ const api: AwapiApi = {
     },
     openExternal: (url: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.AppOpenExternal, url),
+    revealInFolder: (path: string): void => {
+      ipcRenderer.send(IpcChannel.AppRevealInFolder, path);
+    },
     getInfo: (): Promise<{
       name: string;
       version: string;

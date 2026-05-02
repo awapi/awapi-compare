@@ -18,7 +18,8 @@ export type RowAction =
   | 'exclude'
   | 'openSelectedFolders'
   | 'useAsLeftFolderOnly'
-  | 'useAsRightFolderOnly';
+  | 'useAsRightFolderOnly'
+  | 'revealInFolder';
 
 export interface RowActionContext {
   /** The currently selected pair, if any. */
@@ -37,6 +38,7 @@ export const ROW_ACTION_LABELS: Readonly<Record<RowAction, string>> = {
   openSelectedFolders: 'Open Selected Folders',
   useAsLeftFolderOnly: 'Use as Left Folder Only',
   useAsRightFolderOnly: 'Use as Right Folder Only',
+  revealInFolder: 'Reveal in File Manager',
 };
 
 export const ROW_ACTION_ACCELERATORS: Readonly<Record<RowAction, string>> = {
@@ -51,6 +53,7 @@ export const ROW_ACTION_ACCELERATORS: Readonly<Record<RowAction, string>> = {
   openSelectedFolders: '',
   useAsLeftFolderOnly: '',
   useAsRightFolderOnly: '',
+  revealInFolder: '',
 };
 
 const PAIR_REQUIRED: ReadonlySet<RowAction> = new Set<RowAction>([
@@ -64,6 +67,7 @@ const PAIR_REQUIRED: ReadonlySet<RowAction> = new Set<RowAction>([
   'openSelectedFolders',
   'useAsLeftFolderOnly',
   'useAsRightFolderOnly',
+  'revealInFolder',
 ]);
 
 const NEEDS_LEFT: ReadonlySet<RowAction> = new Set<RowAction>([
@@ -102,6 +106,7 @@ export function isActionEnabled(action: RowAction, ctx: RowActionContext): boole
     const rightIsDir = pair.right?.type === 'dir';
     if (!leftIsDir && !rightIsDir) return false;
   }
+  if (action === 'revealInFolder' && !pair.left && !pair.right) return false;
   return true;
 }
 
@@ -118,6 +123,7 @@ export function buildRowMenuItems(ctx: RowActionContext): ContextMenuItem[] {
     ['rename', 'delete'],
     ['markSame', 'exclude'],
     ['openSelectedFolders', 'useAsLeftFolderOnly', 'useAsRightFolderOnly'],
+    ['revealInFolder'],
   ];
   const items: ContextMenuItem[] = [];
   groups.forEach((group, i) => {

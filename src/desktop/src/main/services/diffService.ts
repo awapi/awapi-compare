@@ -70,6 +70,12 @@ export function classifyPair(
     return attributesIdentical ? 'identical' : tieStatus;
   }
 
+  // Symlinks (and any other non-file, non-dir entries) cannot be hashed,
+  // so fall back to attribute-only comparison regardless of content mode.
+  if (l.type !== 'file') {
+    return attributesIdentical ? 'identical' : tieStatus;
+  }
+
   // Content-comparison mode (checksum / binary / rules):
   // 1. Skip optimisation — when attributes already say equal.
   if (attributesIdentical && options.content.skipWhenAttributesMatch) {
