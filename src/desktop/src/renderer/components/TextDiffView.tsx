@@ -550,8 +550,12 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
         // Attach change listeners *after* the initial models are
         // installed so the synthetic createModel writes don't mark
         // the buffers dirty on first paint.
-        const subL = original.onDidChangeContent(() => setLeftDirty(true));
-        const subR = modified.onDidChangeContent(() => setRightDirty(true));
+        const subL = original.onDidChangeContent(() =>
+          setLeftDirty(original.getValue() !== (displayLeftTextRef.current ?? '')),
+        );
+        const subR = modified.onDidChangeContent(() =>
+          setRightDirty(modified.getValue() !== (displayRightTextRef.current ?? '')),
+        );
         subscriptionsRef.current.push(subL, subR);
 
         // Context-menu actions: "Copy → Right" (from original) and
