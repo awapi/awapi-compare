@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   release:
@@ -37,6 +38,7 @@ jobs:
         run: pnpm exec tsx scripts/generate-notices.ts
 
       - name: Package & publish to GitHub Releases
+        if: runner.os != 'Windows'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # v1 is intentionally unsigned. Disable electron-builder's
@@ -55,3 +57,33 @@ jobs:
           # License-backend slot (Phase 8); empty in v1.
           KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
         run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always
+
+      # WiX light.exe collides on shared temp files when x64 and arm64 MSI
+      # builds run in parallel. Build arches sequentially to avoid LGHT0001.
+      - name: Package & publish to GitHub Releases (Windows x64)
+        if: runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
+        run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always --x64
+
+      - name: Package & publish to GitHub Releases (Windows arm64)
+        if: runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
+        run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always --arm64
