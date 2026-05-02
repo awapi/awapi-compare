@@ -752,16 +752,19 @@ export function CompareTabBody({
       );
       const folders = stats.filter((s) => s.type === 'dir');
       if (folders.length >= 2) {
-        setLeftRoot(folders[0].path);
-        setRightRoot(folders[1].path);
-        addRecent('folder', 'left', folders[0].path);
-        addRecent('folder', 'right', folders[1].path);
+        const left = folders[0]!;
+        const right = folders[1]!;
+        setLeftRoot(left.path);
+        setRightRoot(right.path);
+        addRecent('folder', 'left', left.path);
+        addRecent('folder', 'right', right.path);
         return;
       }
       if (folders.length === 1) {
-        if (side === 'left') setLeftRoot(folders[0].path);
-        else setRightRoot(folders[0].path);
-        addRecent('folder', side, folders[0].path);
+        const folder = folders[0]!;
+        if (side === 'left') setLeftRoot(folder.path);
+        else setRightRoot(folder.path);
+        addRecent('folder', side, folder.path);
         return;
       }
       const files = stats.filter((s) => s.type === 'file').map((s) => s.path);

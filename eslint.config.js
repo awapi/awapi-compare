@@ -12,6 +12,7 @@ export default [
       '**/coverage/**',
       '**/release/**',
       '**/*.d.ts',
+      'samples/**',
     ],
   },
   {

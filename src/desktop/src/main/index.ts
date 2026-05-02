@@ -86,7 +86,6 @@ void app.whenReady().then(async () => {
     args = parseDesktopArgs(process.argv.slice(1));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // eslint-disable-next-line no-console
     console.error(`[awapi] CLI argument error: ${msg}`);
   }
 
@@ -97,7 +96,6 @@ void app.whenReady().then(async () => {
       // eslint-disable-next-line no-console
       console.log('[awapi] Shell integration registered');
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('[awapi] Shell integration registration failed:', err);
     }
     app.quit();
@@ -173,7 +171,6 @@ void app.whenReady().then(async () => {
   try {
     await services.rules.get();
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn('[awapi] rules.get() failed on startup:', err);
   }
   installApplicationMenu(

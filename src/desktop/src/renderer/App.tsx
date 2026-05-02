@@ -376,7 +376,6 @@ export function App(): JSX.Element {
         });
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, activeCompareId]);
 
   // (Shell registration status fetch removed — macOS Finder integration not supported)

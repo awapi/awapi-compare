@@ -120,7 +120,6 @@ export class DialogService {
     this.showOpenDialog =
       deps.showOpenDialog ??
       (async (window, options) => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
         const electron = await import('electron');
         return window
           ? electron.dialog.showOpenDialog(window, options)

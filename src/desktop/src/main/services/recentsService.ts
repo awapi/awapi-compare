@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 
 export interface RecentsFs {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
