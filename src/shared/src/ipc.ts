@@ -54,6 +54,7 @@ export const IpcChannel = {
   ShellIntegrationUnregister: 'shell.unregister',
   RecentsGet: 'recents.get',
   RecentsSet: 'recents.set',
+  AppSetNativeTheme: 'app.setNativeTheme',
 } as const;
 
 export type IpcChannelId = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -418,6 +419,12 @@ export interface AwapiApi {
      * `File` constructed in-renderer).
      */
     getPathForFile(file: File): string;
+    /**
+     * Tell the main process to set the native window/title-bar theme so
+     * the OS-level chrome (e.g. macOS title bar) matches the in-app
+     * theme the user selected.
+     */
+    setNativeTheme(theme: 'dark' | 'light'): void;
   };
   dialog: {
     /**

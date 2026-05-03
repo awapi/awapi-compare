@@ -1,5 +1,5 @@
 import type { BrowserWindow, IpcMain } from 'electron';
-import { app, shell } from 'electron';
+import { app, nativeTheme, shell } from 'electron';
 
 import { IpcChannel, type InitialCompareSession } from '@awapi/shared';
 
@@ -143,6 +143,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
 
   ipcMain.on(IpcChannel.AppRevealInFolder, (_e, path: string) => {
     shell.showItemInFolder(path);
+  });
+
+  ipcMain.on(IpcChannel.AppSetNativeTheme, (_e, theme: 'dark' | 'light') => {
+    nativeTheme.themeSource = theme;
   });
 
   ipcMain.handle(IpcChannel.AppGetInfo, () => ({

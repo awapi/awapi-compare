@@ -121,6 +121,9 @@ const api: AwapiApi = {
         return '';
       }
     },
+    setNativeTheme: (theme: 'dark' | 'light'): void => {
+      ipcRenderer.send(IpcChannel.AppSetNativeTheme, theme);
+    },
   },
   dialog: {
     pickFolder: (req?: DialogPickFolderRequest): Promise<string | null> =>

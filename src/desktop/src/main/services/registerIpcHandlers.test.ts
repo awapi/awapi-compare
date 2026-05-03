@@ -41,8 +41,9 @@ describe('registerIpcHandlers', () => {
         c !== IpcChannel.AppMenuAction &&
         c !== IpcChannel.AppRequestClose &&
         c !== IpcChannel.AppCloseWindow &&
-        // Fire-and-forget send channel (uses ipcMain.on, not handle).
-        c !== IpcChannel.AppRevealInFolder,
+        // Fire-and-forget send channels (use ipcMain.on, not handle).
+        c !== IpcChannel.AppRevealInFolder &&
+        c !== IpcChannel.AppSetNativeTheme,
     );
     expect(mockIpc.channels().sort()).toEqual([...expected].sort());
   });

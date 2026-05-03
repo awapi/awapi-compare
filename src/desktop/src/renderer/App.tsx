@@ -100,8 +100,7 @@ export function App(): JSX.Element {
     })();
   }, [rulesLoaded, setGlobalRules, markRulesLoaded]);
 
-  // Pre-populate the first compare tab from CLI args (highest priority)
-  // or, as a fallback, restore the last persisted session. Runs once.
+  // Pre-populate the first compare tab from CLI args on launch. Runs once.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -127,36 +126,6 @@ export function App(): JSX.Element {
         console.warn('[awapi] failed to read initial compare:', err);
       }
 
-      // 2. Restore all persisted sessions as compare tabs, sorted oldest-first
-      //    so the most-recently-updated session ends up in the last (active) tab.
-      if (cancelled) return;
-      try {
-        const all = await window.awapi.session?.list?.();
-        if (cancelled || !all?.length) return;
-        const sorted = [...all]
-          .filter((s) => s.leftRoot || s.rightRoot)
-          .sort((a, b) => a.updatedAt - b.updatedAt);
-        const [oldest, ...rest] = sorted;
-        if (!oldest) return;
-        // Load the oldest session into the already-open first compare tab.
-        session.loadSnapshot({
-          ...oldest,
-          diffOptions: oldest.diffOptions ?? DEFAULT_DIFF_OPTIONS,
-        });
-        // Open a new compare tab for each subsequent session.
-        for (const s of rest) {
-          if (cancelled) return;
-          const tabId = useWorkspaceStore.getState().openCompareTab(s.name ?? 'Compare');
-          getSessionStore(tabId).getState().loadSnapshot({
-            ...s,
-            diffOptions: s.diffOptions ?? DEFAULT_DIFF_OPTIONS,
-          });
-        }
-        // openCompareTab already activates each new tab in turn, leaving
-        // the most-recently-updated session as the active tab.
-      } catch (err) {
-        console.warn('[awapi] failed to restore sessions:', err);
-      }
     })();
     return () => {
       cancelled = true;
@@ -167,6 +136,7 @@ export function App(): JSX.Element {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', theme);
     }
+    window.awapi?.app?.setNativeTheme?.(theme);
   }, [theme]);
 
   // The Rules editor's "session" scope edits the active compare tab's
