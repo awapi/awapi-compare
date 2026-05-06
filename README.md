@@ -1,7 +1,7 @@
 # AwapiCompare
 
 [![CI](https://github.com/awapi/awapi-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/awapi/awapi-compare/actions/workflows/ci.yml)
-[![Release](https://github.com/awapi/awapi-compare/actions/workflows/release.yml/badge.svg)](https://github.com/awapi/awapi-compare/actions/workflows/release.yml)
+[![Release](https://github.com/awapi/awapi-compare/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/awapi/awapi-compare/actions/workflows/release.yml)
 
 A cross-platform (Windows, macOS, Linux) Beyond Compare alternative by
 **Awapi**.
