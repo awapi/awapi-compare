@@ -289,8 +289,11 @@ export function App(): JSX.Element {
   /** Load a saved session into the active compare tab. */
   const loadSessionIntoActiveTab = (session: Session): void => {
     if (!activeCompareId) return;
+    const activeState = getSessionStore(activeCompareId).getState();
+    const hasContent = activeState.leftRoot.trim() !== '' || activeState.rightRoot.trim() !== '';
+    const targetTabId = hasContent ? openCompareTab() : activeCompareId;
     const now = Date.now();
-    getSessionStore(activeCompareId)
+    getSessionStore(targetTabId)
       .getState()
       .loadSnapshot({
         ...session,
@@ -322,8 +325,9 @@ export function App(): JSX.Element {
           // Already named — save silently.
           persistSession();
         } else {
-          // Prompt for a name first.
-          setSaveSessionInitialName('');
+          // Prompt for a name, pre-filled with the tab title.
+          const activeTab = useWorkspaceStore.getState().tabs.find((t) => t.id === activeTabId);
+          setSaveSessionInitialName(activeTab?.title ?? '');
           setSaveSessionOpen(true);
         }
         return;
@@ -378,6 +382,7 @@ export function App(): JSX.Element {
                   isActive={active}
                   onOpenRules={() => setRulesEditorOpen(true)}
                   onOpenDiffOptions={() => setDiffOptionsOpen(true)}
+                  onOpenSession={() => setOpenSessionOpen(true)}
                 />
               ) : (
                 <FileDiffTab

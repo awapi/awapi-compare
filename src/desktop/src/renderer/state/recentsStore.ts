@@ -2,44 +2,37 @@ import { create } from 'zustand';
 
 /**
  * Recent paths the user has typed / picked into the Left/Right path
- * inputs of the toolbar. Tracked per-kind (folder vs file) and
- * per-side (left vs right) so each combobox surfaces only the values
- * that make sense for it. Persisted to {@link Storage} (defaults to
- * `window.localStorage`) so the lists survive app restarts.
+ * inputs of the toolbar. Tracked per-kind (folder vs file) — the same
+ * list is shown for both the left and right inputs. Persisted to
+ * {@link Storage} (defaults to `window.localStorage`) so the lists
+ * survive app restarts.
  */
 export type RecentsKind = 'folder' | 'file';
-export type RecentsSide = 'left' | 'right';
 
-/** Maximum number of entries kept per (kind, side) bucket. */
-export const RECENTS_LIMIT = 15;
+/** Maximum number of entries kept per kind bucket. */
+export const RECENTS_LIMIT = 10;
 
-type BucketKey = `${RecentsKind}:${RecentsSide}`;
+type BucketKey = RecentsKind;
 type RecentsMap = Record<BucketKey, string[]>;
 
 const EMPTY_MAP: RecentsMap = Object.freeze({
-  'folder:left': [],
-  'folder:right': [],
-  'file:left': [],
-  'file:right': [],
+  folder: [],
+  file: [],
 }) as RecentsMap;
-
-function bucketKey(kind: RecentsKind, side: RecentsSide): BucketKey {
-  return `${kind}:${side}` as BucketKey;
-}
 
 export interface RecentsState {
   recents: RecentsMap;
   /**
-   * Add `value` to the front of the (kind, side) bucket. Empty / blank
-   * values are ignored. If the value already exists in the bucket it
-   * is moved to the front instead of duplicated. The bucket is
-   * truncated to {@link RECENTS_LIMIT} entries.
+   * Add `value` to the front of the kind bucket. Empty / blank values
+   * are ignored. If the value already exists it is moved to the front
+   * instead of duplicated. The bucket is truncated to
+   * {@link RECENTS_LIMIT} entries.
    */
-  add(kind: RecentsKind, side: RecentsSide, value: string): void;
+  add(kind: RecentsKind, value: string): void;
   /** Read the current bucket as a frozen array. */
-  get(kind: RecentsKind, side: RecentsSide): readonly string[];
+  get(kind: RecentsKind): readonly string[];
   /** Clear a single bucket (used by tests). */
-  clear(kind: RecentsKind, side: RecentsSide): void;
+  clear(kind: RecentsKind): void;
   /** Clear every bucket. */
   reset(): void;
   /** Bulk-load from disk data (called once on startup from IPC). */
@@ -82,14 +75,43 @@ function sanitize(list: unknown): string[] {
   return out;
 }
 
+/**
+ * Merges old per-side buckets (e.g. `folder:left`, `folder:right`) with
+ * a new unified bucket so data migrates gracefully on first launch after
+ * the upgrade.
+ */
+function mergeOldBuckets(
+  direct: unknown,
+  left: unknown,
+  right: unknown,
+): string[] {
+  const fromDirect = sanitize(direct);
+  if (fromDirect.length > 0) return fromDirect;
+  // Interleave left and right preserving approximate recency.
+  const l = sanitize(left);
+  const r = sanitize(right);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const max = Math.max(l.length, r.length);
+  for (let i = 0; i < max && out.length < RECENTS_LIMIT; i++) {
+    if (i < l.length && !seen.has(l[i]!)) {
+      seen.add(l[i]!);
+      out.push(l[i]!);
+    }
+    if (i < r.length && !seen.has(r[i]!)) {
+      seen.add(r[i]!);
+      out.push(r[i]!);
+    }
+  }
+  return out;
+}
+
 export function loadInitialRecents(
   opts: CreateRecentsStoreOptions = {},
 ): RecentsMap {
   const merged: RecentsMap = {
-    'folder:left': [...(opts.initial?.['folder:left'] ?? [])],
-    'folder:right': [...(opts.initial?.['folder:right'] ?? [])],
-    'file:left': [...(opts.initial?.['file:left'] ?? [])],
-    'file:right': [...(opts.initial?.['file:right'] ?? [])],
+    folder: [...(opts.initial?.['folder'] ?? [])],
+    file: [...(opts.initial?.['file'] ?? [])],
   };
   for (const k of Object.keys(merged) as BucketKey[]) {
     merged[k] = sanitize(merged[k]);
@@ -99,11 +121,19 @@ export function loadInitialRecents(
   const raw = storage.getItem(STORAGE_KEY);
   if (!raw) return merged;
   try {
-    const parsed = JSON.parse(raw) as Partial<Record<BucketKey, unknown>>;
-    for (const k of Object.keys(merged) as BucketKey[]) {
-      const fromStorage = sanitize(parsed[k]);
-      if (fromStorage.length > 0) merged[k] = fromStorage;
-    }
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const folder = mergeOldBuckets(
+      parsed['folder'],
+      parsed['folder:left'],
+      parsed['folder:right'],
+    );
+    const file = mergeOldBuckets(
+      parsed['file'],
+      parsed['file:left'],
+      parsed['file:right'],
+    );
+    if (folder.length > 0) merged['folder'] = folder;
+    if (file.length > 0) merged['file'] = file;
   } catch {
     /* fall through with defaults */
   }
@@ -120,34 +150,27 @@ export function createRecentsStore(opts: CreateRecentsStoreOptions = {}) {
   return create<RecentsState>((set, getState) => ({
     recents: loadInitialRecents(opts),
 
-    add: (kind, side, value) => {
+    add: (kind, value) => {
       const trimmed = (value ?? '').trim();
       if (!trimmed) return;
-      const key = bucketKey(kind, side);
-      const current = getState().recents[key];
+      const current = getState().recents[kind];
       const filtered = current.filter((v) => v !== trimmed);
       const nextList = [trimmed, ...filtered].slice(0, RECENTS_LIMIT);
-      const nextMap: RecentsMap = { ...getState().recents, [key]: nextList };
+      const nextMap: RecentsMap = { ...getState().recents, [kind]: nextList };
       persist(nextMap);
       set({ recents: nextMap });
     },
 
-    get: (kind, side) => getState().recents[bucketKey(kind, side)],
+    get: (kind) => getState().recents[kind],
 
-    clear: (kind, side) => {
-      const key = bucketKey(kind, side);
-      const nextMap: RecentsMap = { ...getState().recents, [key]: [] };
+    clear: (kind) => {
+      const nextMap: RecentsMap = { ...getState().recents, [kind]: [] };
       persist(nextMap);
       set({ recents: nextMap });
     },
 
     reset: () => {
-      const nextMap: RecentsMap = {
-        'folder:left': [],
-        'folder:right': [],
-        'file:left': [],
-        'file:right': [],
-      };
+      const nextMap: RecentsMap = { folder: [], file: [] };
       persist(nextMap);
       set({ recents: nextMap });
     },
@@ -155,10 +178,16 @@ export function createRecentsStore(opts: CreateRecentsStoreOptions = {}) {
     load: (data) => {
       set({
         recents: {
-          'folder:left': sanitize(data['folder:left']),
-          'folder:right': sanitize(data['folder:right']),
-          'file:left': sanitize(data['file:left']),
-          'file:right': sanitize(data['file:right']),
+          folder: mergeOldBuckets(
+            data['folder'],
+            data['folder:left'],
+            data['folder:right'],
+          ),
+          file: mergeOldBuckets(
+            data['file'],
+            data['file:left'],
+            data['file:right'],
+          ),
         },
       });
     },

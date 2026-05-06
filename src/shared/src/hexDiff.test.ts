@@ -141,6 +141,45 @@ describe('diffHex', () => {
       },
     ]);
   });
+
+  it('drains remaining left rows after the LCS traceback exhausts right (while i>0)', () => {
+    // left: [rowA, rowB], right: [rowB] — LCS matches rowB; rowA is left-only at start.
+    const rowA = repeated(0x02, 16);
+    const rowB = repeated(0x01, 16);
+    const left = Uint8Array.from([...rowA, ...rowB]);
+    const right = Uint8Array.from([...rowB]);
+    const r = diffHex(left, right);
+    expect(r.segments).toEqual([
+      { kind: 'change', leftRows: 1, rightRows: 0, leftOffset: 0 },
+      { kind: 'equal', leftOffset: 16, rightOffset: 0, rows: 1 },
+    ]);
+  });
+
+  it('drains remaining right rows after the LCS traceback exhausts left (while j>0)', () => {
+    // left: [rowB], right: [rowA, rowB] — LCS matches rowB; rowA is right-only at start.
+    const rowA = repeated(0x02, 16);
+    const rowB = repeated(0x01, 16);
+    const left = Uint8Array.from([...rowB]);
+    const right = Uint8Array.from([...rowA, ...rowB]);
+    const r = diffHex(left, right);
+    expect(r.segments).toEqual([
+      { kind: 'change', leftRows: 0, rightRows: 1, rightOffset: 0 },
+      { kind: 'equal', leftOffset: 0, rightOffset: 16, rows: 1 },
+    ]);
+  });
+
+  it('demotes a hash-collision block to a change segment', () => {
+    // [223, 223, 102, 138] and [197, 62, 65, 212] produce the same FNV-1a hash
+    // at blockSize=4, exercising the collision-reconciliation path in walkSegments.
+    const shared = Uint8Array.from([0x01, 0x01, 0x01, 0x01]);
+    const left = Uint8Array.from([223, 223, 102, 138, ...shared]);
+    const right = Uint8Array.from([197, 62, 65, 212, ...shared]);
+    const r = diffHex(left, right, { blockSize: 4 });
+    expect(r.segments).toEqual([
+      { kind: 'change', leftRows: 1, rightRows: 1, leftOffset: 0, rightOffset: 0 },
+      { kind: 'equal', leftOffset: 4, rightOffset: 4, rows: 1 },
+    ]);
+  });
 });
 
 describe('rowSlice', () => {

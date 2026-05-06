@@ -163,6 +163,7 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
 
     loadSnapshot: (snapshot) =>
       set({
+        name: undefined,
         ...snapshot,
         pairs: [],
         progress: null,

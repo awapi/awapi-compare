@@ -1509,7 +1509,7 @@ body,
 /* ---- Open Session dialog -------------------------------------------- */
 
 .awapi-modal--medium {
-  max-width: 680px;
+  max-width: 900px;
   min-height: 0;
 }
 
@@ -1522,11 +1522,18 @@ body,
   gap: 4px;
 }
 
+.awapi-session-list__row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
 .awapi-session-list__item {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   text-align: left;
   background: var(--awapi-bg);
   border: 1px solid var(--awapi-border);
@@ -1540,6 +1547,28 @@ body,
 .awapi-session-list__item:hover {
   background: var(--awapi-row-hover, rgba(255, 255, 255, 0.05));
   border-color: var(--awapi-accent);
+}
+
+.awapi-session-list__delete {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0 8px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--awapi-muted);
+  cursor: pointer;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.awapi-session-list__delete:hover {
+  color: var(--awapi-danger, #e05555);
+  border-color: var(--awapi-danger, #e05555);
+  background: var(--awapi-danger-bg, rgba(224, 85, 85, 0.1));
 }
 
 .awapi-session-list__name {

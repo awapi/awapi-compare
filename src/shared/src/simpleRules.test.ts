@@ -257,4 +257,23 @@ describe('tryDecompileToSimpleRules', () => {
     ];
     expect(tryDecompileToSimpleRules(rules)).toBeNull();
   });
+
+  it('returns null for include rules with a non-name target (covers target ?? path fallback)', () => {
+    // No target on an include rule defaults to 'path' in classifyRule, which returns null.
+    const rules: Rule[] = [rule({ kind: 'include', pattern: '*.ts', scope: 'file' })];
+    expect(tryDecompileToSimpleRules(rules)).toBeNull();
+  });
+
+  it('returns defaults for include axes when no include rules are present', () => {
+    const rules: Rule[] = [
+      rule({ kind: 'exclude', target: 'name', scope: 'file', pattern: '*.log' }),
+    ];
+    const result = tryDecompileToSimpleRules(rules);
+    expect(result).toEqual({
+      includeFiles: [SIMPLE_INCLUDE_FILES_DEFAULT],
+      excludeFiles: ['*.log'],
+      includeFolders: [SIMPLE_INCLUDE_FOLDERS_DEFAULT],
+      excludeFolders: [],
+    });
+  });
 });

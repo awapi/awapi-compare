@@ -84,6 +84,8 @@ export interface CompareTabBodyProps {
   onOpenRules(): void;
   /** Open the diff-options dialog scoped to this session. */
   onOpenDiffOptions(): void;
+  /** Open the session history dialog. */
+  onOpenSession?(): void;
 }
 
 function basename(p: string): string {
@@ -97,6 +99,7 @@ export function CompareTabBody({
   isActive,
   onOpenRules,
   onOpenDiffOptions,
+  onOpenSession,
 }: CompareTabBodyProps): JSX.Element {
   // Per-tab session store (lazy created/cached in the registry).
   const useSession = useMemo(() => getSessionStore(tabId), [tabId]);
@@ -139,12 +142,11 @@ export function CompareTabBody({
     (s) => s.setConfirmOverwriteOnCopy,
   );
 
-  // Recent folder paths (15 newest per side), surfaced in the
+  // Recent folder paths (shared for both sides), surfaced in the
   // toolbar's path inputs as a native combobox.
   const recents = useRecentsStore((s) => s.recents);
   const addRecent = useRecentsStore((s) => s.add);
-  const leftRecents = recents['folder:left'];
-  const rightRecents = recents['folder:right'];
+  const folderRecents = recents['folder'];
 
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [overwritePrompt, setOverwritePrompt] =
@@ -220,8 +222,8 @@ export function CompareTabBody({
       // Remember the folder pair only after a successful scan, so a
       // typo'd path that errored out above doesn't pollute the
       // dropdown. Only record sides that were actually scanned.
-      if (left) addRecent('folder', 'left', left);
-      if (right) addRecent('folder', 'right', right);
+      if (left) addRecent('folder', left);
+      if (right) addRecent('folder', right);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -276,6 +278,7 @@ export function CompareTabBody({
   );
 
   const openFileDiffTab = useWorkspaceStore((s) => s.openFileDiffTab);
+  const openCompareTab = useWorkspaceStore((s) => s.openCompareTab);
   const openSelected = useCallback(
     (relPath: string) => {
       const pair = pairs.find((p) => p.relPath === relPath);
@@ -754,17 +757,24 @@ export function CompareTabBody({
       if (folders.length >= 2) {
         const left = folders[0]!;
         const right = folders[1]!;
-        setLeftRoot(left.path);
-        setRightRoot(right.path);
-        addRecent('folder', 'left', left.path);
-        addRecent('folder', 'right', right.path);
+        addRecent('folder', left.path);
+        addRecent('folder', right.path);
+        if (leftRoot.trim() || rightRoot.trim()) {
+          const newTabId = openCompareTab();
+          const s = getSessionStore(newTabId).getState();
+          s.setLeftRoot(left.path);
+          s.setRightRoot(right.path);
+        } else {
+          setLeftRoot(left.path);
+          setRightRoot(right.path);
+        }
         return;
       }
       if (folders.length === 1) {
         const folder = folders[0]!;
         if (side === 'left') setLeftRoot(folder.path);
         else setRightRoot(folder.path);
-        addRecent('folder', side, folder.path);
+        addRecent('folder', folder.path);
         return;
       }
       const files = stats.filter((s) => s.type === 'file').map((s) => s.path);
@@ -779,8 +789,8 @@ export function CompareTabBody({
       } else {
         rightFile = files[0];
       }
-      if (leftFile) addRecent('file', 'left', leftFile);
-      if (rightFile) addRecent('file', 'right', rightFile);
+      if (leftFile) addRecent('file', leftFile);
+      if (rightFile) addRecent('file', rightFile);
       const titleParts = [leftFile, rightFile].filter((p): p is string => Boolean(p));
       const title = titleParts
         .map((p) => p.split(/[\\/]/u).filter(Boolean).pop() ?? p)
@@ -791,7 +801,7 @@ export function CompareTabBody({
         right: rightFile,
       });
     },
-    [setLeftRoot, setRightRoot, addRecent, openFileDiffTab],
+    [leftRoot, rightRoot, setLeftRoot, setRightRoot, addRecent, openFileDiffTab, openCompareTab],
   );
   const { dropProps, hoverSide } = useDropPaths({ onDrop: handleDropPaths });
 
@@ -813,8 +823,8 @@ export function CompareTabBody({
         scanning={scanning}
         theme={theme}
         viewFilter={viewFilter}
-        leftRecents={leftRecents}
-        rightRecents={rightRecents}
+        leftRecents={folderRecents}
+        rightRecents={folderRecents}
         onViewFilterChange={setViewFilter}
         onLeftRootChange={setLeftRoot}
         onRightRootChange={setRightRoot}
@@ -824,6 +834,7 @@ export function CompareTabBody({
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules}
         onOpenDiffOptions={onOpenDiffOptions}
+        onOpenSession={onOpenSession}
         onPickLeftFolder={async () => {
           if (!window.awapi?.dialog) return;
           const picked = await window.awapi.dialog.pickFolder({
@@ -832,7 +843,7 @@ export function CompareTabBody({
           });
           if (picked) {
             setLeftRoot(picked);
-            addRecent('folder', 'left', picked);
+            addRecent('folder', picked);
           }
         }}
         onPickRightFolder={async () => {
@@ -843,7 +854,7 @@ export function CompareTabBody({
           });
           if (picked) {
             setRightRoot(picked);
-            addRecent('folder', 'right', picked);
+            addRecent('folder', picked);
           }
         }}
         onGoUpLeft={() => {

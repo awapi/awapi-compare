@@ -5,14 +5,14 @@ import type { Session } from '@awapi/shared';
 import type { SessionFs } from './sessionService.js';
 import { SessionService } from './sessionService.js';
 
-const session = (id: string): Session => ({
+const session = (id: string, updatedAt = 1): Session => ({
   id,
-  leftRoot: '/a',
-  rightRoot: '/b',
+  leftRoot: `/a/${id}`,
+  rightRoot: `/b/${id}`,
   mode: 'quick',
   rules: [],
   createdAt: 1,
-  updatedAt: 1,
+  updatedAt,
 });
 
 describe('SessionService (in-memory)', () => {
@@ -28,7 +28,7 @@ describe('SessionService (in-memory)', () => {
     expect(loaded).toEqual(s);
     loaded!.leftRoot = '/tampered';
     // Mutating the loaded copy must not affect storage.
-    expect((await svc.load('s1'))!.leftRoot).toBe('/a');
+    expect((await svc.load('s1'))!.leftRoot).toBe('/a/s1');
 
     await svc.save(session('s2'));
     const list = await svc.list();
@@ -61,6 +61,9 @@ describe('SessionService (disk)', () => {
         [...files.keys()]
           .filter((p) => p.startsWith(dir + '/'))
           .map((p) => p.slice(dir.length + 1)),
+      unlink: async (path) => {
+        files.delete(path);
+      },
     };
     return { fs, files };
   }
@@ -106,5 +109,21 @@ describe('SessionService (disk)', () => {
     // readdir will throw for the missing dir; should fall back to in-memory map
     const list = await svc.list();
     expect(list.map((s) => s.id)).toEqual(['m1']);
+  });
+
+  it('prunes to 10 sessions, keeping the most recent by updatedAt', async () => {
+    const { fs, files } = makeFakeFs();
+    const svc = new SessionService({ dirPath: '/sessions', fs });
+
+    // Save 11 sessions with distinct updatedAt timestamps.
+    for (let i = 1; i <= 11; i++) {
+      await svc.save(session(`s${i}`, i));
+    }
+
+    const list = await svc.list();
+    expect(list).toHaveLength(10);
+    // s1 is the oldest (updatedAt=1) and should have been pruned.
+    expect(list.map((s) => s.id)).not.toContain('s1');
+    expect(files.has('/sessions/s1.json')).toBe(false);
   });
 });

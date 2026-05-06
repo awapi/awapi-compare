@@ -74,6 +74,8 @@ export interface ToolbarProps {
    */
   leftRecents?: readonly string[];
   rightRecents?: readonly string[];
+  /** Called when the user clicks the "Open Session" toolbar button. */
+  onOpenSession?(): void;
 }
 
 const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
@@ -152,6 +154,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     saving = null,
     leftRecents,
     rightRecents,
+    onOpenSession,
   } = props;
 
   // Stable per-input ids so the <datalist> can be wired up via the
@@ -194,6 +197,15 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         role="toolbar"
         aria-label="Compare toolbar"
       >
+        <div className="awapi-toolbar__group" role="group" aria-label="Session">
+          <IconBtn
+            glyph="🕐"
+            label="Sessions"
+            ariaLabel="Open session history"
+            onClick={onOpenSession}
+            disabled={!onOpenSession}
+          />
+        </div>
         <div className="awapi-toolbar__group" role="group" aria-label="View filter">
           <IconBtn
             glyph="✱"

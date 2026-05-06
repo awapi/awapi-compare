@@ -57,6 +57,12 @@ describe('mergeDiffOptions', () => {
     expect(merged.content.mode).toBe('off');
     expect(merged.content.overrideAttributesResult).toBe(true);
   });
+
+  it('falls back to base content.mode when partial omits it', () => {
+    const merged = mergeDiffOptions({ content: { skipWhenAttributesMatch: false } });
+    expect(merged.content.mode).toBe(DEFAULT_DIFF_OPTIONS.content.mode);
+    expect(merged.content.skipWhenAttributesMatch).toBe(false);
+  });
 });
 
 describe('diffOptionsFromMode', () => {

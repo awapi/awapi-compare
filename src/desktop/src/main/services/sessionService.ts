@@ -7,6 +7,7 @@ export interface SessionFs {
   writeFile(path: string, contents: string, encoding: 'utf8'): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefined>;
   readdir(path: string): Promise<string[]>;
+  unlink(path: string): Promise<void>;
 }
 
 export interface SessionServiceDeps {
@@ -27,15 +28,44 @@ export interface SessionServiceDeps {
  * and read back on load/list. Without deps the service operates in memory
  * (backwards-compatible with existing tests).
  */
+const MAX_SESSIONS = 10;
+
 export class SessionService {
   private readonly sessions = new Map<string, Session>();
   private readonly deps: SessionServiceDeps;
+  private diskLoaded = false;
 
   constructor(deps: SessionServiceDeps = {}) {
     this.deps = deps;
   }
 
+  private async ensureDiskLoaded(): Promise<void> {
+    if (this.diskLoaded || !this.deps.dirPath || !this.deps.fs) return;
+    this.diskLoaded = true;
+    try {
+      const files = await this.deps.fs.readdir(this.deps.dirPath);
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+        try {
+          const raw = await this.deps.fs.readFile(join(this.deps.dirPath, file), 'utf8');
+          const s = JSON.parse(raw) as Session;
+          if (!this.sessions.has(s.id)) this.sessions.set(s.id, { ...s });
+        } catch {
+          // skip corrupt files
+        }
+      }
+    } catch {
+      // dir doesn't exist yet
+    }
+  }
+
   async save(session: Session): Promise<void> {
+    await this.ensureDiskLoaded();
+    const duplicate = [...this.sessions.values()].find(
+      (s) => s.id !== session.id && s.leftRoot === session.leftRoot && s.rightRoot === session.rightRoot,
+    );
+    if (duplicate) return;
+
     this.sessions.set(session.id, { ...session });
     if (this.deps.dirPath && this.deps.fs) {
       await this.deps.fs.mkdir(this.deps.dirPath, { recursive: true });
@@ -44,6 +74,16 @@ export class SessionService {
         JSON.stringify(session, null, 2),
         'utf8',
       );
+    }
+
+    if (this.sessions.size > MAX_SESSIONS) {
+      const sorted = [...this.sessions.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+      for (const old of sorted.slice(MAX_SESSIONS)) {
+        this.sessions.delete(old.id);
+        if (this.deps.dirPath && this.deps.fs) {
+          await this.deps.fs.unlink(join(this.deps.dirPath, `${old.id}.json`)).catch(() => {});
+        }
+      }
     }
   }
 
@@ -92,6 +132,14 @@ export class SessionService {
       return results;
     }
     return [...this.sessions.values()].map((s) => ({ ...s }));
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.ensureDiskLoaded();
+    this.sessions.delete(id);
+    if (this.deps.dirPath && this.deps.fs) {
+      await this.deps.fs.unlink(join(this.deps.dirPath, `${id}.json`)).catch(() => {});
+    }
   }
 
   /** No-op: save() writes through immediately. */

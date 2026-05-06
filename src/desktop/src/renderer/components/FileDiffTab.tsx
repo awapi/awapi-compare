@@ -218,12 +218,11 @@ function FileDiffBody({
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
 
-  // Recent file paths (15 newest per side), surfaced in the toolbar's
+  // Recent file paths (shared for both sides), surfaced in the toolbar's
   // path inputs as a native combobox.
   const fileRecents = useRecentsStore((s) => s.recents);
   const addRecent = useRecentsStore((s) => s.add);
-  const leftRecents = fileRecents['file:left'];
-  const rightRecents = fileRecents['file:right'];
+  const fileRecentsList = fileRecents['file'];
 
   const setTabDirty = useWorkspaceStore((s) => s.setTabDirty);
   const handleDirtyChange = useCallback(
@@ -271,12 +270,12 @@ function FileDiffBody({
   // typos / missing files.
   useEffect(() => {
     if (data.left.state === 'ready' && data.left.path) {
-      addRecent('file', 'left', data.left.path);
+      addRecent('file', data.left.path);
     }
   }, [data.left.state, data.left.path, addRecent]);
   useEffect(() => {
     if (data.right.state === 'ready' && data.right.path) {
-      addRecent('file', 'right', data.right.path);
+      addRecent('file', data.right.path);
     }
   }, [data.right.state, data.right.path, addRecent]);
 
@@ -431,7 +430,7 @@ function FileDiffBody({
     });
     if (picked) {
       setLeftPath(picked);
-      addRecent('file', 'left', picked);
+      addRecent('file', picked);
     }
   }, [leftPath, rightPath, addRecent]);
 
@@ -443,7 +442,7 @@ function FileDiffBody({
     });
     if (picked) {
       setRightPath(picked);
-      addRecent('file', 'right', picked);
+      addRecent('file', picked);
     }
   }, [leftPath, rightPath, addRecent]);
 
@@ -496,11 +495,11 @@ function FileDiffBody({
         const right = files[1];
         if (left !== undefined) {
           setLeftPath(left);
-          addRecent('file', 'left', left);
+          addRecent('file', left);
         }
         if (right !== undefined) {
           setRightPath(right);
-          addRecent('file', 'right', right);
+          addRecent('file', right);
         }
         return;
       }
@@ -508,10 +507,10 @@ function FileDiffBody({
       if (only === undefined) return;
       if (side === 'left') {
         setLeftPath(only);
-        addRecent('file', 'left', only);
+        addRecent('file', only);
       } else {
         setRightPath(only);
-        addRecent('file', 'right', only);
+        addRecent('file', only);
       }
     },
     [addRecent],
@@ -530,8 +529,8 @@ function FileDiffBody({
         mode={mode}
         scanning={scanning}
         viewFilter={viewFilter}
-        leftRecents={leftRecents}
-        rightRecents={rightRecents}
+        leftRecents={fileRecentsList}
+        rightRecents={fileRecentsList}
         onViewFilterChange={setViewFilter}
         theme={theme}
         onLeftRootChange={setLeftPath}

@@ -16,6 +16,12 @@ export function OpenSessionDialog({ onOpen, onClose }: OpenSessionDialogProps): 
     });
   }, []);
 
+  const handleDelete = (id: string): void => {
+    void window.awapi?.session?.delete?.(id).then(() => {
+      setSessions((prev) => prev?.filter((s) => s.id !== id) ?? null);
+    });
+  };
+
   return (
     <div
       className="awapi-modal__backdrop"
@@ -49,7 +55,7 @@ export function OpenSessionDialog({ onOpen, onClose }: OpenSessionDialogProps): 
           ) : (
             <ul className="awapi-session-list" role="listbox" aria-label="Saved sessions">
               {sessions.map((s) => (
-                <li key={s.id} role="option" aria-selected="false">
+                <li key={s.id} className="awapi-session-list__row" role="option" aria-selected="false">
                   <button
                     type="button"
                     className="awapi-session-list__item"
@@ -64,6 +70,18 @@ export function OpenSessionDialog({ onOpen, onClose }: OpenSessionDialogProps): 
                     <span className="awapi-session-list__date">
                       {new Date(s.updatedAt).toLocaleString()}
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="awapi-session-list__delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(s.id);
+                    }}
+                    aria-label={`Delete session ${s.name ?? 'Untitled'}`}
+                    title="Delete session"
+                  >
+                    ×
                   </button>
                 </li>
               ))}

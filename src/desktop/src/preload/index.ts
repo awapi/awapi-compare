@@ -59,6 +59,7 @@ const api: AwapiApi = {
     load: (id: string): Promise<Session | null> =>
       ipcRenderer.invoke(IpcChannel.SessionLoad, id),
     list: (): Promise<Session[]> => ipcRenderer.invoke(IpcChannel.SessionList),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke(IpcChannel.SessionDelete, id),
   },
   recents: {
     get: (): Promise<Record<string, string[]>> => ipcRenderer.invoke(IpcChannel.RecentsGet),

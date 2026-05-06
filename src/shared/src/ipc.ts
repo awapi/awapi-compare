@@ -29,6 +29,7 @@ export const IpcChannel = {
   SessionSave: 'session.save',
   SessionLoad: 'session.load',
   SessionList: 'session.list',
+  SessionDelete: 'session.delete',
   RulesGet: 'rules.get',
   RulesSet: 'rules.set',
   RulesTest: 'rules.test',
@@ -348,6 +349,7 @@ export interface AwapiApi {
     save(session: Session): Promise<void>;
     load(id: string): Promise<Session | null>;
     list(): Promise<Session[]>;
+    delete(id: string): Promise<void>;
   };
   rules: {
     get(): Promise<Rule[]>;

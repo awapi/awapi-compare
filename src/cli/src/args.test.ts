@@ -23,6 +23,7 @@ describe('parseCliArgs', () => {
 
   it('rejects invalid --mode value', () => {
     expect(() => parseCliArgs(['a', 'b', '--mode', 'fuzzy'])).toThrow(/--mode/);
+    expect(() => parseCliArgs(['a', 'b', '--mode=fuzzy'])).toThrow(/--mode/);
   });
 
   it('requires exactly two positional args', () => {

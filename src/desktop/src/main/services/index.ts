@@ -121,6 +121,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.SessionSave, (_e, s) => wrap(() => session.save(s)));
   ipcMain.handle(IpcChannel.SessionLoad, (_e, id: string) => wrap(() => session.load(id)));
   ipcMain.handle(IpcChannel.SessionList, () => wrap(() => session.list()));
+  ipcMain.handle(IpcChannel.SessionDelete, (_e, id: string) => wrap(() => session.delete(id)));
 
   ipcMain.handle(IpcChannel.RulesGet, () => wrap(() => rules.get()));
   ipcMain.handle(IpcChannel.RulesSet, (_e, r) => wrap(() => rules.set(r)));

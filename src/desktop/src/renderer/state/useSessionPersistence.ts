@@ -1,8 +1,14 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { getSessionStore } from './sessionRegistry.js';
 
 const SAVE_DEBOUNCE_MS = 800;
+
+function basename(p: string): string {
+  const cleaned = p.replace(/[\\/]+$/u, '');
+  const parts = cleaned.split(/[\\/]/u).filter(Boolean);
+  return parts.length === 0 ? cleaned : (parts[parts.length - 1] ?? cleaned);
+}
 
 /**
  * Auto-saves the session snapshot to disk whenever the compare config
@@ -20,12 +26,30 @@ export function useSessionPersistence(tabId: string): void {
   const rules = useSession((s) => s.rules);
   const diffOptions = useSession((s) => s.diffOptions);
 
+  // Tracks whether the current render was triggered by our own setName call
+  // inside the timeout, so we can skip the redundant second save.
+  const autoNamedRef = useRef(false);
+
   useEffect(() => {
     if (!window.awapi?.session) return;
     if (!leftRoot && !rightRoot) return;
 
+    if (autoNamedRef.current) {
+      autoNamedRef.current = false;
+      return;
+    }
+
     const handle = setTimeout(() => {
-      const snapshot = useSession.getState().toSnapshot();
+      const store = useSession.getState();
+      if (!store.name) {
+        const left = basename(leftRoot);
+        const right = basename(rightRoot);
+        if (left && right) {
+          autoNamedRef.current = true;
+          store.setName(`${left} ↔ ${right}`);
+        }
+      }
+      const snapshot = store.toSnapshot();
       void window.awapi.session.save(snapshot).catch((err: unknown) => {
         console.warn('[awapi] session auto-save failed:', err);
       });

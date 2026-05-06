@@ -69,6 +69,7 @@ describe('classifyFile', () => {
   it('treats empty files as text', () => {
     expect(classifyFile(new Uint8Array(0))).toEqual({ kind: 'text' });
     expect(classifyFile(new Uint8Array(0), '.png')).toEqual({ kind: 'text' });
+    expect(classifyFile(new Uint8Array(0), '.ts')).toEqual({ kind: 'text' });
   });
 });
 
