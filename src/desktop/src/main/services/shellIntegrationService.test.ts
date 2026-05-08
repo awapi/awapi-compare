@@ -81,6 +81,7 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     const [cmd, args] = exec.mock.calls[0] as [string, string[]];
     expect(cmd).toBe('reg');
     expect(args.some((a) => a.includes('Directory'))).toBe(true);
+    expect(args.some((a) => a.includes('AwapiCompareDoCompare'))).toBe(true);
   });
 
   it('isRegistered() returns false when reg query fails', async () => {
@@ -102,21 +103,26 @@ describe('buildRegisterScript', () => {
     expect(script).toContain(`$exe = '${EXE}'`);
   });
 
-  it('targets both the file (*) and folder (Directory) registry keys', () => {
-    expect(script).toContain('Classes\\*\\shell\\AwapiCompare');
-    expect(script).toContain('Classes\\Directory\\shell\\AwapiCompare');
+  it('targets both the file (*) and folder (Directory) registry roots', () => {
+    expect(script).toContain('Classes\\Directory\\shell');
+    expect(script).toContain('Classes\\*\\shell');
   });
 
-  it('registers both sub-verbs', () => {
-    expect(script).toContain('01.SetLeft');
-    expect(script).toContain('02.Compare');
+  it('registers two flat top-level verbs', () => {
+    expect(script).toContain('AwapiCompareSetLeft');
+    expect(script).toContain('AwapiCompareDoCompare');
   });
 
-  it('includes the --set-left flag in the SetLeft command', () => {
+  it('verb labels include AwapiCompare branding', () => {
+    expect(script).toContain('Select Left Side for AwapiCompare');
+    expect(script).toContain('Compare with AwapiCompare');
+  });
+
+  it('includes the --set-left flag', () => {
     expect(script).toContain('--set-left');
   });
 
-  it('includes the --compare-pending flag in the Compare command', () => {
+  it('includes the --compare-pending flag', () => {
     expect(script).toContain('--compare-pending');
   });
 
@@ -124,15 +130,17 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('%1');
   });
 
-  it('sets MUIVerb and SubCommands for the submenu grouping', () => {
-    expect(script).toContain('MUIVerb');
-    expect(script).toContain('SubCommands');
-  });
-
   it('escapes single quotes in the exe path', () => {
     const tricky = "C:\\Apps\\it's here\\App.exe";
     const s = buildRegisterScript(tricky);
     expect(s).toContain("it''s here");
+  });
+
+  it('creates a SendTo shortcut via WScript.Shell', () => {
+    expect(script).toContain('GetFolderPath');
+    expect(script).toContain('WScript.Shell');
+    expect(script).toContain('AwapiCompare.lnk');
+    expect(script).toContain('$sc.Save()');
   });
 });
 
@@ -141,12 +149,19 @@ describe('buildRegisterScript', () => {
 describe('buildUnregisterScript', () => {
   const script = buildUnregisterScript();
 
-  it('removes the file (*) key', () => {
-    expect(script).toContain('Classes\\*\\shell\\AwapiCompare');
+  it('removes the new flat verbs under Directory', () => {
+    expect(script).toContain('Classes\\Directory\\shell\\AwapiCompareSetLeft');
+    expect(script).toContain('Classes\\Directory\\shell\\AwapiCompareDoCompare');
   });
 
-  it('removes the folder (Directory) key', () => {
+  it('removes the new flat verbs under * (files)', () => {
+    expect(script).toContain('Classes\\*\\shell\\AwapiCompareSetLeft');
+    expect(script).toContain('Classes\\*\\shell\\AwapiCompareDoCompare');
+  });
+
+  it('also removes legacy cascading keys for clean upgrade', () => {
     expect(script).toContain('Classes\\Directory\\shell\\AwapiCompare');
+    expect(script).toContain('Classes\\*\\shell\\AwapiCompare');
   });
 
   it('uses Remove-Item with -Recurse', () => {
@@ -156,5 +171,10 @@ describe('buildUnregisterScript', () => {
 
   it('suppresses errors for missing keys', () => {
     expect(script).toContain('SilentlyContinue');
+  });
+
+  it('also removes the SendTo shortcut', () => {
+    expect(script).toContain('AwapiCompare.lnk');
+    expect(script).toContain('GetFolderPath');
   });
 });

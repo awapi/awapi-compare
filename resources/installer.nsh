@@ -1,11 +1,54 @@
 ; Custom NSIS macros included by electron-builder.
-; electron-builder calls these four macros at the appropriate install/uninstall
-; phases. Only the un.customUnInstall macro is used here — it removes the
-; AwapiCompare Windows Explorer context menu registry keys that were written by
-; the in-app "Enable Explorer Integration" feature.
+;
+; All registry writes target HKCU (per-user). No elevation required.
+; ${APP_EXECUTABLE_FILENAME} is injected by electron-builder (e.g. "AwapiCompare.exe").
+; $INSTDIR is the runtime install directory chosen by the user.
 
-; ---- Install phase (no-op) ------------------------------------------------
+; ---- Install phase --------------------------------------------------------
+; Write two flat context-menu verbs for folders (Directory) and files (*).
+; Inline - no helper macros - to avoid NSIS nested-macro expansion issues.
+; Also create a "Send to" shortcut for multi-select (2-folder) compares.
 !macro customInstall
+  DetailPrint "Registering AwapiCompare Explorer context menu entries..."
+
+  ; --- Directory verbs (right-click on a folder) ---
+
+  WriteRegStr HKCU "Software\Classes\Directory\shell\AwapiCompareSetLeft" \
+    "" "Select Left Side for AwapiCompare"
+  WriteRegStr HKCU "Software\Classes\Directory\shell\AwapiCompareSetLeft" \
+    "Icon" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}",0'
+  WriteRegStr HKCU "Software\Classes\Directory\shell\AwapiCompareSetLeft\command" \
+    "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --set-left "%1"'
+
+  WriteRegStr HKCU "Software\Classes\Directory\shell\AwapiCompareDoCompare" \
+    "" "Compare with AwapiCompare"
+  WriteRegStr HKCU "Software\Classes\Directory\shell\AwapiCompareDoCompare" \
+    "Icon" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}",0'
+  WriteRegStr HKCU "Software\Classes\Directory\shell\AwapiCompareDoCompare\command" \
+    "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --compare-pending "%1"'
+
+  ; --- * verbs (right-click on a file) ---
+
+  WriteRegStr HKCU "Software\Classes\*\shell\AwapiCompareSetLeft" \
+    "" "Select Left Side for AwapiCompare"
+  WriteRegStr HKCU "Software\Classes\*\shell\AwapiCompareSetLeft" \
+    "Icon" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}",0'
+  WriteRegStr HKCU "Software\Classes\*\shell\AwapiCompareSetLeft\command" \
+    "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --set-left "%1"'
+
+  WriteRegStr HKCU "Software\Classes\*\shell\AwapiCompareDoCompare" \
+    "" "Compare with AwapiCompare"
+  WriteRegStr HKCU "Software\Classes\*\shell\AwapiCompareDoCompare" \
+    "Icon" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}",0'
+  WriteRegStr HKCU "Software\Classes\*\shell\AwapiCompareDoCompare\command" \
+    "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --compare-pending "%1"'
+
+  ; --- Send to shortcut (enables 2-item multi-select compare) ---
+  ; Selecting 2 folders -> Send to -> AwapiCompare passes both paths as argv.
+  DetailPrint "Creating AwapiCompare Send To shortcut..."
+  CreateShortcut "$SENDTO\AwapiCompare.lnk" \
+    "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" \
+    "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
 !macroend
 
 !macro customUnInstall
@@ -14,28 +57,20 @@
 !macro un.customInstall
 !macroend
 
-; ---- Uninstall phase -------------------------------------------------------
-; Remove the HKCU registry keys written by ShellIntegrationService.register().
-;
-; Safety contract: this step is BEST-EFFORT only. Even if PowerShell is absent,
-; the keys don't exist, or the process exits non-zero, the uninstall continues
-; without any error.  This is guaranteed by:
-;
-;   1. ClearErrors before the exec — wipes any pre-existing NSIS error flag.
-;   2. Pop $0 after nsExec::ExecToLog — every nsExec call pushes its exit code
-;      onto the NSIS stack; not popping it corrupts the stack and can cause
-;      later uninstall steps to misread values.  $0 is a scratch register and
-;      the value is intentionally discarded.
-;   3. ClearErrors after the exec — prevents a non-zero exit code from setting
-;      the NSIS error flag that subsequent steps might check.
-;   4. -ErrorAction SilentlyContinue inside the PowerShell command — the keys
-;      simply won't exist if the user never enabled shell integration.
+; ---- Uninstall phase ------------------------------------------------------
 !macro un.customUnInstall
-  ClearErrors
-  DetailPrint "Removing AwapiCompare Explorer context menu entries (best-effort)..."
-  nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \
-    "Remove-Item -Path ''HKCU:\Software\Classes\*\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
-     Remove-Item -Path ''HKCU:\Software\Classes\Directory\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue"'
-  Pop $0      ; discard exit code — cleanup is best-effort, never block uninstall
-  ClearErrors
+  DetailPrint "Removing AwapiCompare Explorer context menu entries..."
+
+  ; New flat layout (current).
+  DeleteRegKey HKCU "Software\Classes\Directory\shell\AwapiCompareSetLeft"
+  DeleteRegKey HKCU "Software\Classes\Directory\shell\AwapiCompareDoCompare"
+  DeleteRegKey HKCU "Software\Classes\*\shell\AwapiCompareSetLeft"
+  DeleteRegKey HKCU "Software\Classes\*\shell\AwapiCompareDoCompare"
+
+  ; Legacy cascading layout (pre-flat builds) - best effort.
+  DeleteRegKey HKCU "Software\Classes\Directory\shell\AwapiCompare"
+  DeleteRegKey HKCU "Software\Classes\*\shell\AwapiCompare"
+
+  ; Remove Send to shortcut.
+  Delete "$SENDTO\AwapiCompare.lnk"
 !macroend

@@ -50,7 +50,7 @@ export class ShellIntegrationService {
       try {
         await this.execFn('reg', [
           'query',
-          'HKCU\\Software\\Classes\\Directory\\shell\\AwapiCompare',
+          'HKCU\\Software\\Classes\\Directory\\shell\\AwapiCompareDoCompare',
         ]);
         return true;
       } catch {
@@ -88,45 +88,64 @@ export function buildRegisterScript(exePath: string): string {
   // Windows paths cannot contain single quotes, but guard anyway.
   const psExe = exePath.replace(/'/g, "''");
 
-  // We set $exe from a single-quoted (unexpanded) string, then reference it
-  // inside double-quoted strings where PS expands it. This avoids backtick
-  // escaping and is safe against paths that contain $, `, etc.
+  // Two FLAT top-level HKCU verbs — no cascading submenu. This is the only
+  // layout that reliably renders in both the legacy Win10 menu and the
+  // Win11 modern menu without "Show more options". Cascading via
+  // SubCommands/ExtendedSubCommandsKey is finicky and silently hides the
+  // entire entry when misconfigured.
   //
-  // Registry values written:
-  //   Icon    →  "<exe>",0
-  //   command →  "<exe>" --set-left "%1"   (or --compare-pending)
-  // The %1 is an Explorer placeholder expanded at invocation time.
+  // Verbs written under HKCU:\Software\Classes\{Directory,*}\shell\:
+  //   AwapiCompareSetLeft   → label "Select Left Side for AwapiCompare"
+  //                            command: "<exe>" --set-left "%1"
+  //   AwapiCompareDoCompare → label "Compare with AwapiCompare"
+  //                            command: "<exe>" --compare-pending "%1"
   return [
     "$exe = '" + psExe + "'",
-    '$targets = @(' +
-      "'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompare'," +
-      "'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompare'" +
+    '$roots = @(' +
+      "'HKCU:\\Software\\Classes\\Directory\\shell'," +
+      "'HKCU:\\Software\\Classes\\*\\shell'" +
       ')',
-    'foreach ($t in $targets) {',
-    '  New-Item -Path $t -Force | Out-Null',
-    "  Set-ItemProperty -Path $t -Name '(default)' -Value 'AwapiCompare'",
-    "  Set-ItemProperty -Path $t -Name 'MUIVerb' -Value 'AwapiCompare'",
-    "  Set-ItemProperty -Path $t -Name 'SubCommands' -Value ''",
-    "  Set-ItemProperty -Path $t -Name 'Icon' -Value ('\"' + $exe + '\",0')",
-    '  $s = "$t\\shell"',
-    '  $k1 = "$s\\01.SetLeft"',
-    '  New-Item -Path $k1 -Force | Out-Null',
-    "  Set-ItemProperty -Path $k1 -Name '(default)' -Value 'Select as Left Side'",
-    '  New-Item -Path "$k1\\command" -Force | Out-Null',
-    "  Set-ItemProperty -Path \"$k1\\command\" -Name '(default)' -Value ('\"' + $exe + '\" --set-left \"%1\"')",
-    '  $k2 = "$s\\02.Compare"',
-    '  New-Item -Path $k2 -Force | Out-Null',
-    "  Set-ItemProperty -Path $k2 -Name '(default)' -Value 'Compare with AwapiCompare'",
-    '  New-Item -Path "$k2\\command" -Force | Out-Null',
-    "  Set-ItemProperty -Path \"$k2\\command\" -Name '(default)' -Value ('\"' + $exe + '\" --compare-pending \"%1\"')",
+    '$verbs = @(',
+    "  @{ Key='AwapiCompareSetLeft';   Label='Select Left Side for AwapiCompare'; Flag='--set-left' },",
+    "  @{ Key='AwapiCompareDoCompare'; Label='Compare with AwapiCompare';        Flag='--compare-pending' }",
+    ')',
+    'foreach ($root in $roots) {',
+    '  foreach ($v in $verbs) {',
+    "    $k = \"$root\\$($v.Key)\"",
+    '    New-Item -Path $k -Force | Out-Null',
+    "    Set-ItemProperty -Path $k -Name '(default)' -Value $v.Label",
+    "    Set-ItemProperty -Path $k -Name 'Icon' -Value ('\"' + $exe + '\",0')",
+    '    New-Item -Path "$k\\command" -Force | Out-Null',
+    "    Set-ItemProperty -Path \"$k\\command\" -Name '(default)' -Value ('\"' + $exe + '\" ' + $v.Flag + ' \"%1\"')",
+    '  }',
     '}',
+    // SendTo shortcut — lets the user select 2 folders, Send to → AwapiCompare.
+    '$sendTo = [Environment]::GetFolderPath("SendTo")',
+    '$ws = New-Object -ComObject WScript.Shell',
+    '$sc = $ws.CreateShortcut("$sendTo\\AwapiCompare.lnk")',
+    '$sc.TargetPath = $exe',
+    '$sc.IconLocation = "$exe,0"',
+    '$sc.Save()',
   ].join('\n');
 }
 
 /** Builds the PowerShell script that removes all registered context menu entries. */
 export function buildUnregisterScript(): string {
-  return [
-    "Remove-Item -Path 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompare' -Recurse -Force -ErrorAction SilentlyContinue",
-    "Remove-Item -Path 'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompare' -Recurse -Force -ErrorAction SilentlyContinue",
-  ].join('\n');
+  // Remove both new (flat) and legacy (cascading) keys so an upgrade from a
+  // version that wrote the cascading layout cleans up properly.
+  const paths = [
+    'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompareSetLeft',
+    'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompareDoCompare',
+    'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompareSetLeft',
+    'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompareDoCompare',
+    // Legacy cascading keys (pre-flat layout):
+    'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompare',
+    'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompare',
+  ];
+  return paths
+    .map((p) => "Remove-Item -Path '" + p + "' -Recurse -Force -ErrorAction SilentlyContinue")
+    .join('\n') +
+    // Also remove the SendTo shortcut.
+    '\n$sendTo = [Environment]::GetFolderPath("SendTo")' +
+    '\nRemove-Item -Path "$sendTo\\AwapiCompare.lnk" -Force -ErrorAction SilentlyContinue';
 }

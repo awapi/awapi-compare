@@ -109,10 +109,42 @@ void app.whenReady().then(async () => {
     return;
   }
 
+  // --set-left <path>: store the picked path as the pending left side and
+  // exit immediately so Explorer doesn't wait on a visible window.
+  const pendingPickFile = join(userDataPath, 'shell-pick.json');
+  if (args?.kind === 'setLeft') {
+    try {
+      await fsPromises.writeFile(
+        pendingPickFile,
+        JSON.stringify({ path: args.path, ts: Date.now() }),
+        'utf8',
+      );
+      // eslint-disable-next-line no-console
+      console.log(`[awapi] Pending pick stored: ${args.path}`);
+    } catch (err) {
+      console.error('[awapi] Failed to store pending pick:', err);
+    }
+    app.quit();
+    return;
+  }
+
   // Resolve the initial compare session.
   let initialCompare: InitialCompareSession | null = null;
 
-  if (args?.kind === 'openLeft') {
+  if (args?.kind === 'comparePending') {
+    // --compare-pending <right>: read the stored left side and open a compare.
+    try {
+      const raw = await fsPromises.readFile(pendingPickFile, 'utf8');
+      const pick = JSON.parse(raw) as { path: string };
+      initialCompare = { type: 'folder', leftRoot: pick.path, rightRoot: args.path, mode: 'quick' };
+      await fsPromises.unlink(pendingPickFile).catch(() => undefined);
+      // eslint-disable-next-line no-console
+      console.log(`[awapi] Compare pending: ${pick.path} ↔ ${args.path}`);
+    } catch {
+      // No stored pick — open the app normally without a pre-loaded session.
+      console.warn('[awapi] --compare-pending: no pending pick found, opening normally');
+    }
+  } else if (args?.kind === 'openLeft') {
     // --left without --right: open app with left side pre-populated, right empty.
     initialCompare = { type: 'folder', leftRoot: args.path, mode: 'quick' };
     // eslint-disable-next-line no-console
@@ -124,6 +156,18 @@ void app.whenReady().then(async () => {
       `[awapi] launching with ${initialCompare.type} compare: ` +
         `${initialCompare.leftRoot} ↔ ${initialCompare.rightRoot} (${initialCompare.mode})`,
     );
+  }
+
+  // Auto-register Windows Explorer context menu entries on first launch.
+  // Idempotent: skipped when entries are already present.
+  if (process.platform === 'win32') {
+    shellIntegration.isRegistered().then((already) => {
+      if (!already) {
+        shellIntegration.register(app.getPath('exe')).catch((err: unknown) => {
+          console.warn('[awapi] Auto shell-integration registration failed:', err);
+        });
+      }
+    }).catch(() => undefined);
   }
 
   const rulesFile = join(userDataPath, 'rules.json');

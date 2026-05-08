@@ -34,6 +34,8 @@ export type DesktopArgs =
   | { kind: 'openLeft'; path: string }
   | { kind: 'registerShell' }
   | { kind: 'unregisterShell' }
+  | { kind: 'setLeft'; path: string }
+  | { kind: 'comparePending'; path: string }
   | null;
 
 const MODES: ReadonlySet<CompareMode> = new Set(['quick', 'thorough', 'binary']);
@@ -51,6 +53,9 @@ export function parseDesktopArgs(
   let typeSeen = false;
   let registerShell = false;
   let unregisterShell = false;
+  let setLeftPath: string | undefined;
+  let comparePendingPath: string | undefined;
+  const positionalPaths: string[] = [];
 
   const requireValue = (raw: string | undefined, flag: string): string => {
     if (raw === undefined || raw.startsWith('--')) {
@@ -96,15 +101,36 @@ export function parseDesktopArgs(
       registerShell = true;
     } else if (arg === '--unregister-shell') {
       unregisterShell = true;
+    } else if (arg === '--set-left') {
+      setLeftPath = requireValue(argv[++i], '--set-left');
+    } else if (arg?.startsWith('--set-left=')) {
+      setLeftPath = arg.slice('--set-left='.length);
+    } else if (arg === '--compare-pending') {
+      comparePendingPath = requireValue(argv[++i], '--compare-pending');
+    } else if (arg?.startsWith('--compare-pending=')) {
+      comparePendingPath = arg.slice('--compare-pending='.length);
+    } else if (arg && !arg.startsWith('-')) {
+      // Bare positional argument — e.g. paths passed by Windows "Send to".
+      positionalPaths.push(arg);
     }
-    // anything else is ignored (Electron internal flags, etc.)
+    // anything else (unknown --flags, Electron internals) is ignored.
   }
 
   // Shell management actions take priority over everything else.
   if (registerShell) return { kind: 'registerShell' };
   if (unregisterShell) return { kind: 'unregisterShell' };
 
-  // Normal compare session via --left / --right (or env-var fallbacks).
+  // Context-menu shell actions.
+  if (setLeftPath !== undefined) {
+    const resolved = isAbsolute(setLeftPath) ? setLeftPath : resolve(cwd, setLeftPath);
+    return { kind: 'setLeft', path: resolved };
+  }
+  if (comparePendingPath !== undefined) {
+    const resolved = isAbsolute(comparePendingPath) ? comparePendingPath : resolve(cwd, comparePendingPath);
+    return { kind: 'comparePending', path: resolved };
+  }
+
+  // Env-var fallbacks for --left / --right (applied before positional-path check).
   if (left === undefined) {
     const v = env['AWAPI_LEFT'];
     if (v && v.length > 0) left = v;
@@ -120,6 +146,22 @@ export function parseDesktopArgs(
   if (!typeSeen) {
     const v = env['AWAPI_TYPE'];
     if (v && v.length > 0) assertType(v);
+  }
+
+  // Two bare positional paths (e.g. Windows "Send to" with 2 items selected):
+  // treat as a direct left↔right compare. Only applies when --left/--right
+  // (and their env-var equivalents) are absent.
+  if (positionalPaths.length === 2 && left === undefined && right === undefined) {
+    const [rawL, rawR] = positionalPaths as [string, string];
+    return {
+      kind: 'compare',
+      session: {
+        type: 'folder',
+        leftRoot: isAbsolute(rawL) ? rawL : resolve(cwd, rawL),
+        rightRoot: isAbsolute(rawR) ? rawR : resolve(cwd, rawR),
+        mode: mode ?? 'quick',
+      },
+    };
   }
 
   if (left === undefined && right === undefined) return null;
