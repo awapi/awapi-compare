@@ -17,6 +17,12 @@ install:
 # Remove all build/test output.
 clean:
     pnpm -r exec rm -rf dist out build coverage .turbo .tsbuildinfo || true
+    # `tsc -b` writes incremental state to `<project>/tsconfig.tsbuildinfo`
+    # (no leading dot). If that file survives a clean, the next build
+    # thinks the project is up-to-date and skips emit, leaving an empty
+    # or partially-populated `dist/`. Always sweep both naming forms.
+    find src -name 'tsconfig.tsbuildinfo' -delete 2>/dev/null || true
+    find src -name '*.tsbuildinfo' -delete 2>/dev/null || true
     rm -rf release coverage playwright-report test-results
 
 # ---- dev ----------------------------------------------------------------
@@ -30,6 +36,19 @@ clean:
 dev left="samples/folderA" right="samples/folderB" mode="quick":
     #!/usr/bin/env bash
     set -euo pipefail
+    # The desktop app imports from the @awapi/shared and @awapi/licensing
+    # workspace packages via their published `exports` (e.g.
+    # `dist/index.js`). Vite (and electron-vite's SSR pre-bundle of the
+    # main process) resolves those *before* it starts watching, so if
+    # the dist folders are missing — typically right after a fresh
+    # clone or `just clean` — dev fails with:
+    #   [commonjs--resolver] Failed to resolve entry for package "@awapi/shared"
+    # Build the dependency packages on demand (no-op when up to date)
+    # so `just dev` "just works" without a separate `just build`.
+    if [[ ! -f src/shared/dist/index.js || ! -f src/licensing/dist/index.js ]]; then
+        echo "==> First-run setup: building workspace libraries (@awapi/shared, @awapi/licensing)..." >&2
+        pnpm --filter @awapi/shared --filter @awapi/licensing build
+    fi
     # Resolve paths against the repo root (where `just` was invoked) so
     # they don't get re-resolved against `src/desktop` once pnpm cd's
     # into the desktop workspace. Skip resolution when an empty string

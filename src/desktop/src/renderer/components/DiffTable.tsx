@@ -6,6 +6,7 @@ import { getPalette, statusLabel } from '../theme.js';
 import { formatMtime, formatSize, statusGlyph } from '../format.js';
 import type { ThemeName } from '../state/themeStore.js';
 import { buildTreeRows, collectDirPaths } from '../treeRows.js';
+import { Icon } from './icons/Icon.js';
 
 export interface DiffTableProps {
   pairs: readonly ComparedPair[];
@@ -261,7 +262,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                     />
                     {pair.right && (
                       <span className="awapi-diff-tree__icon" aria-hidden="true">
-                        {isDir ? '📁' : '📄'}
+                        <Icon name={isDir ? 'folder' : 'file'} size={12} />
                       </span>
                     )}
                     <span className="awapi-diff-cell__name">
@@ -322,7 +323,7 @@ function TreeCellLead(props: TreeCellLeadProps): JSX.Element {
             onToggle();
           }}
         >
-          {expanded ? '▾' : '▸'}
+          <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} />
         </button>
       ) : (
         <span
@@ -332,7 +333,7 @@ function TreeCellLead(props: TreeCellLeadProps): JSX.Element {
       )}
       {exists && (
         <span className="awapi-diff-tree__icon" aria-hidden="true">
-          {isDir ? '📁' : '📄'}
+          <Icon name={isDir ? 'folder' : 'file'} size={12} />
         </span>
       )}
     </>

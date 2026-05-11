@@ -49,6 +49,19 @@ msi:
 linux:
   category: Development
   maintainer: Awapi <support@awapi.com>
+  # electron-builder derives the executable/icon/desktop-entry name from
+  # the npm package name when `executableName` is omitted. Our package is
+  # `@awapi/desktop`, which gets mangled to `@awapidesktop`. The `@` sign
+  # is illegal in FreeDesktop / XDG icon names, so the OS icon theme
+  # lookup silently fails and the app shows no icon in the start menu /
+  # taskbar. Setting an explicit name avoids the mangling entirely.
+  executableName: awapicompare
+  # The source icon.png is 1024×1024. Linux XDG icon themes only look for
+  # icons at standard hicolor sizes (up to 512×512); a 1024×1024 entry is
+  # silently ignored, so no icon appears in the launcher / taskbar.
+  # Pointing explicitly to the 512×512 variant ensures it lands in
+  # hicolor/512x512/apps/ which every major DE recognises.
+  icon: ../../resources/icon-512x512.png
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: AppImage

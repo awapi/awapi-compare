@@ -25,13 +25,16 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  */
 const closeApprovedWindows = new WeakSet<BrowserWindow>();
 
-// Resolves to <repo>/resources/icon.png both in dev (electron-vite serves
-// the main process from src/desktop/out/main) and in packaged builds
+// Resolves to <repo>/resources/icon-512x512.png both in dev (electron-vite
+// serves the main process from src/desktop/out/main) and in packaged builds
 // where electron-builder copies resources/ next to the app bundle.
 // On macOS and Windows, electron-builder uses icon.icns / icon.ico for
-// the OS-level app icon; this PNG is the in-process window/dock icon
+// the OS-level app icon; this PNG is the in-process window/taskbar icon
 // used during development and on Linux.
-const APP_ICON_PATH = join(__dirname, '../../../../resources/icon.png');
+// 512×512 is used instead of the 1024×1024 source because the Linux window
+// manager (and XDG hicolor theme) only recognise standard sizes up to 512;
+// passing a 1024×1024 PNG causes the taskbar/launcher icon to go missing.
+const APP_ICON_PATH = join(__dirname, '../../../../resources/icon-512x512.png');
 
 function createMainWindow(services: Services): BrowserWindow {
   const win = new BrowserWindow({

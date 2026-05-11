@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent, JSX, KeyboardEvent, ReactNode } from 'reac
 import type { CompareMode } from '@awapi/shared';
 import type { ThemeName } from '../state/themeStore.js';
 import type { ViewFilter } from '../viewFilter.js';
+import { Icon, type IconName } from './icons/Icon.js';
 
 export interface ToolbarProps {
   leftRoot: string;
@@ -85,7 +86,8 @@ const MODES: ReadonlyArray<{ value: CompareMode; label: string }> = [
 ];
 
 interface IconBtnProps {
-  glyph: string;
+  /** Inline SVG icon to render above the label. */
+  icon: IconName;
   label: string;
   title?: string;
   ariaLabel?: string;
@@ -96,7 +98,7 @@ interface IconBtnProps {
 }
 
 function IconBtn({
-  glyph,
+  icon,
   label,
   title,
   ariaLabel,
@@ -115,7 +117,7 @@ function IconBtn({
       aria-label={ariaLabel ?? label}
     >
       <span className="awapi-iconbtn__glyph" aria-hidden="true">
-        {glyph}
+        <Icon name={icon} />
       </span>
       <span>{children ?? label}</span>
     </button>
@@ -199,7 +201,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
       >
         <div className="awapi-toolbar__group" role="group" aria-label="Session">
           <IconBtn
-            glyph="🕐"
+            icon="clock"
             label="Sessions"
             ariaLabel="Open session history"
             onClick={onOpenSession}
@@ -208,7 +210,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         </div>
         <div className="awapi-toolbar__group" role="group" aria-label="View filter">
           <IconBtn
-            glyph="✱"
+            icon="asterisk"
             label="All"
             ariaLabel="Show all entries"
             active={viewFilter === 'all'}
@@ -216,7 +218,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             onClick={() => onViewFilterChange?.('all')}
           />
           <IconBtn
-            glyph="≠"
+            icon="not-equal"
             label="Diffs"
             ariaLabel="Show only differences"
             active={viewFilter === 'diffs'}
@@ -224,7 +226,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             onClick={() => onViewFilterChange?.('diffs')}
           />
           <IconBtn
-            glyph="="
+            icon="equal"
             label="Same"
             ariaLabel="Show only matching entries"
             active={viewFilter === 'same'}
@@ -234,27 +236,27 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         </div>
         <div className="awapi-toolbar__group">
           <IconBtn
-            glyph="↻"
+            icon="refresh"
             label={scanning ? 'Scanning…' : 'Refresh'}
             ariaLabel={scanning ? 'Scanning' : 'Refresh'}
             disabled={!canCompare}
             onClick={onRefresh}
           />
           <IconBtn
-            glyph="⇄"
+            icon="swap"
             label="Swap"
             onClick={() => {
               onLeftRootChange(rightRoot);
               onRightRootChange(leftRoot);
             }}
           />
-          <IconBtn glyph="■" label="Stop" disabled={!scanning} />
+          <IconBtn icon="stop" label="Stop" disabled={!scanning} />
         </div>
         {onSaveLeft || onSaveRight ? (
           <div className="awapi-toolbar__group" role="group" aria-label="Save edits">
             {onSaveLeft ? (
               <IconBtn
-                glyph="💾"
+                icon="save"
                 label={saving === 'left' ? 'Saving…' : 'Save left'}
                 ariaLabel="Save left"
                 disabled={!leftEditable || !leftDirty || saving !== null}
@@ -263,7 +265,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             ) : null}
             {onSaveRight ? (
               <IconBtn
-                glyph="💾"
+                icon="save"
                 label={saving === 'right' ? 'Saving…' : 'Save right'}
                 ariaLabel="Save right"
                 disabled={!rightEditable || !rightDirty || saving !== null}
@@ -292,14 +294,14 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         <div className="awapi-toolbar__spacer" />
         <div className="awapi-toolbar__group">
           <IconBtn
-            glyph="⚖"
+            icon="scale"
             label="Match"
             ariaLabel="Open diff options"
             disabled={!onOpenDiffOptions}
             onClick={onOpenDiffOptions}
           />
           <IconBtn
-            glyph="⚙"
+            icon="settings"
             label="Rules"
             ariaLabel="Open rules editor"
             onClick={onOpenRules}
@@ -307,7 +309,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         </div>
         <div className="awapi-toolbar__group">
           <IconBtn
-            glyph={theme === 'dark' ? '☀' : '☾'}
+            icon={theme === 'dark' ? 'sun' : 'moon'}
             label={theme === 'dark' ? 'Light' : 'Dark'}
             ariaLabel="Toggle theme"
             onClick={onToggleTheme}
@@ -325,7 +327,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
               disabled={!leftRoot.trim()}
               onClick={onGoUpLeft}
             >
-              <span aria-hidden="true">↑</span>
+              <Icon name="arrow-up" size={14} />
             </button>
           ) : null}
           <input
@@ -355,7 +357,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             disabled={!onPickLeftFolder}
             onClick={onPickLeftFolder}
           >
-            <span aria-hidden="true">📁</span>
+            <Icon name="folder" size={14} />
           </button>
         </div>
         <div className="awapi-pathbar__side">
@@ -368,7 +370,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
               disabled={!rightRoot.trim()}
               onClick={onGoUpRight}
             >
-              <span aria-hidden="true">↑</span>
+              <Icon name="arrow-up" size={14} />
             </button>
           ) : null}
           <input
@@ -398,7 +400,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             disabled={!onPickRightFolder}
             onClick={onPickRightFolder}
           >
-            <span aria-hidden="true">📁</span>
+            <Icon name="folder" size={14} />
           </button>
         </div>
       </div>

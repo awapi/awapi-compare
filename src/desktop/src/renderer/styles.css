@@ -215,8 +215,9 @@ body,
 }
 
 .awapi-iconbtn__glyph {
-  font-size: 18px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 2px;
   color: var(--awapi-accent);
 }
@@ -459,9 +460,10 @@ body,
 
 .awapi-diff-tree__icon {
   flex: 0 0 auto;
-  font-size: 12px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
   margin-right: 2px;
+  color: var(--awapi-text-muted);
 }
 
 .awapi-diff-table__empty {
