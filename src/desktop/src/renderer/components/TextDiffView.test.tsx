@@ -316,6 +316,69 @@ describe('<TextDiffView /> copy context-menu actions', () => {
     // Right model must remain unchanged.
     expect(r.getValue()).toBe('world');
   });
+
+  it('re-applies readOnly / originalEditable when editability changes after mount', async () => {
+    const l = makeModel('left');
+    const r = makeModel('right');
+    const updateOptions = vi.fn();
+    const noop: MonacoEditorInstance = {
+      addAction: () => ({ dispose: () => undefined }),
+      getSelection: () => null,
+    };
+    const editor: MonacoDiffEditor = {
+      setModel: () => undefined,
+      layout: () => undefined,
+      dispose: () => undefined,
+      getOriginalEditor: () => noop,
+      getModifiedEditor: () => noop,
+      updateOptions,
+    };
+    const monaco: MonacoLike = {
+      KeyMod: { Alt: 512, CtrlCmd: 2048, Shift: 1024 },
+      KeyCode: { RightArrow: 17, LeftArrow: 15, KeyS: 49 },
+      editor: {
+        createDiffEditor: () => editor,
+        createModel: vi
+          .fn<(value: string, language?: string) => FakeModel>()
+          .mockImplementationOnce(() => l)
+          .mockImplementationOnce(() => r),
+      },
+    };
+    const { rerender } = render(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText={null}
+        rightText="right"
+        editableLeft={false}
+        editableRight={false}
+        monacoLoader={async () => monaco}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
+    // Initial sync from the post-mount effect.
+    expect(updateOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ readOnly: true, originalEditable: false }),
+    );
+    updateOptions.mockClear();
+
+    // Simulate the slower side finishing to load: both sides become
+    // editable. The editor must be reconfigured.
+    rerender(
+      <TextDiffView
+        relPath="src/foo.ts"
+        leftText="left"
+        rightText="right"
+        editableLeft
+        editableRight
+        monacoLoader={async () => monaco}
+      />,
+    );
+    await waitFor(() =>
+      expect(updateOptions).toHaveBeenCalledWith(
+        expect.objectContaining({ readOnly: false, originalEditable: true }),
+      ),
+    );
+  });
 });
 
 describe('computeCopyEdit', () => {

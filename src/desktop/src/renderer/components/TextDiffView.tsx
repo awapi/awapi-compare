@@ -88,6 +88,14 @@ export interface MonacoDiffEditor {
   getModifiedEditor(): MonacoEditorInstance;
   /** Line-level diff result; absent in fakes / before first compute. */
   getLineChanges?(): MonacoLineChange[] | null;
+  /**
+   * Update editor options after construction. Used to flip the
+   * `readOnly` / `originalEditable` flags when a side finishes
+   * loading (or the active view filter changes) so the editor's
+   * editability tracks the latest props. Optional so tiny test
+   * fakes don't have to implement it.
+   */
+  updateOptions?(options: Record<string, unknown>): void;
 }
 
 export interface MonacoModel {
@@ -667,6 +675,24 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
       modelsRef.current = null;
     };
   }, []);
+
+  // Keep editability in sync with the latest props. The mount effect
+  // above captures `editableLeft` / `editableRight` exactly once, so
+  // without this follow-up the editor stays read-only forever if the
+  // right-side file finishes loading *after* the editor was created
+  // (common for ad-hoc file pairs where each side loads independently
+  // and one finishes first). The Monaco diff editor reads the
+  // `readOnly` flag from the modified-side editor and
+  // `originalEditable` as a top-level flag.
+  useEffect(() => {
+    if (editorState !== 'ready') return;
+    const editor = editorRef.current;
+    if (!editor?.updateOptions) return;
+    editor.updateOptions({
+      readOnly: !editableRight,
+      originalEditable: editableLeft === true,
+    });
+  }, [editorState, editableLeft, editableRight]);
 
   // Re-sync model contents when the parent supplies new text (e.g.
   // after a save flushed the dirty state, or — crucially — once the

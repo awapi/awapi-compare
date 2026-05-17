@@ -31,7 +31,13 @@ mac:
 win:
   target:
     - target: nsis
-    - target: msi
+
+# MSI target intentionally disabled: electron-builder's MSI target does not
+# run installer.nsh, so it cannot register the Explorer context-menu verbs
+# ("Select Left Side", "Compare with AwapiCompare") or the Send To shortcut.
+# Shipping an MSI without those would silently break the documented Windows
+# integration. Re-enable only after adding a custom WiX fragment (or an
+# in-app `--register-shell` fallback) that writes the same HKCU keys.
 
 nsis:
   oneClick: false
@@ -39,12 +45,6 @@ nsis:
   allowToChangeInstallationDirectory: true
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   include: ../../resources/installer.nsh
-
-msi:
-  oneClick: false
-  perMachine: false
-  runAfterFinish: true
-  artifactName: ${productName}-${version}-${arch}.${ext}
 
 linux:
   category: Development
