@@ -2,6 +2,7 @@
 # Requires: pnpm >= 10, node >= 22, just >= 1.49.
 
 set shell := ["bash", "-cu"]
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
 set dotenv-load := true
 
 # Default: list recipes.
@@ -17,10 +18,6 @@ install:
 # Remove all build/test output.
 clean:
     pnpm -r exec rm -rf dist out build coverage .turbo .tsbuildinfo || true
-    # `tsc -b` writes incremental state to `<project>/tsconfig.tsbuildinfo`
-    # (no leading dot). If that file survives a clean, the next build
-    # thinks the project is up-to-date and skips emit, leaving an empty
-    # or partially-populated `dist/`. Always sweep both naming forms.
     find src -name 'tsconfig.tsbuildinfo' -delete 2>/dev/null || true
     find src -name '*.tsbuildinfo' -delete 2>/dev/null || true
     rm -rf release coverage playwright-report test-results
@@ -106,15 +103,22 @@ coverage:
 build:
     pnpm build
 
-# Package an installer for the current OS.
-# Usage: just package           (current OS)
-#        just package mac       (dmg+zip, x64+arm64)
-#        just package win       (nsis exe + msi, x64+arm64)
-#        just package linux     (AppImage+deb, x64+arm64)
-#
-# Note: electron-builder is invoked from the repo root so it picks up
-# the root `electron-builder.yml`. `--projectDir` points it at the
-# packaged Electron app under `src/desktop/`.
+# Build the Windows COM shell extension DLL for x64 (default) or arm64.
+#   just build-shellex          # x64
+#   just build-shellex arm64    # arm64
+# Compiles src/shellex and copies the matching DLL to resources/awapi_shellex.dll
+# (picked up by electron-builder.yml `extraFiles`). Requires the Rust toolchain:
+#   rustup target add x86_64-pc-windows-msvc
+#   rustup target add aarch64-pc-windows-msvc
+build-shellex arch="x64":
+    cargo build --manifest-path src/shellex/Cargo.toml --target {{ if arch == "arm64" { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" } }} --release
+    cp src/shellex/target/{{ if arch == "arm64" { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" } }}/release/awapi_shellex.dll resources/awapi_shellex.dll
+
+# Package the Windows x64 NSIS installer (builds the x64 DLL first).
+package-win: build notices (build-shellex "x64")
+    ./src/desktop/node_modules/.bin/electron-builder.cmd --config ../../electron-builder.yml --projectDir src/desktop --win --x64
+
+# Package an installer for the current OS (non-Windows; on Windows use package-win).
 package target="": build notices
     ./src/desktop/node_modules/.bin/electron-builder --config ../../electron-builder.yml --projectDir src/desktop {{ if target == "" { "" } else if target == "mac" { "--mac" } else if target == "win" { "--win" } else if target == "linux" { "--linux" } else { "--" + target } }}
 

@@ -20,6 +20,7 @@ import {
 import { getSessionStore } from './state/sessionRegistry.js';
 import { getTabSaveHandler } from './state/tabSaveRegistry.js';
 import { DEFAULT_DIFF_OPTIONS, type DiffOptions, type Rule, type Session } from '@awapi/shared';
+import { basename } from './paths.js';
 
 export function App(): JSX.Element {
   const theme = useThemeStore((s) => s.theme);
@@ -105,21 +106,32 @@ export function App(): JSX.Element {
     let cancelled = false;
     void (async () => {
       if (!window.awapi) return;
-      const firstCompareTab = useWorkspaceStore
-        .getState()
-        .tabs.find((t) => t.kind === 'compare');
-      if (!firstCompareTab) return;
-      const session = getSessionStore(firstCompareTab.id).getState();
-      // Don't clobber an in-progress edit (e.g. HMR re-mount).
-      if (session.leftRoot || session.rightRoot) return;
 
       // 1. Try CLI args.
       try {
         const initial = await window.awapi.app?.getInitialCompare?.();
         if (!cancelled && initial) {
-          session.setLeftRoot(initial.leftRoot);
-          if (initial.rightRoot) session.setRightRoot(initial.rightRoot);
-          session.setMode(initial.mode);
+          if (initial.type === 'file') {
+            // Open a standalone file-diff tab (no parent folder scan needed).
+            const title = `${basename(initial.leftPath)} ↔ ${basename(initial.rightPath)}`;
+            useWorkspaceStore.getState().openFileDiffTab(
+              basename(initial.leftPath),
+              title,
+              undefined,
+              { left: initial.leftPath, right: initial.rightPath },
+            );
+          } else {
+            const firstCompareTab = useWorkspaceStore
+              .getState()
+              .tabs.find((t) => t.kind === 'compare');
+            if (!firstCompareTab) return;
+            const session = getSessionStore(firstCompareTab.id).getState();
+            // Don't clobber an in-progress edit (e.g. HMR re-mount).
+            if (session.leftRoot || session.rightRoot) return;
+            session.setLeftRoot(initial.leftRoot);
+            if (initial.rightRoot) session.setRightRoot(initial.rightRoot);
+            session.setMode(initial.mode);
+          }
           return;
         }
       } catch (err) {

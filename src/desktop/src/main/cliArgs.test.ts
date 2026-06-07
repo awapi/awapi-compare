@@ -92,10 +92,24 @@ describe('parseDesktopArgs', () => {
     if (r?.kind === 'compare') expect(r.session.leftRoot).toBe('/a');
   });
 
-  it('rejects non-folder --type', () => {
+  it('accepts --type file and returns a file session', () => {
+    const r = parseDesktopArgs(['--type', 'file', '--left', '/a/f.ts', '--right', '/b/f.ts'], opts);
+    expect(r).toEqual({
+      kind: 'compare',
+      session: { type: 'file', leftPath: '/a/f.ts', rightPath: '/b/f.ts' },
+    });
+  });
+
+  it('accepts --type=file shorthand', () => {
+    const r = parseDesktopArgs(['--type=file', '--left=/a.txt', '--right=/b.txt'], opts);
+    expect(r?.kind).toBe('compare');
+    if (r?.kind === 'compare') expect(r.session.type).toBe('file');
+  });
+
+  it('rejects unknown --type value', () => {
     expect(() =>
-      parseDesktopArgs(['--type', 'file', '--left', '/a', '--right', '/b'], opts),
-    ).toThrow(/folder/);
+      parseDesktopArgs(['--type', 'binary', '--left', '/a', '--right', '/b'], opts),
+    ).toThrow(/folder.*file|file.*folder/);
   });
 
   it('rejects unknown --mode', () => {

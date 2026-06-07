@@ -139,7 +139,15 @@ void app.whenReady().then(async () => {
     try {
       const raw = await fsPromises.readFile(pendingPickFile, 'utf8');
       const pick = JSON.parse(raw) as { path: string };
-      initialCompare = { type: 'folder', leftRoot: pick.path, rightRoot: args.path, mode: 'quick' };
+      // Detect whether both sides are files or folders so the renderer opens
+      // the correct view.  Fall back to folder-compare if stat fails.
+      const leftIsFile = await fsPromises.stat(pick.path).then((s) => s.isFile()).catch(() => false);
+      const rightIsFile = await fsPromises.stat(args.path).then((s) => s.isFile()).catch(() => false);
+      if (leftIsFile && rightIsFile) {
+        initialCompare = { type: 'file', leftPath: pick.path, rightPath: args.path };
+      } else {
+        initialCompare = { type: 'folder', leftRoot: pick.path, rightRoot: args.path, mode: 'quick' };
+      }
       await fsPromises.unlink(pendingPickFile).catch(() => undefined);
       // eslint-disable-next-line no-console
       console.log(`[awapi] Compare pending: ${pick.path} ↔ ${args.path}`);
@@ -155,10 +163,16 @@ void app.whenReady().then(async () => {
   } else if (args?.kind === 'compare') {
     initialCompare = args.session;
     // eslint-disable-next-line no-console
-    console.log(
-      `[awapi] launching with ${initialCompare.type} compare: ` +
-        `${initialCompare.leftRoot} ↔ ${initialCompare.rightRoot} (${initialCompare.mode})`,
-    );
+    if (initialCompare.type === 'file') {
+      console.log(
+        `[awapi] launching with file compare: ${initialCompare.leftPath} ↔ ${initialCompare.rightPath}`,
+      );
+    } else {
+      console.log(
+        `[awapi] launching with folder compare: ` +
+          `${initialCompare.leftRoot} ↔ ${initialCompare.rightRoot} (${initialCompare.mode})`,
+      );
+    }
   }
 
   // Auto-register Windows Explorer context menu entries on first launch.

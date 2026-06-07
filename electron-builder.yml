@@ -31,6 +31,18 @@ mac:
 win:
   target:
     - target: nsis
+  # Include the COM shell extension DLL so it lands next to AwapiCompare.exe
+  # in the installed app directory.  The NSIS installer.nsh registers its
+  # CLSID under HKCU so no elevation is required.
+  #
+  # `resources/awapi_shellex.dll` is produced by `just build-shellex <arch>`
+  # (which compiles the Rust crate in src/shellex and copies the matching
+  # architecture's DLL here). It is NOT committed — CI rebuilds it per arch
+  # before each electron-builder invocation so the bundled DLL matches the
+  # installer's architecture (an x64 DLL will not load in arm64 Explorer).
+  extraFiles:
+    - from: ../../resources/awapi_shellex.dll
+      to: awapi_shellex.dll
 
 # MSI target intentionally disabled: electron-builder's MSI target does not
 # run installer.nsh, so it cannot register the Explorer context-menu verbs

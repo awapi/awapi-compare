@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ShellIntegrationService,
+  SHELLEX_CLSID,
   buildRegisterScript,
   buildUnregisterScript,
 } from './shellIntegrationService.js';
@@ -70,7 +71,7 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     expect(cmd).toBe('powershell.exe');
   });
 
-  it('isRegistered() queries the Directory registry key', async () => {
+  it('isRegistered() queries the COM CLSID InprocServer32 key', async () => {
     if (process.platform !== 'win32') return;
 
     const exec = makeExec();
@@ -80,8 +81,8 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     expect(exec).toHaveBeenCalledOnce();
     const [cmd, args] = exec.mock.calls[0] as [string, string[]];
     expect(cmd).toBe('reg');
-    expect(args.some((a) => a.includes('Directory'))).toBe(true);
-    expect(args.some((a) => a.includes('AwapiCompareDoCompare'))).toBe(true);
+    expect(args.some((a) => a.includes(SHELLEX_CLSID))).toBe(true);
+    expect(args.some((a) => a.includes('InprocServer32'))).toBe(true);
   });
 
   it('isRegistered() returns false when reg query fails', async () => {
@@ -130,6 +131,35 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('%1');
   });
 
+  it('adds MultiSelectModel=Single to suppress verbs on multi-select', () => {
+    expect(script).toContain('MultiSelectModel');
+    expect(script).toContain('Single');
+  });
+
+  it('registers the COM CLSID for the shellex DLL', () => {
+    expect(script).toContain(SHELLEX_CLSID);
+    expect(script).toContain('InprocServer32');
+    expect(script).toContain('ThreadingModel');
+    expect(script).toContain('Apartment');
+  });
+
+  it('registers the COM extension under file, Directory, and Directory\\Background', () => {
+    expect(script).toContain("'*'");
+    expect(script).toContain("'Directory'");
+    expect(script).toContain("'Directory\\Background'");
+    expect(script).toContain('ContextMenuHandlers\\AwapiCompare');
+  });
+
+  it('stores the EXE path in HKCU\\Software\\AwapiCompare for the DLL to read', () => {
+    expect(script).toContain('Software\\AwapiCompare');
+    expect(script).toContain('ExePath');
+  });
+
+  it('skips COM registration when the DLL does not exist (Test-Path guard)', () => {
+    expect(script).toContain('Test-Path');
+    expect(script).toContain('awapi_shellex.dll');
+  });
+
   it('escapes single quotes in the exe path', () => {
     const tricky = "C:\\Apps\\it's here\\App.exe";
     const s = buildRegisterScript(tricky);
@@ -162,6 +192,20 @@ describe('buildUnregisterScript', () => {
   it('also removes legacy cascading keys for clean upgrade', () => {
     expect(script).toContain('Classes\\Directory\\shell\\AwapiCompare');
     expect(script).toContain('Classes\\*\\shell\\AwapiCompare');
+  });
+
+  it('removes the COM CLSID key', () => {
+    expect(script).toContain(SHELLEX_CLSID);
+  });
+
+  it('removes the COM ContextMenuHandlers entries for all three roots', () => {
+    expect(script).toContain('Classes\\*\\shellex\\ContextMenuHandlers\\AwapiCompare');
+    expect(script).toContain('Classes\\Directory\\shellex\\ContextMenuHandlers\\AwapiCompare');
+    expect(script).toContain('Classes\\Directory\\Background\\shellex\\ContextMenuHandlers\\AwapiCompare');
+  });
+
+  it('removes the stored EXE path key', () => {
+    expect(script).toContain('Software\\AwapiCompare');
   });
 
   it('uses Remove-Item with -Recurse', () => {

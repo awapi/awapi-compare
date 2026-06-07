@@ -1,0 +1,37 @@
+[package]
+name = "awapi-shellex"
+version = "0.1.0"
+edition = "2021"
+description = "Windows Explorer shell extension for AwapiCompare — enables right-click → Compare on two selected files or folders"
+
+[lib]
+name = "awapi_shellex"
+crate-type = ["cdylib"]
+
+[dependencies]
+# The #[implement] macro expands to `windows_core::...` paths, so the core
+# crate must be a direct dependency (same minor version as `windows`).
+windows-core = "0.58"
+# Pinned minor: COM interface shapes occasionally change between windows-rs
+# minor versions. Update deliberately after verifying compilation.
+windows = { version = "0.58", features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Storage_FileSystem",
+] }
+
+[profile.release]
+opt-level = "s"   # optimise for size — shell DLLs stay resident in Explorer
+strip = true
+panic = "abort"   # no unwinding in a foreign process; keeps binary small

@@ -31,6 +31,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The Windows installer bundles a native COM shell-extension DLL
+      # (src/shellex) that powers the Explorer right-click "Compare" menu.
+      # Build it per architecture before packaging so the bundled DLL matches
+      # the installer's arch. Non-Windows runners skip this entirely.
+      - name: Set up Rust (Windows only)
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc
+
+      - name: Cache Rust build (Windows only)
+        if: runner.os == 'Windows'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/shellex
+
       - name: Build
         run: pnpm build
 
@@ -60,6 +76,13 @@ jobs:
 
       # WiX light.exe collides on shared temp files when x64 and arm64 MSI
       # builds run in parallel. Build arches sequentially to avoid LGHT0001.
+      - name: Build shell extension DLL (Windows x64)
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --manifest-path src/shellex/Cargo.toml --target x86_64-pc-windows-msvc --release
+          Copy-Item src/shellex/target/x86_64-pc-windows-msvc/release/awapi_shellex.dll resources/awapi_shellex.dll -Force
+        shell: pwsh
+
       - name: Package & publish to GitHub Releases (Windows x64)
         if: runner.os == 'Windows'
         env:
@@ -73,6 +96,13 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
         run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always --x64
+
+      - name: Build shell extension DLL (Windows arm64)
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --manifest-path src/shellex/Cargo.toml --target aarch64-pc-windows-msvc --release
+          Copy-Item src/shellex/target/aarch64-pc-windows-msvc/release/awapi_shellex.dll resources/awapi_shellex.dll -Force
+        shell: pwsh
 
       - name: Package & publish to GitHub Releases (Windows arm64)
         if: runner.os == 'Windows'

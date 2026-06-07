@@ -257,14 +257,22 @@ export type DialogConfirmUnsavedChoice = 'save' | 'discard' | 'cancel';
  * The renderer fetches this once on startup and pre-populates the
  * first compare tab. `null` means "no CLI session — open empty".
  */
-export interface InitialCompareSession {
-  type: 'folder';
-  /** Absolute path. */
-  leftRoot: string;
-  /** Absolute path. Omit to leave the right side empty (user will pick later). */
-  rightRoot?: string;
-  mode: CompareMode;
-}
+export type InitialCompareSession =
+  | {
+      type: 'folder';
+      /** Absolute path. */
+      leftRoot: string;
+      /** Absolute path. Omit to leave the right side empty (user will pick later). */
+      rightRoot?: string;
+      mode: CompareMode;
+    }
+  | {
+      type: 'file';
+      /** Absolute path to the left file. */
+      leftPath: string;
+      /** Absolute path to the right file. */
+      rightPath: string;
+    };
 
 /**
  * A minimal entry-shaped sample used by the rules editor's live preview.

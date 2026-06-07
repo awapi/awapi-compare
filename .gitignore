@@ -11,6 +11,11 @@ build/
 # Electron-builder output
 release/
 
+# Rust shell extension build output (src/shellex)
+src/shellex/target/
+# Per-arch DLL copied here by `just build-shellex`; rebuilt by CI per release.
+resources/awapi_shellex.dll
+
 # Coverage
 coverage/
 .nyc_output/

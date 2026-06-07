@@ -50,6 +50,7 @@ export function parseDesktopArgs(
   let left: string | undefined;
   let right: string | undefined;
   let mode: CompareMode | undefined;
+  let type: 'folder' | 'file' | undefined;
   let typeSeen = false;
   let registerShell = false;
   let unregisterShell = false;
@@ -64,10 +65,11 @@ export function parseDesktopArgs(
     return raw;
   };
 
-  const assertType = (v: string): void => {
-    if (v !== 'folder') {
-      throw new Error(`--type must be 'folder' (got '${v}'); file mode is not yet supported`);
+  const assertType = (v: string): 'folder' | 'file' => {
+    if (v !== 'folder' && v !== 'file') {
+      throw new Error(`--type must be 'folder' or 'file' (got '${v}')`);
     }
+    return v as 'folder' | 'file';
   };
 
   const assertMode = (v: string): CompareMode => {
@@ -80,10 +82,10 @@ export function parseDesktopArgs(
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--type') {
-      assertType(requireValue(argv[++i], '--type'));
+      type = assertType(requireValue(argv[++i], '--type'));
       typeSeen = true;
     } else if (arg?.startsWith('--type=')) {
-      assertType(arg.slice('--type='.length));
+      type = assertType(arg.slice('--type='.length));
       typeSeen = true;
     } else if (arg === '--left') {
       left = requireValue(argv[++i], '--left');
@@ -145,7 +147,7 @@ export function parseDesktopArgs(
   }
   if (!typeSeen) {
     const v = env['AWAPI_TYPE'];
-    if (v && v.length > 0) assertType(v);
+    if (v && v.length > 0) type = assertType(v);
   }
 
   // Two bare positional paths (e.g. Windows "Send to" with 2 items selected):
@@ -153,12 +155,20 @@ export function parseDesktopArgs(
   // (and their env-var equivalents) are absent.
   if (positionalPaths.length === 2 && left === undefined && right === undefined) {
     const [rawL, rawR] = positionalPaths as [string, string];
+    const resolvedL = isAbsolute(rawL) ? rawL : resolve(cwd, rawL);
+    const resolvedR = isAbsolute(rawR) ? rawR : resolve(cwd, rawR);
+    if (type === 'file') {
+      return {
+        kind: 'compare',
+        session: { type: 'file', leftPath: resolvedL, rightPath: resolvedR },
+      };
+    }
     return {
       kind: 'compare',
       session: {
         type: 'folder',
-        leftRoot: isAbsolute(rawL) ? rawL : resolve(cwd, rawL),
-        rightRoot: isAbsolute(rawR) ? rawR : resolve(cwd, rawR),
+        leftRoot: resolvedL,
+        rightRoot: resolvedR,
         mode: mode ?? 'quick',
       },
     };
@@ -176,12 +186,21 @@ export function parseDesktopArgs(
     return { kind: 'openLeft', path: resolvedLeft };
   }
 
+  const resolvedRight = isAbsolute(right) ? right : resolve(cwd, right);
+
+  if (type === 'file') {
+    return {
+      kind: 'compare',
+      session: { type: 'file', leftPath: resolvedLeft, rightPath: resolvedRight },
+    };
+  }
+
   return {
     kind: 'compare',
     session: {
       type: 'folder',
       leftRoot: resolvedLeft,
-      rightRoot: isAbsolute(right) ? right : resolve(cwd, right),
+      rightRoot: resolvedRight,
       mode: mode ?? 'quick',
     },
   };
