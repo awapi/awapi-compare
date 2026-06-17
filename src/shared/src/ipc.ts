@@ -258,7 +258,7 @@ export type DialogConfirmUnsavedChoice = 'save' | 'discard' | 'cancel';
  * first compare tab. `null` means "no CLI session — open empty".
  */
 export interface InitialCompareSession {
-  type: 'folder';
+  type: 'folder' | 'file';
   /** Absolute path. */
   leftRoot: string;
   /** Absolute path. Omit to leave the right side empty (user will pick later). */

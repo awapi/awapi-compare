@@ -80,7 +80,8 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     expect(exec).toHaveBeenCalledOnce();
     const [cmd, args] = exec.mock.calls[0] as [string, string[]];
     expect(cmd).toBe('reg');
-    expect(args.some((a) => a.includes('Directory'))).toBe(true);
+    expect(args.some((a) => a.includes('CommandStore'))).toBe(true);
+    expect(args.some((a) => a.includes('AwapiCompare.CompareTwo'))).toBe(true);
   });
 
   it('isRegistered() returns false when reg query fails', async () => {
@@ -107,9 +108,10 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('Classes\\Directory\\shell\\AwapiCompare');
   });
 
-  it('registers both sub-verbs', () => {
-    expect(script).toContain('01.SetLeft');
-    expect(script).toContain('02.Compare');
+  it('registers CommandStore verb ids', () => {
+    expect(script).toContain('AwapiCompare.SelectLeft');
+    expect(script).toContain('AwapiCompare.ComparePending');
+    expect(script).toContain('AwapiCompare.CompareTwo');
   });
 
   it('includes the --set-left flag in the SetLeft command', () => {
@@ -120,6 +122,10 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('--compare-pending');
   });
 
+  it('includes the --compare-two flag for multi-select compare', () => {
+    expect(script).toContain('--compare-two');
+  });
+
   it('uses %1 as the Explorer path placeholder', () => {
     expect(script).toContain('%1');
   });
@@ -127,6 +133,15 @@ describe('buildRegisterScript', () => {
   it('sets MUIVerb and SubCommands for the submenu grouping', () => {
     expect(script).toContain('MUIVerb');
     expect(script).toContain('SubCommands');
+  });
+
+  it('sets MultiSelectModel to Player', () => {
+    expect(script).toContain('MultiSelectModel');
+    expect(script).toContain('Player');
+  });
+
+  it('targets Explorer CommandStore keys', () => {
+    expect(script).toContain('CurrentVersion\\Explorer\\CommandStore\\shell');
   });
 
   it('escapes single quotes in the exe path', () => {
@@ -147,6 +162,12 @@ describe('buildUnregisterScript', () => {
 
   it('removes the folder (Directory) key', () => {
     expect(script).toContain('Classes\\Directory\\shell\\AwapiCompare');
+  });
+
+  it('removes CommandStore keys', () => {
+    expect(script).toContain('CommandStore\\shell\\AwapiCompare.SelectLeft');
+    expect(script).toContain('CommandStore\\shell\\AwapiCompare.ComparePending');
+    expect(script).toContain('CommandStore\\shell\\AwapiCompare.CompareTwo');
   });
 
   it('uses Remove-Item with -Recurse', () => {

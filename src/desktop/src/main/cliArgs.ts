@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 
 import type { CompareMode, InitialCompareSession } from '@awapi/shared';
@@ -26,12 +27,17 @@ import type { CompareMode, InitialCompareSession } from '@awapi/shared';
 export interface ParseDesktopArgsOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  /** File-system stat for auto-detecting file-vs-directory (test seam). */
+  stat?: (path: string) => { isDirectory(): boolean; isFile(): boolean };
 }
 
 /** Discriminated union of all recognised CLI actions. */
 export type DesktopArgs =
   | { kind: 'compare'; session: InitialCompareSession }
   | { kind: 'openLeft'; path: string }
+  | { kind: 'setLeft'; path: string }
+  | { kind: 'comparePending'; rightPath: string }
+  | { kind: 'compareTwo'; leftPath: string; rightPath: string }
   | { kind: 'registerShell' }
   | { kind: 'unregisterShell' }
   | null;
@@ -48,9 +54,14 @@ export function parseDesktopArgs(
   let left: string | undefined;
   let right: string | undefined;
   let mode: CompareMode | undefined;
+  let explicitType: 'folder' | 'file' | undefined;
   let typeSeen = false;
   let registerShell = false;
   let unregisterShell = false;
+  let setLeftPath: string | undefined;
+  let comparePendingPath: string | undefined;
+  let compareTwoLeft: string | undefined;
+  let compareTwoRight: string | undefined;
 
   const requireValue = (raw: string | undefined, flag: string): string => {
     if (raw === undefined || raw.startsWith('--')) {
@@ -59,10 +70,11 @@ export function parseDesktopArgs(
     return raw;
   };
 
-  const assertType = (v: string): void => {
-    if (v !== 'folder') {
-      throw new Error(`--type must be 'folder' (got '${v}'); file mode is not yet supported`);
+  const assertType = (v: string): 'folder' | 'file' => {
+    if (v !== 'folder' && v !== 'file') {
+      throw new Error(`--type must be 'folder' or 'file' (got '${v}')`);
     }
+    return v;
   };
 
   const assertMode = (v: string): CompareMode => {
@@ -75,10 +87,10 @@ export function parseDesktopArgs(
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--type') {
-      assertType(requireValue(argv[++i], '--type'));
+      explicitType = assertType(requireValue(argv[++i], '--type'));
       typeSeen = true;
     } else if (arg?.startsWith('--type=')) {
-      assertType(arg.slice('--type='.length));
+      explicitType = assertType(arg.slice('--type='.length));
       typeSeen = true;
     } else if (arg === '--left') {
       left = requireValue(argv[++i], '--left');
@@ -96,6 +108,24 @@ export function parseDesktopArgs(
       registerShell = true;
     } else if (arg === '--unregister-shell') {
       unregisterShell = true;
+    } else if (arg === '--set-left') {
+      setLeftPath = requireValue(argv[++i], '--set-left');
+    } else if (arg?.startsWith('--set-left=')) {
+      setLeftPath = arg.slice('--set-left='.length);
+    } else if (arg === '--compare-pending') {
+      comparePendingPath = requireValue(argv[++i], '--compare-pending');
+    } else if (arg?.startsWith('--compare-pending=')) {
+      comparePendingPath = arg.slice('--compare-pending='.length);
+    } else if (arg === '--compare-two') {
+      compareTwoLeft = requireValue(argv[++i], '--compare-two');
+      compareTwoRight = requireValue(argv[++i], '--compare-two');
+    } else if (arg?.startsWith('--compare-two=')) {
+      const parts = arg.slice('--compare-two='.length).split(',');
+      if (parts.length < 2) {
+        throw new Error('--compare-two requires two paths separated by comma');
+      }
+      compareTwoLeft = parts[0];
+      compareTwoRight = parts[1];
     }
     // anything else is ignored (Electron internal flags, etc.)
   }
@@ -103,6 +133,31 @@ export function parseDesktopArgs(
   // Shell management actions take priority over everything else.
   if (registerShell) return { kind: 'registerShell' };
   if (unregisterShell) return { kind: 'unregisterShell' };
+
+  // Shell-workflow verbs — must come before --left/--right fallback
+  // so Explorer-invoked `--set-left <path>` doesn't get mistaken for
+  // a single-sided folder open.
+  if (setLeftPath !== undefined) {
+    return {
+      kind: 'setLeft',
+      path: isAbsolute(setLeftPath) ? setLeftPath : resolve(cwd, setLeftPath),
+    };
+  }
+  if (comparePendingPath !== undefined) {
+    return {
+      kind: 'comparePending',
+      rightPath: isAbsolute(comparePendingPath)
+        ? comparePendingPath
+        : resolve(cwd, comparePendingPath),
+    };
+  }
+  if (compareTwoLeft !== undefined && compareTwoRight !== undefined) {
+    return {
+      kind: 'compareTwo',
+      leftPath: isAbsolute(compareTwoLeft) ? compareTwoLeft : resolve(cwd, compareTwoLeft),
+      rightPath: isAbsolute(compareTwoRight) ? compareTwoRight : resolve(cwd, compareTwoRight),
+    };
+  }
 
   // Normal compare session via --left / --right (or env-var fallbacks).
   if (left === undefined) {
@@ -119,7 +174,10 @@ export function parseDesktopArgs(
   }
   if (!typeSeen) {
     const v = env['AWAPI_TYPE'];
-    if (v && v.length > 0) assertType(v);
+    if (v && v.length > 0) {
+      explicitType = assertType(v);
+      typeSeen = true;
+    }
   }
 
   if (left === undefined && right === undefined) return null;
@@ -129,17 +187,48 @@ export function parseDesktopArgs(
 
   const resolvedLeft = isAbsolute(left) ? left : resolve(cwd, left);
 
+  // Auto-detect folder vs file when --type was omitted.
+  let detectedType: 'folder' | 'file' | null = null;
+  const statImpl = options.stat ?? statSync;
+  try {
+    const st = statImpl(resolvedLeft);
+    if (st.isDirectory()) detectedType = 'folder';
+    else if (st.isFile()) detectedType = 'file';
+  } catch {
+    // path may not exist yet — fall through to heuristic
+  }
+
+  if (!typeSeen && detectedType) {
+    typeSeen = true;
+  }
+
+  if (!typeSeen) {
+    // heuristic: bare basename (no dot extension) → folder,
+    // basename with extension → file.
+    const base = resolvedLeft.split('/').pop() ?? resolvedLeft;
+    if (base.includes('.') && !base.startsWith('.')) {
+      detectedType = 'file';
+    } else {
+      detectedType = 'folder';
+    }
+    typeSeen = true;
+  }
+
+  const sessionType = explicitType ?? detectedType ?? 'folder';
+
   // --left without --right: open the app with only the left side populated.
   if (right === undefined) {
     return { kind: 'openLeft', path: resolvedLeft };
   }
 
+  const resolvedRight = isAbsolute(right) ? right : resolve(cwd, right);
+
   return {
     kind: 'compare',
     session: {
-      type: 'folder',
+      type: sessionType,
       leftRoot: resolvedLeft,
-      rightRoot: isAbsolute(right) ? right : resolve(cwd, right),
+      rightRoot: resolvedRight,
       mode: mode ?? 'quick',
     },
   };

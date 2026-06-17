@@ -36,6 +36,18 @@ describe('parseDesktopArgs', () => {
     });
   });
 
+  it('accepts --type file', () => {
+    expect(parseDesktopArgs(['--type=file', '--left=./a.txt', '--right=./b.txt'], opts)).toEqual({
+      kind: 'compare',
+      session: {
+        type: 'file',
+        leftRoot: '/work/a.txt',
+        rightRoot: '/work/b.txt',
+        mode: 'quick',
+      },
+    });
+  });
+
   it('keeps absolute paths unchanged', () => {
     const r = parseDesktopArgs(['--left', '/x/a', '--right', '/y/b'], opts);
     expect(r?.kind).toBe('compare');
@@ -88,10 +100,10 @@ describe('parseDesktopArgs', () => {
     if (r?.kind === 'compare') expect(r.session.leftRoot).toBe('/a');
   });
 
-  it('rejects non-folder --type', () => {
+  it('rejects unknown --type values', () => {
     expect(() =>
-      parseDesktopArgs(['--type', 'file', '--left', '/a', '--right', '/b'], opts),
-    ).toThrow(/folder/);
+      parseDesktopArgs(['--type', 'weird', '--left', '/a', '--right', '/b'], opts),
+    ).toThrow(/folder|file/);
   });
 
   it('rejects unknown --mode', () => {
@@ -130,5 +142,39 @@ describe('parseDesktopArgs', () => {
   it('--register-shell takes priority over --left/--right', () => {
     const r = parseDesktopArgs(['--register-shell', '--left', '/a', '--right', '/b'], opts);
     expect(r?.kind).toBe('registerShell');
+  });
+
+  it('parses --set-left', () => {
+    expect(parseDesktopArgs(['--set-left', './left'], opts)).toEqual({
+      kind: 'setLeft',
+      path: '/work/left',
+    });
+  });
+
+  it('parses --compare-pending', () => {
+    expect(parseDesktopArgs(['--compare-pending', './right'], opts)).toEqual({
+      kind: 'comparePending',
+      rightPath: '/work/right',
+    });
+  });
+
+  it('parses --compare-two with two positional paths', () => {
+    expect(parseDesktopArgs(['--compare-two', './left', './right'], opts)).toEqual({
+      kind: 'compareTwo',
+      leftPath: '/work/left',
+      rightPath: '/work/right',
+    });
+  });
+
+  it('parses --compare-two=<left>,<right>', () => {
+    expect(parseDesktopArgs(['--compare-two=./left,./right'], opts)).toEqual({
+      kind: 'compareTwo',
+      leftPath: '/work/left',
+      rightPath: '/work/right',
+    });
+  });
+
+  it('rejects --compare-two with missing second path', () => {
+    expect(() => parseDesktopArgs(['--compare-two', './left'], opts)).toThrow(/compare-two/);
   });
 });

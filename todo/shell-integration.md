@@ -74,16 +74,35 @@ Ship the easy, declarative integration first; add the richer extension later.
 The classic shell-extension route, matching Beyond Compare's behaviour
 on Windows 10 and Windows 11.
 
+> **Current status (2026-06):** CLI + startup flow now support
+> `--compare-two` end-to-end, and Explorer registration was migrated to
+> `CommandStore` with `MultiSelectModel="Player"` (plus uninstall
+> cleanup). The remaining blocker for C0.5/C3 is the native COM
+> `IExplorerCommand` handler (Windows-only) for modern-menu behavior and
+> dynamic labels.
+
 - [ ] **C1** — Right-clicking 2 or 3 items in Explorer shows a
       **"Compare with AwapiCompare"** entry that opens them in a new
       compare tab. Works for files **and** folders.
-- [ ] **C2** — Right-clicking one item shows **"Select Left Side for
+
+      > ⚠️ Currently only the two-step single-item workflow is wired.
+      > Multi-select requires C0.5.
+
+- [x] **C2** — Right-clicking one item shows **"Select Left Side for
       Compare"**; right-clicking a second item later shows
       **"Compare to <left>"**, driven by Phase A2 state. The pending
       pick is visible (and clearable) from the app itself.
+
+      > ✅ Wired via `--set-left <path>` / `--compare-pending <path>`
+      > + `pending-left.txt` in userData.  No in-app UI for the
+      > pending pick yet; that's tracked in Phase A2.
+
 - [ ] **C3** — On Windows 11, the entries appear directly in the modern
       context menu (not only behind "Show more options"), grouped under
       an **AwapiCompare** submenu when more than two verbs are visible.
+
+      > ⚠️ Requires `IExplorerCommand` COM handler — C0.5.
+
 - [ ] **C4** — The shell extension is installed and registered by the
       regular AwapiCompare installer (per-user by default, per-machine
       when the installer is run elevated) and is fully removed by the
@@ -96,6 +115,42 @@ on Windows 10 and Windows 11.
       user enable/disable the Explorer entries without reinstalling,
       and shows the current registration state (per-user / per-machine
       / disabled).
+
+      > ⚠️ IPC channels (`shell.*`) and preload bindings exist; the
+      > Preferences UI toggle is not yet wired — C0.6.
+
+### 🔧 Implementation steps
+
+- [x] **C0.1** — Parse `--set-left <path>` / `--compare-pending <path>`
+      in `cliArgs.ts`; add `setLeft` / `comparePending` variants to
+      `DesktopArgs`.
+- [x] **C0.2** — Add `setPendingLeft` / `getPendingLeft` /
+      `clearPendingLeft` to `ShellIntegrationService`, persisting to
+      `{userData}/pending-left.txt`.
+- [x] **C0.3** — Wire startup logic in `index.ts`: on `--set-left`,
+      write the file and `app.quit()` without opening a window; on
+      `--compare-pending`, read the file, build a compare session,
+      clear the file, and open the comparison.
+- [x] **C0.4** — Support `--type file` (auto-detect via stat +
+      heuristic) so individual files can be compared from Explorer.
+- [ ] **C0.5** — Add a COM `IExplorerCommand` handler (out-of-process,
+      e.g. a dedicated console EXE registered under
+      `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\`)
+      so the verbs can:
+      - receive the full `IShellItemArray` → multi-select works
+      - show directly in the Windows 11 compact context menu
+      - display dynamic labels ("Compare to *readme.txt*" when a
+        pending-left is set).
+
+      > ✅ Partially done in current branch: CommandStore +
+      > `MultiSelectModel="Player"` registration, `--compare-two` CLI,
+      > startup wiring, tests, and installer cleanup.
+      >
+      > ⏳ Remaining: native COM `IExplorerCommand` implementation,
+      > `ExplorerCommandHandler` CLSID registration, and Windows Explorer
+      > runtime validation.
+- [ ] **C0.6** — Wire the Preferences → Shell Integration UI
+      (`PreferencesDialog.tsx`) to the existing `shell.*` IPC channels.
 
 ---
 
@@ -131,3 +186,4 @@ Round out the feature so it feels first-class on every OS.
 - [ ] **E4** — A short troubleshooting guide covers the common failure
       modes (entries missing after install, antivirus blocking the DLL,
       Finder Sync disabled in System Settings, etc.).
+

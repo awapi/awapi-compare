@@ -35,7 +35,10 @@
   DetailPrint "Removing AwapiCompare Explorer context menu entries (best-effort)..."
   nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \
     "Remove-Item -Path ''HKCU:\Software\Classes\*\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
-     Remove-Item -Path ''HKCU:\Software\Classes\Directory\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue"'
+     Remove-Item -Path ''HKCU:\Software\Classes\Directory\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.SelectLeft'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.ComparePending'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.CompareTwo'' -Recurse -Force -ErrorAction SilentlyContinue"'
   Pop $0      ; discard exit code — cleanup is best-effort, never block uninstall
   ClearErrors
 !macroend

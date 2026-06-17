@@ -78,7 +78,7 @@ void app.whenReady().then(async () => {
   const userDataPath = app.getPath('userData');
   const shellIntegration = new ShellIntegrationService(userDataPath);
 
-  let args = null;
+  let args: ReturnType<typeof parseDesktopArgs> = null;
   try {
     // Skip the executable + script paths in `process.argv`. In packaged
     // builds argv[0] is the Electron binary and argv[1+] are user args;
@@ -109,6 +109,59 @@ void app.whenReady().then(async () => {
     return;
   }
 
+  // --set-left: stash the path and quit (no window). Used by the
+  // Explorer "Select as Left Side" context-menu verb.
+  if (args?.kind === 'setLeft') {
+    try {
+      await shellIntegration.setPendingLeft(args.path);
+      // eslint-disable-next-line no-console
+      console.log(`[awapi] pending left set: ${args.path}`);
+    } catch (err) {
+      console.error('[awapi] failed to write pending-left:', err);
+    }
+    app.quit();
+    return;
+  }
+
+  // --compare-pending: read stashed left, open comparison, clear stash.
+  if (args?.kind === 'comparePending') {
+    const { rightPath } = args;
+    const pendingLeft = await shellIntegration.getPendingLeft();
+    if (pendingLeft) {
+      await shellIntegration.clearPendingLeft();
+      console.log(`[awapi] compare-pending: '${pendingLeft}' ↔ '${rightPath}'`);
+      args = {
+        kind: 'compare',
+        session: {
+          type: 'folder' as const,
+          leftRoot: pendingLeft,
+          rightRoot: rightPath,
+          mode: 'quick',
+        },
+      };
+    } else {
+      console.warn('[awapi] compare-pending invoked with no pending left stashed');
+      args = { kind: 'openLeft', path: rightPath };
+    }
+    // Fall through to normal flow — args is now either 'compare' or 'openLeft'.
+  }
+
+  // --compare-two: multi-select from Explorer — compare two items directly.
+  if (args?.kind === 'compareTwo') {
+    const { leftPath, rightPath } = args;
+    console.log(`[awapi] compare-two: '${leftPath}' ↔ '${rightPath}'`);
+    args = {
+      kind: 'compare',
+      session: {
+        type: 'folder' as const,
+        leftRoot: leftPath,
+        rightRoot: rightPath,
+        mode: 'quick',
+      },
+    };
+    // Fall through to normal flow.
+  }
+
   // Resolve the initial compare session.
   let initialCompare: InitialCompareSession | null = null;
 
@@ -118,11 +171,12 @@ void app.whenReady().then(async () => {
     // eslint-disable-next-line no-console
     console.log(`[awapi] opening with left side: ${args.path}`);
   } else if (args?.kind === 'compare') {
-    initialCompare = args.session;
+    const session = args.session;
+    initialCompare = session;
     // eslint-disable-next-line no-console
     console.log(
-      `[awapi] launching with ${initialCompare.type} compare: ` +
-        `${initialCompare.leftRoot} ↔ ${initialCompare.rightRoot} (${initialCompare.mode})`,
+      `[awapi] launching with ${session.type} compare: ` +
+        `${session.leftRoot} ↔ ${session.rightRoot} (${session.mode})`,
     );
   }
 
