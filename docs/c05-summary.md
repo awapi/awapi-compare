@@ -53,3 +53,48 @@ Implement multi-select support for Windows Explorer (pick 2 items → compare in
 2. Register `ExplorerCommandHandler` CLSID for the relevant CommandStore verbs.
 3. Validate in Windows Explorer (especially Win11 compact menu behavior, multi-select, and fallback behavior).
 4. Keep C0.5 unchecked in `todo/shell-integration.md` until COM portion is complete and merged.
+
+## Windows Continuation Prompt (Copy/Paste)
+
+Use this prompt in a new chat on a Windows machine:
+
+```text
+Continue C0.5 Windows shell integration work for awapi/awapi-compare.
+
+Repository state:
+- Branch: c0-5-windows-handoff
+- Latest handoff commit: 683cfd1
+- C0.5 is partially complete: CLI and CommandStore registration are done.
+
+Already completed in this branch:
+1) --compare-two CLI parsing and startup wiring in desktop main process
+2) CommandStore-based shell registration with MultiSelectModel="Player"
+3) Command cleanup in unregister and installer uninstall
+4) Unit tests for cliArgs and shellIntegrationService updates
+
+Still missing for true C0.5 completion:
+1) Native COM IExplorerCommand handler implementation (Rust or C++)
+2) ExplorerCommandHandler CLSID registration for CommandStore verbs
+3) Windows Explorer runtime validation (Win11 compact menu + dynamic labels)
+
+Task now:
+- Implement the native COM handler and wire registry entries so:
+	- Multi-select receives full IShellItemArray
+	- Verbs appear directly in Win11 modern context menu
+	- Dynamic label works for pending-left flow
+- Keep existing CLI contract:
+	- --set-left <path>
+	- --compare-pending <path>
+	- --compare-two <left> <right>
+
+Acceptance criteria:
+1) Right-click 2 selected items in Explorer opens compare in one click
+2) Right-click single item supports Select Left then Compare to <left>
+3) Entries show in Win11 compact menu (not only Show more options)
+4) No Explorer crash if app missing/outdated
+5) Update docs/c05-summary.md and todo/shell-integration.md status notes
+
+Constraints:
+- Follow repository rules in .github/copilot-instructions.md
+- Do not mark C0.5 checkbox complete until COM part is implemented and validated
+```
