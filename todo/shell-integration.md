@@ -77,9 +77,11 @@ on Windows 10 and Windows 11.
 > **Current status (2026-06):** CLI + startup flow now support
 > `--compare-two` end-to-end, and Explorer registration was migrated to
 > `CommandStore` with `MultiSelectModel="Player"` (plus uninstall
-> cleanup). The remaining blocker for C0.5/C3 is the native COM
-> `IExplorerCommand` handler (Windows-only) for modern-menu behavior and
-> dynamic labels.
+> cleanup). The native COM `IExplorerCommand` handler now exists in
+> `src/shell-ext-win/` and is wired via `ExplorerCommandHandler` CLSID
+> bindings. C0.5/C3 stay unchecked pending a native build + Explorer
+> validation on Windows (and, for the Win11 compact menu, a signed
+> sparse MSIX package).
 
 - [ ] **C1** — Right-clicking 2 or 3 items in Explorer shows a
       **"Compare with AwapiCompare"** entry that opens them in a new
@@ -136,19 +138,26 @@ on Windows 10 and Windows 11.
 - [ ] **C0.5** — Add a COM `IExplorerCommand` handler (out-of-process,
       e.g. a dedicated console EXE registered under
       `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\`)
-      so the verbs can:
-      - receive the full `IShellItemArray` → multi-select works
-      - show directly in the Windows 11 compact context menu
-      - display dynamic labels ("Compare to *readme.txt*" when a
-        pending-left is set).
+      so the verbs can: - receive the full `IShellItemArray` → multi-select works - show directly in the Windows 11 compact context menu - display dynamic labels ("Compare to _readme.txt_" when a
+      pending-left is set).
 
       > ✅ Partially done in current branch: CommandStore +
       > `MultiSelectModel="Player"` registration, `--compare-two` CLI,
       > startup wiring, tests, and installer cleanup.
       >
-      > ⏳ Remaining: native COM `IExplorerCommand` implementation,
-      > `ExplorerCommandHandler` CLSID registration, and Windows Explorer
-      > runtime validation.
+      > ✅ Native COM `IExplorerCommand` handler now implemented in
+      > `src/shell-ext-win/` (C++): multi-select via `IShellItemArray`,
+      > dynamic "Compare to <left>" title, and missing-app fallback. The
+      > TS registration binds each CommandStore verb to its CLSID via
+      > `ExplorerCommandHandler` (guarded by `Test-Path` on the DLL), and
+      > `electron-builder.yml` bundles the DLL into `resources/`.
+      >
+      > ⏳ Remaining before ticking C0.5: build the DLL on a Windows box
+      > with MSVC + Windows SDK + CMake (`just shellext`) and validate it
+      > in Explorer. Win11 **compact**-menu placement additionally needs a
+      > **signed** sparse MSIX package (blocked on code signing being
+      > disabled for v1).
+
 - [ ] **C0.6** — Wire the Preferences → Shell Integration UI
       (`PreferencesDialog.tsx`) to the existing `shell.*` IPC channels.
 
@@ -186,4 +195,3 @@ Round out the feature so it feels first-class on every OS.
 - [ ] **E4** — A short troubleshooting guide covers the common failure
       modes (entries missing after install, antivirus blocking the DLL,
       Finder Sync disabled in System Settings, etc.).
-

@@ -38,7 +38,11 @@
      Remove-Item -Path ''HKCU:\Software\Classes\Directory\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.SelectLeft'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.ComparePending'' -Recurse -Force -ErrorAction SilentlyContinue; \
-     Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.CompareTwo'' -Recurse -Force -ErrorAction SilentlyContinue"'
+     Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.CompareTwo'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Classes\CLSID\{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A11}'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Classes\CLSID\{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A12}'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Classes\CLSID\{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A13}'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Awapi\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue"'
   Pop $0      ; discard exit code — cleanup is best-effort, never block uninstall
   ClearErrors
 !macroend

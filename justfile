@@ -87,6 +87,13 @@ coverage:
 build:
     pnpm build
 
+# Build the native Windows Explorer command handler (C0.5).
+# Windows-only; requires MSVC + the Windows SDK + CMake >= 3.21.
+# Output: src/shell-ext-win/build/Release/AwapiCompareShellExt.dll
+shellext:
+    cmake -S src/shell-ext-win -B src/shell-ext-win/build -A x64
+    cmake --build src/shell-ext-win/build --config Release
+
 # Package an installer for the current OS.
 # Usage: just package           (current OS)
 #        just package mac       (dmg+zip, x64+arm64)

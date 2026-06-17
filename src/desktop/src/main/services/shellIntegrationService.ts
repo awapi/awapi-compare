@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promises as fsp } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 type FsPromiseLike = {
@@ -63,10 +63,22 @@ export class ShellIntegrationService {
   /**
    * Registers Windows Explorer context menu entries for AwapiCompare.
    * Only supported on Windows; throws on other platforms.
+   *
+   * When the native `IExplorerCommand` handler DLL is present next to the
+   * executable (`<exeDir>/resources/AwapiCompareShellExt.dll`), the verbs are
+   * additionally bound to their COM CLSIDs for multi-select, dynamic labels,
+   * and Windows 11 modern-menu placement. When the DLL is absent the classic
+   * `command` subkeys still work, so registration never depends on the native
+   * build being available.
+   *
+   * @param exePath Absolute path to the AwapiCompare executable.
+   * @param dllPath Optional override for the shell-extension DLL location.
    */
-  async register(exePath: string): Promise<void> {
+  async register(exePath: string, dllPath?: string): Promise<void> {
     if (process.platform === 'win32') {
-      await this.runPs(buildRegisterScript(exePath));
+      const resolvedDll =
+        dllPath ?? join(dirname(exePath), 'resources', 'AwapiCompareShellExt.dll');
+      await this.runPs(buildRegisterScript(exePath, resolvedDll, this.pendingLeftPath));
       return;
     }
     throw new Error('Shell integration is only supported on Windows');
@@ -120,14 +132,41 @@ export class ShellIntegrationService {
 // ---------------------------------------------------------------------------
 
 /**
+ * CLSIDs of the native `IExplorerCommand` handlers. These MUST stay in lock
+ * step with `src/shell-ext-win/src/guids.h` — the native DLL advertises the
+ * same GUIDs, and the registry below binds each CommandStore verb to one of
+ * them via `ExplorerCommandHandler`.
+ */
+export const SHELL_EXT_CLSIDS = {
+  compareTwo: '{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A11}',
+  selectLeft: '{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A12}',
+  comparePending: '{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A13}',
+} as const;
+
+/**
  * Builds the PowerShell script that registers Windows Explorer context menu
  * entries. Exported so tests can verify the script structure without running
  * PowerShell.
+ *
+ * @param exePath  Absolute path to the AwapiCompare executable.
+ * @param dllPath  Absolute path to the native shell-extension DLL. The native
+ *   COM bindings are only written when this file actually exists on disk
+ *   (guarded by `Test-Path`), so a registry write never points Explorer at a
+ *   handler that cannot load.
+ * @param pendingLeftPath Absolute path to the `pending-left.txt` stash, exposed
+ *   to the native handler so it can render the dynamic "Compare to <left>"
+ *   label.
  */
-export function buildRegisterScript(exePath: string): string {
+export function buildRegisterScript(
+  exePath: string,
+  dllPath: string,
+  pendingLeftPath: string,
+): string {
   // Escape single quotes for use inside a PowerShell single-quoted string.
   // Windows paths cannot contain single quotes, but guard anyway.
   const psExe = exePath.replace(/'/g, "''");
+  const psDll = dllPath.replace(/'/g, "''");
+  const psPending = pendingLeftPath.replace(/'/g, "''");
 
   // We set $exe from a single-quoted (unexpanded) string, then reference it
   // inside double-quoted strings where PS expands it. This avoids backtick
@@ -139,11 +178,22 @@ export function buildRegisterScript(exePath: string): string {
   // The %1 is an Explorer placeholder expanded at invocation time.
   return [
     "$exe = '" + psExe + "'",
+    "$dll = '" + psDll + "'",
+    "$pendingLeft = '" + psPending + "'",
     "$cmdStore = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell'",
     "$idSetLeft = 'AwapiCompare.SelectLeft'",
     "$idComparePending = 'AwapiCompare.ComparePending'",
     "$idCompareTwo = 'AwapiCompare.CompareTwo'",
+    "$clsidCompareTwo = '" + SHELL_EXT_CLSIDS.compareTwo + "'",
+    "$clsidSelectLeft = '" + SHELL_EXT_CLSIDS.selectLeft + "'",
+    "$clsidComparePending = '" + SHELL_EXT_CLSIDS.comparePending + "'",
     '$subCommands = "$idSetLeft;$idComparePending;$idCompareTwo"',
+    // Config the native IExplorerCommand handler reads at runtime.
+    "$cfg = 'HKCU:\\Software\\Awapi\\AwapiCompare'",
+    'New-Item -Path $cfg -Force | Out-Null',
+    "Set-ItemProperty -Path $cfg -Name 'ExePath' -Value $exe",
+    "Set-ItemProperty -Path $cfg -Name 'PendingLeftPath' -Value $pendingLeft",
+    "Set-ItemProperty -Path $cfg -Name 'ShellExtPath' -Value $dll",
     '$targets = @(' +
       "'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompare'," +
       "'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompare'" +
@@ -161,13 +211,13 @@ export function buildRegisterScript(exePath: string): string {
     "Set-ItemProperty -Path $kSetLeft -Name '(default)' -Value 'Select as Left Side'",
     "Set-ItemProperty -Path $kSetLeft -Name 'Icon' -Value ('\"' + $exe + '\",0')",
     'New-Item -Path "$kSetLeft\\command" -Force | Out-Null',
-    "Set-ItemProperty -Path \"$kSetLeft\\command\" -Name '(default)' -Value ('\"' + $exe + '\" --set-left \"%1\"')",
+    'Set-ItemProperty -Path "$kSetLeft\\command" -Name \'(default)\' -Value (\'"\' + $exe + \'" --set-left "%1"\')',
     '$kComparePending = "$cmdStore\\$idComparePending"',
     'New-Item -Path $kComparePending -Force | Out-Null',
     "Set-ItemProperty -Path $kComparePending -Name '(default)' -Value 'Compare to Pending Left'",
     "Set-ItemProperty -Path $kComparePending -Name 'Icon' -Value ('\"' + $exe + '\",0')",
     'New-Item -Path "$kComparePending\\command" -Force | Out-Null',
-    "Set-ItemProperty -Path \"$kComparePending\\command\" -Name '(default)' -Value ('\"' + $exe + '\" --compare-pending \"%1\"')",
+    'Set-ItemProperty -Path "$kComparePending\\command" -Name \'(default)\' -Value (\'"\' + $exe + \'" --compare-pending "%1"\')',
     '$kCompareTwo = "$cmdStore\\$idCompareTwo"',
     'New-Item -Path $kCompareTwo -Force | Out-Null',
     "Set-ItemProperty -Path $kCompareTwo -Name '(default)' -Value 'Compare with AwapiCompare'",
@@ -175,6 +225,20 @@ export function buildRegisterScript(exePath: string): string {
     "Set-ItemProperty -Path $kCompareTwo -Name 'MultiSelectModel' -Value 'Player'",
     'New-Item -Path "$kCompareTwo\\command" -Force | Out-Null',
     "Set-ItemProperty -Path \"$kCompareTwo\\command\" -Name '(default)' -Value ('\"' + $exe + '\" --compare-two %V')",
+    // Native IExplorerCommand bindings — only when the handler DLL exists so
+    // Explorer is never pointed at a CLSID it cannot instantiate.
+    'if (Test-Path $dll) {',
+    '  $clsids = @($clsidCompareTwo, $clsidSelectLeft, $clsidComparePending)',
+    '  foreach ($c in $clsids) {',
+    '    $ip = "HKCU:\\Software\\Classes\\CLSID\\$c\\InprocServer32"',
+    '    New-Item -Path $ip -Force | Out-Null',
+    "    Set-ItemProperty -Path $ip -Name '(default)' -Value $dll",
+    "    Set-ItemProperty -Path $ip -Name 'ThreadingModel' -Value 'Apartment'",
+    '  }',
+    "  Set-ItemProperty -Path $kCompareTwo -Name 'ExplorerCommandHandler' -Value $clsidCompareTwo",
+    "  Set-ItemProperty -Path $kSetLeft -Name 'ExplorerCommandHandler' -Value $clsidSelectLeft",
+    "  Set-ItemProperty -Path $kComparePending -Name 'ExplorerCommandHandler' -Value $clsidComparePending",
+    '}',
   ].join('\n');
 }
 
@@ -186,5 +250,15 @@ export function buildUnregisterScript(): string {
     "Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.SelectLeft' -Recurse -Force -ErrorAction SilentlyContinue",
     "Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.ComparePending' -Recurse -Force -ErrorAction SilentlyContinue",
     "Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.CompareTwo' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\" +
+      SHELL_EXT_CLSIDS.compareTwo +
+      "' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\" +
+      SHELL_EXT_CLSIDS.selectLeft +
+      "' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\" +
+      SHELL_EXT_CLSIDS.comparePending +
+      "' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'HKCU:\\Software\\Awapi\\AwapiCompare' -Recurse -Force -ErrorAction SilentlyContinue",
   ].join('\n');
 }

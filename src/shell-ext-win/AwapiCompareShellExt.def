@@ -1,0 +1,7 @@
+; Exported entry points for the AwapiCompare Explorer command handler DLL.
+LIBRARY AwapiCompareShellExt
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE
+    DllRegisterServer   PRIVATE
+    DllUnregisterServer PRIVATE

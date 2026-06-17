@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  SHELL_EXT_CLSIDS,
   ShellIntegrationService,
   buildRegisterScript,
   buildUnregisterScript,
@@ -97,10 +98,39 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
 
 describe('buildRegisterScript', () => {
   const EXE = 'C:\\Program Files\\AwapiCompare\\AwapiCompare.exe';
-  const script = buildRegisterScript(EXE);
+  const DLL = 'C:\\Program Files\\AwapiCompare\\resources\\AwapiCompareShellExt.dll';
+  const PENDING = 'C:\\Users\\me\\AppData\\Roaming\\AwapiCompare\\pending-left.txt';
+  const script = buildRegisterScript(EXE, DLL, PENDING);
 
   it('sets $exe from the provided path', () => {
     expect(script).toContain(`$exe = '${EXE}'`);
+  });
+
+  it('sets $dll and $pendingLeft from the provided paths', () => {
+    expect(script).toContain(`$dll = '${DLL}'`);
+    expect(script).toContain(`$pendingLeft = '${PENDING}'`);
+  });
+
+  it('writes ExePath and PendingLeftPath config values for the native handler', () => {
+    expect(script).toContain('Software\\Awapi\\AwapiCompare');
+    expect(script).toContain('ExePath');
+    expect(script).toContain('PendingLeftPath');
+  });
+
+  it('registers an InprocServer32 CLSID for each verb (Apartment threading)', () => {
+    expect(script).toContain(SHELL_EXT_CLSIDS.compareTwo);
+    expect(script).toContain(SHELL_EXT_CLSIDS.selectLeft);
+    expect(script).toContain(SHELL_EXT_CLSIDS.comparePending);
+    expect(script).toContain('InprocServer32');
+    expect(script).toContain('Apartment');
+  });
+
+  it('binds each CommandStore verb to its ExplorerCommandHandler CLSID', () => {
+    expect(script).toContain('ExplorerCommandHandler');
+  });
+
+  it('guards the native COM bindings behind Test-Path on the DLL', () => {
+    expect(script).toContain('if (Test-Path $dll)');
   });
 
   it('targets both the file (*) and folder (Directory) registry keys', () => {
@@ -146,7 +176,7 @@ describe('buildRegisterScript', () => {
 
   it('escapes single quotes in the exe path', () => {
     const tricky = "C:\\Apps\\it's here\\App.exe";
-    const s = buildRegisterScript(tricky);
+    const s = buildRegisterScript(tricky, DLL, PENDING);
     expect(s).toContain("it''s here");
   });
 });
@@ -168,6 +198,13 @@ describe('buildUnregisterScript', () => {
     expect(script).toContain('CommandStore\\shell\\AwapiCompare.SelectLeft');
     expect(script).toContain('CommandStore\\shell\\AwapiCompare.ComparePending');
     expect(script).toContain('CommandStore\\shell\\AwapiCompare.CompareTwo');
+  });
+
+  it('removes the native CLSID and config keys', () => {
+    expect(script).toContain(`CLSID\\${SHELL_EXT_CLSIDS.compareTwo}`);
+    expect(script).toContain(`CLSID\\${SHELL_EXT_CLSIDS.selectLeft}`);
+    expect(script).toContain(`CLSID\\${SHELL_EXT_CLSIDS.comparePending}`);
+    expect(script).toContain('Software\\Awapi\\AwapiCompare');
   });
 
   it('uses Remove-Item with -Recurse', () => {

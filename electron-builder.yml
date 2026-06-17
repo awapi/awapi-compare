@@ -32,6 +32,16 @@ win:
   target:
     - target: nsis
     - target: msi
+  # Bundle the native Explorer command handler (C0.5) next to the executable,
+  # at <appRoot>/resources/AwapiCompareShellExt.dll, where
+  # ShellIntegrationService.register() looks for it. The filter form is a no-op
+  # when the DLL has not been built (e.g. non-Windows CI), so packaging never
+  # hard-fails on a missing native artifact.
+  extraResources:
+    - from: ../shell-ext-win/build/Release
+      to: resources
+      filter:
+        - AwapiCompareShellExt.dll
 
 nsis:
   oneClick: false
