@@ -18,7 +18,9 @@ function main(argv: readonly string[]): number {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`awapi-compare: ${msg}\n`);
-    process.stderr.write('Usage: awapi-compare <left> <right> [--mode quick|thorough|binary] [--rules file]\n');
+    process.stderr.write(
+      'Usage: awapi-compare <left> <right> [--mode quick|thorough|binary] [--rules file]\n',
+    );
     return 2;
   }
 }

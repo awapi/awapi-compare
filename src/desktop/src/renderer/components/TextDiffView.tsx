@@ -28,10 +28,7 @@ export interface MonacoLike {
   /** Subset of `monaco.KeyCode` values needed for our keybindings. */
   KeyCode: { RightArrow: number; LeftArrow: number; KeyS: number };
   editor: {
-    createDiffEditor(
-      container: HTMLElement,
-      options?: Record<string, unknown>,
-    ): MonacoDiffEditor;
+    createDiffEditor(container: HTMLElement, options?: Record<string, unknown>): MonacoDiffEditor;
     createModel(value: string, language?: string): MonacoModel;
   };
 }
@@ -145,7 +142,8 @@ async function ensureMonacoWorkers(): Promise<void> {
       getWorker(_workerId: string, label: string): Worker {
         if (label === 'json') return new JsonWorker();
         if (label === 'css' || label === 'scss' || label === 'less') return new CssWorker();
-        if (label === 'html' || label === 'handlebars' || label === 'razor') return new HtmlWorker();
+        if (label === 'html' || label === 'handlebars' || label === 'razor')
+          return new HtmlWorker();
         if (label === 'typescript' || label === 'javascript') return new TsWorker();
         return new EditorWorker();
       },
@@ -248,10 +246,14 @@ function computeChangeEdit(
   selection: MonacoRange,
   sourceSide: 'original' | 'modified',
 ): MonacoSingleEditOperation | null {
-  const srcStart = sourceSide === 'original' ? change.originalStartLineNumber : change.modifiedStartLineNumber;
-  const srcEnd = sourceSide === 'original' ? change.originalEndLineNumber : change.modifiedEndLineNumber;
-  const tgtStart = sourceSide === 'original' ? change.modifiedStartLineNumber : change.originalStartLineNumber;
-  const tgtEnd = sourceSide === 'original' ? change.modifiedEndLineNumber : change.originalEndLineNumber;
+  const srcStart =
+    sourceSide === 'original' ? change.originalStartLineNumber : change.modifiedStartLineNumber;
+  const srcEnd =
+    sourceSide === 'original' ? change.originalEndLineNumber : change.modifiedEndLineNumber;
+  const tgtStart =
+    sourceSide === 'original' ? change.modifiedStartLineNumber : change.originalStartLineNumber;
+  const tgtEnd =
+    sourceSide === 'original' ? change.modifiedEndLineNumber : change.originalEndLineNumber;
 
   // Clip the source range to whatever the user actually selected. When
   // the user has only a caret (no real text range) we keep the legacy
@@ -297,7 +299,12 @@ function computeChangeEdit(
     }
     const col = target.getLineMaxColumn ? target.getLineMaxColumn(tgtStart) : 1;
     return {
-      range: { startLineNumber: tgtStart, startColumn: col, endLineNumber: tgtStart, endColumn: col },
+      range: {
+        startLineNumber: tgtStart,
+        startColumn: col,
+        endLineNumber: tgtStart,
+        endColumn: col,
+      },
       text: sourceText.length > 0 ? '\n' + sourceText : '',
     };
   }
@@ -330,9 +337,16 @@ function computeChangeEdit(
       const lineCount = target.getLineCount?.();
       const replacingLast = lineCount != null && tEnd >= lineCount;
       if (replacingLast) {
-        const maxCol = target.getLineMaxColumn ? target.getLineMaxColumn(tEnd) : Number.MAX_SAFE_INTEGER;
+        const maxCol = target.getLineMaxColumn
+          ? target.getLineMaxColumn(tEnd)
+          : Number.MAX_SAFE_INTEGER;
         return {
-          range: { startLineNumber: tStart, startColumn: 1, endLineNumber: tEnd, endColumn: maxCol },
+          range: {
+            startLineNumber: tStart,
+            startColumn: 1,
+            endLineNumber: tEnd,
+            endColumn: maxCol,
+          },
           text: sourceText,
         };
       }
@@ -349,9 +363,16 @@ function computeChangeEdit(
     const lineCount = target.getLineCount?.();
     const replacingLast = lineCount != null && tgtEnd >= lineCount;
     if (replacingLast) {
-      const maxCol = target.getLineMaxColumn ? target.getLineMaxColumn(tgtEnd) : Number.MAX_SAFE_INTEGER;
+      const maxCol = target.getLineMaxColumn
+        ? target.getLineMaxColumn(tgtEnd)
+        : Number.MAX_SAFE_INTEGER;
       return {
-        range: { startLineNumber: tStart, startColumn: 1, endLineNumber: tgtEnd, endColumn: maxCol },
+        range: {
+          startLineNumber: tStart,
+          startColumn: 1,
+          endLineNumber: tgtEnd,
+          endColumn: maxCol,
+        },
         text: sourceText,
       };
     }
@@ -368,9 +389,16 @@ function computeChangeEdit(
   const lineCount = target.getLineCount?.();
   const replacingLastLine = lineCount != null && tgtEnd >= lineCount;
   if (replacingLastLine) {
-    const maxCol = target.getLineMaxColumn ? target.getLineMaxColumn(tgtEnd) : Number.MAX_SAFE_INTEGER;
+    const maxCol = target.getLineMaxColumn
+      ? target.getLineMaxColumn(tgtEnd)
+      : Number.MAX_SAFE_INTEGER;
     return {
-      range: { startLineNumber: tgtStart, startColumn: 1, endLineNumber: tgtEnd, endColumn: maxCol },
+      range: {
+        startLineNumber: tgtStart,
+        startColumn: 1,
+        endLineNumber: tgtEnd,
+        endColumn: maxCol,
+      },
       text: sourceText,
     };
   }

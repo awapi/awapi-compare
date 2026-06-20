@@ -46,12 +46,14 @@ describe('classifyFile', () => {
   });
 
   it('detects GIF87a / GIF89a', () => {
-    expect(
-      classifyFile(bytes(0x47, 0x49, 0x46, 0x38, 0x37, 0x61, 0x00)),
-    ).toEqual({ kind: 'image', imageFormat: 'gif' });
-    expect(
-      classifyFile(bytes(0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x00)),
-    ).toEqual({ kind: 'image', imageFormat: 'gif' });
+    expect(classifyFile(bytes(0x47, 0x49, 0x46, 0x38, 0x37, 0x61, 0x00))).toEqual({
+      kind: 'image',
+      imageFormat: 'gif',
+    });
+    expect(classifyFile(bytes(0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x00))).toEqual({
+      kind: 'image',
+      imageFormat: 'gif',
+    });
   });
 
   it('detects WEBP via RIFF + WEBP magic', () => {

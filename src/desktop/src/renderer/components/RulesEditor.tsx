@@ -74,9 +74,7 @@ export function RulesEditor(props: RulesEditorProps): JSX.Element {
       previewVerdicts({ rules: r, samples: s.map((relPath) => ({ relPath })) }));
 
   const [drafts, setDrafts] = useState<DraftRule[]>(() => rules.map(toDraft));
-  const [samplesText, setSamplesText] = useState<string>(
-    DEFAULT_SAMPLE_PATHS.join('\n'),
-  );
+  const [samplesText, setSamplesText] = useState<string>(DEFAULT_SAMPLE_PATHS.join('\n'));
   const [verdicts, setVerdicts] = useState<RuleVerdict[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -90,9 +88,7 @@ export function RulesEditor(props: RulesEditorProps): JSX.Element {
     // want a later prop change to silently bounce the user between tabs.
     [],
   );
-  const [tab, setTab] = useState<RulesEditorTab>(
-    initialDecompile === null ? 'advanced' : 'simple',
-  );
+  const [tab, setTab] = useState<RulesEditorTab>(initialDecompile === null ? 'advanced' : 'simple');
 
   // Reset drafts when the underlying scope/list changes.
   useEffect(() => {
@@ -160,17 +156,10 @@ export function RulesEditor(props: RulesEditorProps): JSX.Element {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="awapi-modal awapi-rules-editor"
-        role="dialog"
-        aria-label="Rules editor"
-      >
+      <div className="awapi-modal awapi-rules-editor" role="dialog" aria-label="Rules editor">
         <header className="awapi-modal__header">
           <h2>Rules</h2>
-          <fieldset
-            className="awapi-rules-editor__scope"
-            aria-label="Rule scope"
-          >
+          <fieldset className="awapi-rules-editor__scope" aria-label="Rule scope">
             <label>
               <input
                 type="radio"
@@ -202,11 +191,7 @@ export function RulesEditor(props: RulesEditorProps): JSX.Element {
           </button>
         </header>
 
-        <div
-          className="awapi-rules-editor__tabs"
-          role="tablist"
-          aria-label="Rules editor mode"
-        >
+        <div className="awapi-rules-editor__tabs" role="tablist" aria-label="Rules editor mode">
           <button
             type="button"
             role="tab"
@@ -252,22 +237,16 @@ export function RulesEditor(props: RulesEditorProps): JSX.Element {
             />
           )}
 
-          <section
-            className="awapi-rules-editor__preview"
-            aria-label="Live preview"
-          >
+          <section className="awapi-rules-editor__preview" aria-label="Live preview">
             <h3>Preview</h3>
             <p className="awapi-rules-editor__hint">
-              One sample path per line. Each is evaluated against the
-              current draft.
+              One sample path per line. Each is evaluated against the current draft.
             </p>
             <textarea
               aria-label="Sample paths"
               rows={Math.max(samples.length + 2, 6)}
               value={samplesText}
-              onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                setSamplesText(e.target.value)
-              }
+              onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setSamplesText(e.target.value)}
             />
             <ul className="awapi-rules-editor__verdicts">
               {samples.map((s, i) => {
@@ -322,8 +301,7 @@ interface RuleRowProps {
 }
 
 function RuleRow(props: RuleRowProps): JSX.Element {
-  const { draft, index, canMoveUp, canMoveDown, onChange, onRemove, onMoveUp, onMoveDown } =
-    props;
+  const { draft, index, canMoveUp, canMoveDown, onChange, onRemove, onMoveUp, onMoveDown } = props;
   const target: RuleTarget = draft.target ?? 'path';
 
   return (
@@ -333,9 +311,7 @@ function RuleRow(props: RuleRowProps): JSX.Element {
           type="checkbox"
           aria-label="Enabled"
           checked={draft.enabled}
-          onChange={(e: ChangeEvent<HTMLInputElement>) =>
-            onChange({ enabled: e.target.checked })
-          }
+          onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ enabled: e.target.checked })}
         />
         <select
           aria-label="Kind"
@@ -362,9 +338,7 @@ function RuleRow(props: RuleRowProps): JSX.Element {
           aria-label="Pattern"
           placeholder="e.g. **/*.log"
           value={draft.pattern}
-          onChange={(e: ChangeEvent<HTMLInputElement>) =>
-            onChange({ pattern: e.target.value })
-          }
+          onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ pattern: e.target.value })}
         />
         <button
           type="button"
@@ -382,11 +356,7 @@ function RuleRow(props: RuleRowProps): JSX.Element {
         >
           ↓
         </button>
-        <button
-          type="button"
-          aria-label={`Delete rule ${index + 1}`}
-          onClick={onRemove}
-        >
+        <button type="button" aria-label={`Delete rule ${index + 1}`} onClick={onRemove}>
           ✕
         </button>
       </div>
@@ -460,9 +430,7 @@ function PredicateField(props: PredicateFieldProps): JSX.Element {
   );
 }
 
-function collapseRange<T extends Record<string, number | undefined>>(
-  range: T,
-): T | undefined {
+function collapseRange<T extends Record<string, number | undefined>>(range: T): T | undefined {
   const hasAny = Object.values(range).some((v) => v !== undefined);
   return hasAny ? range : undefined;
 }
@@ -481,17 +449,12 @@ function AdvancedView(props: AdvancedViewProps): JSX.Element {
     <section className="awapi-rules-editor__list" aria-label="Rule list">
       <div className="awapi-rules-editor__list-header">
         <span>Rules are evaluated top-to-bottom; the last match wins.</span>
-        <button
-          type="button"
-          onClick={() => setDrafts((arr) => [...arr, newRule()])}
-        >
+        <button type="button" onClick={() => setDrafts((arr) => [...arr, newRule()])}>
           + Add rule
         </button>
       </div>
       {drafts.length === 0 ? (
-        <p className="awapi-rules-editor__empty">
-          No rules. Everything will be included.
-        </p>
+        <p className="awapi-rules-editor__empty">No rules. Everything will be included.</p>
       ) : (
         <ol className="awapi-rules-editor__rows">
           {drafts.map((d, i) => (
@@ -543,9 +506,7 @@ function SimpleView(props: SimpleViewProps): JSX.Element {
     incFolders: string;
     excFolders: string;
   }>(() => payloadToText(decompiled ?? EMPTY_SIMPLE_RULES));
-  const [hydratedFor, setHydratedFor] = useState<SimpleRulesPayload | null>(
-    decompiled,
-  );
+  const [hydratedFor, setHydratedFor] = useState<SimpleRulesPayload | null>(decompiled);
 
   // When the decompiled payload changes from outside (e.g. the user
   // switched scopes), refresh the textareas — but never overwrite
@@ -581,9 +542,8 @@ function SimpleView(props: SimpleViewProps): JSX.Element {
           role="status"
           data-testid="simple-unavailable-banner"
         >
-          This rule set uses advanced features (custom ordering,
-          size/mtime predicates, or rule shapes the four-box view can't
-          represent).{' '}
+          This rule set uses advanced features (custom ordering, size/mtime predicates, or rule
+          shapes the four-box view can't represent).{' '}
           <button type="button" onClick={onSwitchToAdvanced}>
             Edit in the Advanced tab
           </button>
@@ -596,8 +556,7 @@ function SimpleView(props: SimpleViewProps): JSX.Element {
   return (
     <section className="awapi-rules-editor__simple" aria-label="Simple rules editor">
       <p className="awapi-rules-editor__hint">
-        One glob per line. Folder excludes drop the folder and
-        everything beneath it.
+        One glob per line. Folder excludes drop the folder and everything beneath it.
       </p>
       <div className="awapi-rules-editor__simple-grid">
         <SimpleBox
@@ -680,10 +639,7 @@ function textToList(raw: string, fallback: string | null): string[] {
   return lines;
 }
 
-function samePayload(
-  a: SimpleRulesPayload | null,
-  b: SimpleRulesPayload | null,
-): boolean {
+function samePayload(a: SimpleRulesPayload | null, b: SimpleRulesPayload | null): boolean {
   if (a === b) return true;
   if (a === null || b === null) return false;
   const eq = (x: string[], y: string[]): boolean =>

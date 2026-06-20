@@ -27,8 +27,6 @@ export const usePreferencesStore = createPreferencesStore();
 export const useRecentsStore = createRecentsStore({
   storage: null,
   onSave: (map) => {
-    void window.awapi?.recents
-      ?.set(map as Record<string, string[]>)
-      .catch(() => {});
+    void window.awapi?.recents?.set(map as Record<string, string[]>).catch(() => {});
   },
 });

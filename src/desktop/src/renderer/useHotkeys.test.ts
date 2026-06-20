@@ -23,15 +23,15 @@ describe('matchHotkey', () => {
   });
 
   it('maps Alt+ArrowRight to copyLeftToRight', () => {
-    expect(
-      matchHotkey(ev({ key: 'ArrowRight', altKey: true }), DEFAULT_HOTKEYS),
-    ).toBe('copyLeftToRight');
+    expect(matchHotkey(ev({ key: 'ArrowRight', altKey: true }), DEFAULT_HOTKEYS)).toBe(
+      'copyLeftToRight',
+    );
   });
 
   it('maps Alt+ArrowLeft to copyRightToLeft', () => {
-    expect(
-      matchHotkey(ev({ key: 'ArrowLeft', altKey: true }), DEFAULT_HOTKEYS),
-    ).toBe('copyRightToLeft');
+    expect(matchHotkey(ev({ key: 'ArrowLeft', altKey: true }), DEFAULT_HOTKEYS)).toBe(
+      'copyRightToLeft',
+    );
   });
 
   it('maps Delete to delete', () => {
@@ -67,9 +67,6 @@ describe('useHotkeys (event source)', () => {
     const { unmount } = renderHook(() => useHotkeys({ target, onAction }));
     expect(target.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
     unmount();
-    expect(target.removeEventListener).toHaveBeenCalledWith(
-      'keydown',
-      expect.any(Function),
-    );
+    expect(target.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
   });
 });

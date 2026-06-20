@@ -34,9 +34,7 @@ const TITLE: Record<OverwriteConfirmDialogProps['direction'], string> = {
  * again" checkbox; the host component is responsible for persisting
  * the decision when `remember` is `true`.
  */
-export function OverwriteConfirmDialog(
-  props: OverwriteConfirmDialogProps,
-): JSX.Element {
+export function OverwriteConfirmDialog(props: OverwriteConfirmDialogProps): JSX.Element {
   const { target, direction, detail, onConfirm, onCancel } = props;
   const [remember, setRemember] = useState(false);
 

@@ -60,9 +60,7 @@ export interface ShowOpenDialogFn {
     options: {
       title?: string;
       defaultPath?: string;
-      properties: Array<
-        'openDirectory' | 'openFile' | 'createDirectory' | 'dontAddToRecent'
-      >;
+      properties: Array<'openDirectory' | 'openFile' | 'createDirectory' | 'dontAddToRecent'>;
     },
   ): Promise<{ canceled: boolean; filePaths: string[] }>;
 }
@@ -112,9 +110,7 @@ export class DialogService {
 
   constructor(deps: DialogServiceDeps = {}) {
     this.getTargetWindow = deps.getTargetWindow ?? ((): BrowserWindow | null => null);
-    this.stat =
-      deps.stat ??
-      ((path: string) => statSync(path));
+    this.stat = deps.stat ?? ((path: string) => statSync(path));
     // Lazy-resolve Electron only when no override is supplied, so the
     // service stays importable from tests that don't ship Electron.
     this.showOpenDialog =
@@ -165,9 +161,7 @@ export class DialogService {
    * The mapping below normalises Electron's response index back into
    * a stable {@link DialogConfirmUnsavedChoice}.
    */
-  async confirmUnsaved(
-    req: DialogConfirmUnsavedRequest = {},
-  ): Promise<DialogConfirmUnsavedChoice> {
+  async confirmUnsaved(req: DialogConfirmUnsavedRequest = {}): Promise<DialogConfirmUnsavedChoice> {
     const message = req.name
       ? `Do you want to save the changes you made to ${req.name}?`
       : 'Do you want to save your changes?';

@@ -27,12 +27,10 @@ export interface DeleteConfirmDialogProps {
  * feels consistent.
  */
 export function DeleteConfirmDialog(props: DeleteConfirmDialogProps): JSX.Element {
-  const { target, primaryPath, otherPath, otherSide, isDirectory, onConfirm, onCancel } =
-    props;
+  const { target, primaryPath, otherPath, otherSide, isDirectory, onConfirm, onCancel } = props;
   const [applyToOther, setApplyToOther] = useState(false);
 
-  const visiblePaths =
-    applyToOther && otherPath ? [primaryPath, otherPath] : [primaryPath];
+  const visiblePaths = applyToOther && otherPath ? [primaryPath, otherPath] : [primaryPath];
   const title = isDirectory ? 'Delete folder' : 'Delete file';
 
   return (

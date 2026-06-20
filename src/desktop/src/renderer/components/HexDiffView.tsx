@@ -87,10 +87,7 @@ export function HexDiffView({
         )}
       </header>
       <div className="awapi-hexdiff__body" ref={containerRef}>
-        <div
-          className="awapi-hexdiff__inner"
-          style={{ height: virtualizer.getTotalSize() }}
-        >
+        <div className="awapi-hexdiff__inner" style={{ height: virtualizer.getTotalSize() }}>
           {virtualizer.getVirtualItems().map((vr) => {
             const row = rows[vr.index];
             if (!row) return null;

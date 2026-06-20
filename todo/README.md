@@ -8,7 +8,7 @@ contributors, and machines.
 
 - **`plan.md`** — The canonical, checkbox-tracked task list. Organized by phase.
   Every actionable unit is a `- [ ]` checkbox.
-- **`branches/<branch-name>.md`** *(optional)* — In-flight notes for long-lived
+- **`branches/<branch-name>.md`** _(optional)_ — In-flight notes for long-lived
   feature branches. Use when you're mid-task and don't want to lose context.
   Delete the file when the branch merges.
 

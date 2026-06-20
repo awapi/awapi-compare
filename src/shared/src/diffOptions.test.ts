@@ -94,9 +94,9 @@ describe('mtimeDeltaWithinTolerance', () => {
   const baseMtime = DEFAULT_DIFF_OPTIONS.attributes.mtime;
 
   it('returns true when mtime is disabled regardless of skew', () => {
-    expect(
-      mtimeDeltaWithinTolerance(0, 1_000_000_000, { ...baseMtime, enabled: false }),
-    ).toBe(true);
+    expect(mtimeDeltaWithinTolerance(0, 1_000_000_000, { ...baseMtime, enabled: false })).toBe(
+      true,
+    );
   });
 
   it('respects the configured tolerance window (seconds)', () => {
@@ -138,9 +138,7 @@ describe('mtimeDeltaWithinTolerance', () => {
     // 5h + 30m skew is not within tolerance even after folding (folds to 30m).
     expect(mtimeDeltaWithinTolerance(0, 5 * ONE_HOUR_MS + 30 * 60 * 1000, opts)).toBe(false);
     // But a 4h59m skew folds to 1m → within tolerance.
-    expect(
-      mtimeDeltaWithinTolerance(0, 5 * ONE_HOUR_MS - 60 * 1000, opts),
-    ).toBe(false); // 1m > 2s
+    expect(mtimeDeltaWithinTolerance(0, 5 * ONE_HOUR_MS - 60 * 1000, opts)).toBe(false); // 1m > 2s
     expect(mtimeDeltaWithinTolerance(0, 5 * ONE_HOUR_MS - 1_000, opts)).toBe(true);
   });
 });

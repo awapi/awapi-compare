@@ -152,7 +152,7 @@ export function formatHexByte(byte: number): string {
  * Wraps modulo 2^32 to keep the fixed width.
  */
 export function formatHexOffset(offset: number): string {
-  return ((offset >>> 0).toString(16)).padStart(8, '0').toUpperCase();
+  return (offset >>> 0).toString(16).padStart(8, '0').toUpperCase();
 }
 
 /**

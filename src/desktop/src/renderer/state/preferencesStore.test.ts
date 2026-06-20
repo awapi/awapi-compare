@@ -20,9 +20,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 describe('loadInitialPreferences', () => {
   it('returns the defaults when storage has nothing', () => {
-    expect(loadInitialPreferences({ storage: memoryStorage() })).toEqual(
-      DEFAULT_PREFERENCES,
-    );
+    expect(loadInitialPreferences({ storage: memoryStorage() })).toEqual(DEFAULT_PREFERENCES);
   });
 
   it('reads back a persisted snapshot', () => {
@@ -56,9 +54,7 @@ describe('createPreferencesStore', () => {
     const useStore = createPreferencesStore({ storage });
     useStore.getState().reset();
     expect(useStore.getState().confirmOverwriteOnCopy).toBe(true);
-    expect(storage.snapshot()[PREFERENCES_STORAGE_KEY]).toBe(
-      JSON.stringify(DEFAULT_PREFERENCES),
-    );
+    expect(storage.snapshot()[PREFERENCES_STORAGE_KEY]).toBe(JSON.stringify(DEFAULT_PREFERENCES));
   });
 
   it('setPreferences replaces the entire snapshot', () => {

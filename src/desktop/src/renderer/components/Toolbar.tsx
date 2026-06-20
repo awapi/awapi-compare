@@ -192,11 +192,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
 
   return (
     <>
-      <header
-        className="awapi-toolbar"
-        role="toolbar"
-        aria-label="Compare toolbar"
-      >
+      <header className="awapi-toolbar" role="toolbar" aria-label="Compare toolbar">
         <div className="awapi-toolbar__group" role="group" aria-label="Session">
           <IconBtn
             glyph="🕐"
@@ -298,12 +294,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             disabled={!onOpenDiffOptions}
             onClick={onOpenDiffOptions}
           />
-          <IconBtn
-            glyph="⚙"
-            label="Rules"
-            ariaLabel="Open rules editor"
-            onClick={onOpenRules}
-          />
+          <IconBtn glyph="⚙" label="Rules" ariaLabel="Open rules editor" onClick={onOpenRules} />
         </div>
         <div className="awapi-toolbar__group">
           <IconBtn
@@ -314,7 +305,11 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           />
         </div>
       </header>
-      <div className="awapi-pathbar" role="group" aria-label={pathLabel === 'file' ? 'File paths' : 'Folder paths'}>
+      <div
+        className="awapi-pathbar"
+        role="group"
+        aria-label={pathLabel === 'file' ? 'File paths' : 'Folder paths'}
+      >
         <div className="awapi-pathbar__side">
           {onGoUpLeft ? (
             <button
@@ -334,9 +329,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             aria-label={leftLabel}
             value={leftRoot}
             list={leftRecents && leftRecents.length > 0 ? leftListId : undefined}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              onLeftRootChange(e.target.value)
-            }
+            onChange={(e: ChangeEvent<HTMLInputElement>) => onLeftRootChange(e.target.value)}
             onInput={handlePathInput}
             onKeyDown={handlePathKeyDown}
           />
@@ -377,9 +370,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             aria-label={rightLabel}
             value={rightRoot}
             list={rightRecents && rightRecents.length > 0 ? rightListId : undefined}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              onRightRootChange(e.target.value)
-            }
+            onChange={(e: ChangeEvent<HTMLInputElement>) => onRightRootChange(e.target.value)}
             onInput={handlePathInput}
             onKeyDown={handlePathKeyDown}
           />

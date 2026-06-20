@@ -36,12 +36,7 @@ interface CompiledRule {
   rule: Rule;
   scope: RuleScope;
   /** Returns true when the rule's pattern + predicates match the entry. */
-  test: (entry: {
-    relPath: string;
-    name: string;
-    size?: number;
-    mtimeMs?: number;
-  }) => boolean;
+  test: (entry: { relPath: string; name: string; size?: number; mtimeMs?: number }) => boolean;
 }
 
 function compile(rule: Rule): CompiledRule {
@@ -66,10 +61,7 @@ export function compileRules(rules: Rule[]): CompiledRule[] {
   return rules.filter((r) => r.enabled).map(compile);
 }
 
-function predicatesMatch(
-  rule: Rule,
-  entry: { size?: number; mtimeMs?: number },
-): boolean {
+function predicatesMatch(rule: Rule, entry: { size?: number; mtimeMs?: number }): boolean {
   if (rule.size) {
     const size = entry.size;
     if (size === undefined) return false;

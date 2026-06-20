@@ -50,6 +50,8 @@ Implement multi-select support for Windows Explorer (pick 2 items → compare in
 
 - ✅ Extended uninstall cleanup to remove CommandStore keys (`AwapiCompare.SelectLeft`, `AwapiCompare.ComparePending`, `AwapiCompare.CompareTwo`) in addition to legacy class keys.
 - ✅ Also removes the native handler CLSID keys and the `HKCU\Software\Awapi\AwapiCompare` config key.
+- ✅ NSIS install now runs `AwapiCompare.exe --register-shell` best-effort so
+  installed Windows builds auto-register Explorer integration on install.
 
 ### 8. `src/shell-ext-win/` (new — native COM handler)
 
@@ -77,6 +79,50 @@ Implement multi-select support for Windows Explorer (pick 2 items → compare in
 
 - ✅ Added a `shellext` recipe (CMake configure + Release build).
 
+### 11. `src/desktop/src/renderer/components/PreferencesDialog.tsx`
+
+- ✅ Wired a Windows-only "Explorer" section to existing `shell.*` IPC
+  channels:
+  - reads current scope/status via `shell.status`
+  - enables entries via `shell.register`
+  - disables entries via `shell.unregister`
+- ✅ Added busy/error handling and status text in Preferences so users can
+  toggle shell integration without reinstalling.
+- ✅ `shell.status` now reports `per-user` / `per-machine` / `disabled`
+  so Preferences can show actual registration scope.
+
+### 12. `src/desktop/src/renderer/components/PreferencesDialog.test.tsx`
+
+- ✅ Added renderer tests covering:
+  - Windows shell status display
+  - register action invocation from Preferences
+
+### 13. `src/desktop/src/main/shellCompareSession.ts`
+
+- ✅ Added pair-type resolver used by shell entry points:
+  - file + file -> file compare
+  - folder + folder -> folder compare
+  - mixed/unsupported/missing -> rejected (no broken compare tab)
+
+### 14. `src/desktop/src/main/index.ts`
+
+- ✅ Updated `--compare-two` and `--compare-pending` startup paths to use
+  pair-type detection instead of forcing folder compare.
+
+### 15. `scripts/validate-shellext.ps1` + `scripts/c05-windows-validation.ps1`
+
+- ✅ Added automated registry/CLSID validation for the native COM shell
+  handler and a report generator that writes
+  `docs/c05-windows-validation-report.md`.
+- ✅ Added `just shellext-validate` and `just c0-5-validate` tasks for
+  repeatable validation on Windows machines.
+
+### 16. `scripts/register-shellext-local.ps1`
+
+- ✅ Added a local registration helper that points shell integration at
+  `release/win-arm64-unpacked/AwapiCompare.exe` plus the freshly built DLL,
+  so Explorer validation can run without waiting on a new installer build.
+
 ## Current State
 
 - `--compare-two <left> <right>` CLI flag is parsed and wired end-to-end.
@@ -85,6 +131,14 @@ Implement multi-select support for Windows Explorer (pick 2 items → compare in
   `src/shell-ext-win/` (multi-select, dynamic label, missing-app fallback) and
   the TS registration now binds each CommandStore verb to its CLSID via
   `ExplorerCommandHandler` (guarded by `Test-Path` on the DLL).
+- Preferences now exposes a Windows Explorer shell integration toggle/status
+  (C0.6) via the existing `shell.*` IPC surface.
+- Shell compare startup now auto-detects file vs folder pairs for
+  `--compare-two` / `--compare-pending`, and rejects mixed pairs.
+- Native DLL build now succeeds on Windows in a VS developer environment, and
+  automated COM/registry validation passes against the locally registered DLL.
+- NSIS-packaged Windows installs now attempt shell registration automatically
+  during install; MSI/per-machine behavior still needs separate validation.
 - Existing typecheck and focused unit tests pass on this branch.
 - **Not yet validated at runtime:** this environment has no C++/MSVC/CMake
   toolchain, so the DLL has not been compiled or exercised in Explorer.

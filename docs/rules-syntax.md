@@ -4,7 +4,7 @@ AwapiCompare uses [picomatch](https://github.com/micromatch/picomatch)
 glob syntax for include/exclude rules. Rules filter the entries that
 appear in the diff after a folder scan.
 
-> Rules sit *above* the comparison engine. The engine itself is
+> Rules sit _above_ the comparison engine. The engine itself is
 > configured by [`DiffOptions`](./diff-options.md) (file-pairing rules,
 > attribute checks, content-comparison strategy).
 
@@ -12,16 +12,16 @@ appear in the diff after a folder scan.
 
 Every rule has:
 
-| Field     | Type                          | Meaning                                                              |
-| --------- | ----------------------------- | -------------------------------------------------------------------- |
-| `id`      | string                        | Stable identifier (UUID).                                            |
-| `kind`    | `'include'` \| `'exclude'`    | Whether matching entries are kept or dropped.                        |
-| `pattern` | string                        | Picomatch glob (see below).                                          |
-| `target`  | `'name'` \| `'path'` (default `'path'`) | Whether the glob matches the basename or the full relative path. |
-| `scope`   | `'file'` \| `'folder'` \| `'any'` (default `'any'`) | Which entry kinds the rule applies to. |
-| `size`    | `{ gt?: number; lt?: number }` | Optional byte-size predicate. Both bounds are exclusive.            |
-| `mtime`   | `{ after?: number; before?: number }` | Optional modification-time predicate (epoch ms, exclusive). |
-| `enabled` | boolean                       | Disabled rules are ignored entirely.                                 |
+| Field     | Type                                                | Meaning                                                          |
+| --------- | --------------------------------------------------- | ---------------------------------------------------------------- |
+| `id`      | string                                              | Stable identifier (UUID).                                        |
+| `kind`    | `'include'` \| `'exclude'`                          | Whether matching entries are kept or dropped.                    |
+| `pattern` | string                                              | Picomatch glob (see below).                                      |
+| `target`  | `'name'` \| `'path'` (default `'path'`)             | Whether the glob matches the basename or the full relative path. |
+| `scope`   | `'file'` \| `'folder'` \| `'any'` (default `'any'`) | Which entry kinds the rule applies to.                           |
+| `size`    | `{ gt?: number; lt?: number }`                      | Optional byte-size predicate. Both bounds are exclusive.         |
+| `mtime`   | `{ after?: number; before?: number }`               | Optional modification-time predicate (epoch ms, exclusive).      |
+| `enabled` | boolean                                             | Disabled rules are ignored entirely.                             |
 
 A rule matches an entry when **all** of the following hold:
 
@@ -34,25 +34,25 @@ A rule matches an entry when **all** of the following hold:
 
 ## Wildcards
 
-| Glyph     | Matches                                                            |
-| --------- | ------------------------------------------------------------------ |
-| `*`       | any sequence of characters **except** `/`.                         |
-| `**`      | any sequence of characters **including** `/` (any depth).          |
-| `?`       | exactly one character.                                              |
-| `[abc]`   | any one character from the set.                                     |
-| `!pat`    | negation — matches anything that does **not** match `pat`.         |
+| Glyph   | Matches                                                    |
+| ------- | ---------------------------------------------------------- |
+| `*`     | any sequence of characters **except** `/`.                 |
+| `**`    | any sequence of characters **including** `/` (any depth).  |
+| `?`     | exactly one character.                                     |
+| `[abc]` | any one character from the set.                            |
+| `!pat`  | negation — matches anything that does **not** match `pat`. |
 
 Dotfiles match `*` and `**` (the matcher uses `dot: true`).
 
 ### Examples
 
-| Pattern                  | Target  | Description                                          |
-| ------------------------ | ------- | ---------------------------------------------------- |
-| `*.log`                  | `name`  | Any file whose basename ends in `.log`.              |
-| `**/*.log`               | `path`  | Same, but matched against the full relative path.    |
-| `node_modules/**`        | `path`  | Everything under any top-level `node_modules`.       |
-| `src/**/__tests__/**`    | `path`  | Test directories anywhere under `src`.               |
-| `!important.log`         | `name`  | Everything except `important.log`.                   |
+| Pattern               | Target | Description                                       |
+| --------------------- | ------ | ------------------------------------------------- |
+| `*.log`               | `name` | Any file whose basename ends in `.log`.           |
+| `**/*.log`            | `path` | Same, but matched against the full relative path. |
+| `node_modules/**`     | `path` | Everything under any top-level `node_modules`.    |
+| `src/**/__tests__/**` | `path` | Test directories anywhere under `src`.            |
+| `!important.log`      | `name` | Everything except `important.log`.                |
 
 ## Evaluation order
 
@@ -61,8 +61,8 @@ Rules are evaluated **in order**, top to bottom:
 1. **Whitelist mode is per scope.** If the rule set contains at least
    one enabled `include` rule whose `scope` covers the entry being
    tested, the filter switches to whitelist mode for that entry: it
-   defaults to *excluded* unless a rule re-admits it. An entry whose
-   scope is not covered by any include rule keeps the default *kept*.
+   defaults to _excluded_ unless a rule re-admits it. An entry whose
+   scope is not covered by any include rule keeps the default _kept_.
 
    This means a rule list like `include files: *.ts` does **not**
    accidentally drop every folder — folder entries aren't in scope for
@@ -85,19 +85,19 @@ Rules are evaluated **in order**, top to bottom:
 
 The Rules editor has two tabs over the same underlying engine:
 
-| View       | Surface                                                                                                       | Best for                                                  |
-| ---------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Simple     | Four boxes: Include files / Exclude files / Include folders / Exclude folders. One glob per line.             | Beyond Compare-style "hide `.git` and `*.log`" filtering. |
-| Advanced   | Ordered list with `kind` × `target` × `scope` × `pattern` plus optional `size` / `mtime` predicates.          | Custom ordering, predicates, anything outside the four boxes. |
+| View     | Surface                                                                                              | Best for                                                      |
+| -------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Simple   | Four boxes: Include files / Exclude files / Include folders / Exclude folders. One glob per line.    | Beyond Compare-style "hide `.git` and `*.log`" filtering.     |
+| Advanced | Ordered list with `kind` × `target` × `scope` × `pattern` plus optional `size` / `mtime` predicates. | Custom ordering, predicates, anything outside the four boxes. |
 
 Simple → Advanced compilation (`compileSimpleRules`):
 
-| Simple input        | Compiled rules                                                                                            |
-| ------------------- | --------------------------------------------------------------------------------------------------------- |
-| `Exclude folders: G` | `{ exclude, name, scope: folder, pattern: G }` *and* `{ exclude, path, pattern: '**/G/**' }`              |
-| `Exclude files: G`   | `{ exclude, name, scope: file, pattern: G }`                                                              |
-| `Include files: G`   | `{ include, name, scope: file, pattern: G }` — only emitted when the user changed the default of `**`.    |
-| `Include folders: G` | `{ include, name, scope: folder, pattern: G }` — only emitted when the user changed the default of `*`.   |
+| Simple input         | Compiled rules                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `Exclude folders: G` | `{ exclude, name, scope: folder, pattern: G }` _and_ `{ exclude, path, pattern: '**/G/**' }`            |
+| `Exclude files: G`   | `{ exclude, name, scope: file, pattern: G }`                                                            |
+| `Include files: G`   | `{ include, name, scope: file, pattern: G }` — only emitted when the user changed the default of `**`.  |
+| `Include folders: G` | `{ include, name, scope: folder, pattern: G }` — only emitted when the user changed the default of `*`. |
 
 The inverse (`tryDecompileToSimpleRules`) returns `null` when a rule
 list uses anything outside that canonical shape (predicates, custom
@@ -118,7 +118,7 @@ mtime: { after:  1700000000000 } // strictly after  this epoch ms
 
 When a rule has predicates but the entry lacks the relevant metadata
 (e.g. previewing an arbitrary path string), the predicate is treated as
-*not matched* and the rule does not fire.
+_not matched_ and the rule does not fire.
 
 ## Global vs per-session rules
 
@@ -126,10 +126,10 @@ There are two rule sets:
 
 - **Global** — persisted to `<userData>/rules.json` and applied to every
   session. Edited via the toolbar's **Rules** button with scope set to
-  *Global*.
+  _Global_.
 - **Per-session** — stored on the {@link Session} object and travel with
-  saved sessions. Edited via the same dialog with scope set to *This
-  session*.
+  saved sessions. Edited via the same dialog with scope set to _This
+  session_.
 
 When a scan runs the renderer concatenates `[...globalRules,
 ...sessionRules]` before calling `fs.scan`. Because the engine

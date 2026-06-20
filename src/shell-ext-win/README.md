@@ -5,11 +5,11 @@ integration plan: an in-process COM server (`AwapiCompareShellExt.dll`) that
 implements [`IExplorerCommand`](https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-iexplorercommand)
 for three Explorer verbs.
 
-| CLSID                                    | Verb             | Launches                                  |
-| ---------------------------------------- | ---------------- | ----------------------------------------- |
-| `{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A11}` | `CompareTwo`     | `<exe> --compare-two "<a>" "<b>"`         |
-| `{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A12}` | `SelectLeft`     | `<exe> --set-left "<path>"`               |
-| `{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A13}` | `ComparePending` | `<exe> --compare-pending "<path>"`        |
+| CLSID                                    | Verb             | Launches                           |
+| ---------------------------------------- | ---------------- | ---------------------------------- |
+| `{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A11}` | `CompareTwo`     | `<exe> --compare-two "<a>" "<b>"`  |
+| `{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A12}` | `SelectLeft`     | `<exe> --set-left "<path>"`        |
+| `{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A13}` | `ComparePending` | `<exe> --compare-pending "<path>"` |
 
 ## Why native?
 
@@ -31,10 +31,10 @@ required to:
 The handler is deliberately stateless about install location. It reads its
 configuration from values written by `ShellIntegrationService.register()`:
 
-| Value                                          | Meaning                          |
-| ---------------------------------------------- | -------------------------------- |
-| `HKCU\Software\Awapi\AwapiCompare\ExePath`         | Path to `AwapiCompare.exe`   |
-| `HKCU\Software\Awapi\AwapiCompare\PendingLeftPath` | Path to `pending-left.txt`   |
+| Value                                              | Meaning                    |
+| -------------------------------------------------- | -------------------------- |
+| `HKCU\Software\Awapi\AwapiCompare\ExePath`         | Path to `AwapiCompare.exe` |
+| `HKCU\Software\Awapi\AwapiCompare\PendingLeftPath` | Path to `pending-left.txt` |
 
 If `ExePath` is missing or the executable no longer exists, every verb hides
 itself via `GetState() → ECS_HIDDEN`. Combined with the `command` fallback
@@ -57,6 +57,13 @@ A convenience wrapper exists at the repo root:
 
 ```powershell
 just shellext        # configures + builds Release x64
+just shellext-validate            # validate CommandStore/CLSID/config keys
+just shellext-validate register   # regsvr32 + then validate keys
+just c0-5-validate                # write docs/c05-windows-validation-report.md
+just c0-5-validate register       # regsvr32 + write validation report
+just c0-5-bootstrap               # check prerequisites, print install commands
+just c0-5-bootstrap run-register  # check + build + register + validate + report
+just register-shellext-local      # point shell keys at release/win-arm64-unpacked exe
 ```
 
 ## Register / unregister for local testing
@@ -72,6 +79,30 @@ To exercise it end-to-end, also run the Electron app once with
 `--register-shell` (writes the CommandStore verbs, the `ExplorerCommandHandler`
 CLSID bindings, and the `ExePath` / `PendingLeftPath` config values), then
 restart `explorer.exe`.
+
+## Automated validation
+
+Use `scripts/validate-shellext.ps1` (or `just shellext-validate`) to verify:
+
+- CommandStore verb keys exist
+- `ExplorerCommandHandler` values match expected CLSIDs
+- `CLSID\...\InprocServer32` is present with `ThreadingModel=Apartment`
+- `InprocServer32` default value points to the expected DLL path
+- `HKCU\Software\Awapi\AwapiCompare` includes `ExePath` and `PendingLeftPath`
+
+For full C0.5 tracking, use `scripts/c05-windows-validation.ps1`
+(`just c0-5-validate`). It records the automated validator output plus a
+manual Explorer runtime checklist in `docs/c05-windows-validation-report.md`.
+
+For local Explorer testing without a fresh installer run, use
+`scripts/register-shellext-local.ps1` (`just register-shellext-local`). It
+points the shell registration at `release/win-arm64-unpacked/AwapiCompare.exe`
+and the freshly built `AwapiCompareShellExt.dll`.
+
+To bootstrap a new Windows machine, use `scripts/bootstrap-c05-windows.ps1`
+(`just c0-5-bootstrap`). It verifies prerequisite tools, prints exact
+`winget` install commands for anything missing, and can auto-run build +
+validation once prerequisites are present.
 
 ## Windows 11 modern menu (remaining work)
 

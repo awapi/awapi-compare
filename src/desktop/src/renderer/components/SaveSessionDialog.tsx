@@ -8,7 +8,11 @@ export interface SaveSessionDialogProps {
   onClose(): void;
 }
 
-export function SaveSessionDialog({ initialName, onSave, onClose }: SaveSessionDialogProps): JSX.Element {
+export function SaveSessionDialog({
+  initialName,
+  onSave,
+  onClose,
+}: SaveSessionDialogProps): JSX.Element {
   const [name, setName] = useState(initialName);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -33,12 +37,7 @@ export function SaveSessionDialog({ initialName, onSave, onClose }: SaveSessionD
       >
         <header className="awapi-modal__header">
           <h2>Save Session</h2>
-          <button
-            type="button"
-            className="awapi-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
+          <button type="button" className="awapi-modal__close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>

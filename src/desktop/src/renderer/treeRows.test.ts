@@ -90,10 +90,7 @@ describe('buildTreeRows', () => {
   it('promotes orphan nodes whose parent directory is not in the pair list', () => {
     // No `config` dir pair exists (e.g. excluded by a rule) but its
     // children survive — they should still be shown rather than dropped.
-    const pairs: ComparedPair[] = [
-      file('config/app.yaml'),
-      file('README.md'),
-    ];
+    const pairs: ComparedPair[] = [file('config/app.yaml'), file('README.md')];
     const rows = buildTreeRows(pairs, new Set());
     expect(rows.map((r) => [r.pair.relPath, r.depth])).toEqual([
       ['config/app.yaml', 0],
@@ -151,10 +148,7 @@ describe('buildTreeRows', () => {
     });
 
     it('aggregates even when descendant rows are hidden by collapse', () => {
-      const pairs: ComparedPair[] = [
-        dir('config'),
-        file('config/app.yaml', 'different'),
-      ];
+      const pairs: ComparedPair[] = [dir('config'), file('config/app.yaml', 'different')];
       const rows = buildTreeRows(pairs, new Set(['config']));
       expect(rows).toHaveLength(1);
       expect(rows[0]?.displayStatus).toBe('different');
@@ -186,12 +180,7 @@ describe('buildTreeRows', () => {
 
 describe('collectDirPaths', () => {
   it('returns the relPath of every directory pair', () => {
-    const pairs: ComparedPair[] = [
-      dir('a'),
-      file('a/x.ts'),
-      dir('a/b'),
-      file('readme.md'),
-    ];
+    const pairs: ComparedPair[] = [dir('a'), file('a/x.ts'), dir('a/b'), file('readme.md')];
     expect(collectDirPaths(pairs).sort()).toEqual(['a', 'a/b']);
   });
 });

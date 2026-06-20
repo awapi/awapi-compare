@@ -138,9 +138,7 @@ export function CompareTabBody({
   const globalRules = useRulesStore((s) => s.rules);
 
   const confirmOverwriteOnCopy = usePreferencesStore((s) => s.confirmOverwriteOnCopy);
-  const setConfirmOverwriteOnCopy = usePreferencesStore(
-    (s) => s.setConfirmOverwriteOnCopy,
-  );
+  const setConfirmOverwriteOnCopy = usePreferencesStore((s) => s.setConfirmOverwriteOnCopy);
 
   // Recent folder paths (shared for both sides), surfaced in the
   // toolbar's path inputs as a native combobox.
@@ -149,13 +147,10 @@ export function CompareTabBody({
   const folderRecents = recents['folder'];
 
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
-  const [overwritePrompt, setOverwritePrompt] =
-    useState<OverwritePromptState | null>(null);
+  const [overwritePrompt, setOverwritePrompt] = useState<OverwritePromptState | null>(null);
   const [deletePrompt, setDeletePrompt] = useState<DeletePromptState | null>(null);
   const [renamePrompt, setRenamePrompt] = useState<RenamePromptState | null>(null);
-  const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(
-    new Set<string>(),
-  );
+  const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(new Set<string>());
 
   // Clear multi-selection when a new scan result arrives.
   useEffect(() => {
@@ -272,10 +267,7 @@ export function CompareTabBody({
   // Apply the All/Diffs/Same filter on top of the raw scan result. The
   // summary continues to reflect the unfiltered totals so the status
   // bar stays meaningful regardless of the active view.
-  const visiblePairs = useMemo(
-    () => filterPairs(pairs, viewFilter),
-    [pairs, viewFilter],
-  );
+  const visiblePairs = useMemo(() => filterPairs(pairs, viewFilter), [pairs, viewFilter]);
 
   const openFileDiffTab = useWorkspaceStore((s) => s.openFileDiffTab);
   const openCompareTab = useWorkspaceStore((s) => s.openCompareTab);
@@ -283,8 +275,7 @@ export function CompareTabBody({
     (relPath: string) => {
       const pair = pairs.find((p) => p.relPath === relPath);
       if (!pair) return;
-      const looksLikeFile =
-        (pair.left?.type ?? pair.right?.type ?? 'file') === 'file';
+      const looksLikeFile = (pair.left?.type ?? pair.right?.type ?? 'file') === 'file';
       if (!looksLikeFile) return;
       openFileDiffTab(relPath, undefined, tabId);
     },
@@ -322,16 +313,18 @@ export function CompareTabBody({
   const requestMultiCopy = useCallback(
     async (
       direction: 'leftToRight' | 'rightToLeft',
-      copies: Array<{ from: string; to: string; overwrite: boolean; target: string; detail: string }>,
+      copies: Array<{
+        from: string;
+        to: string;
+        overwrite: boolean;
+        target: string;
+        detail: string;
+      }>,
     ) => {
       if (copies.length === 0) return;
       // Items that skip the dialog (no overwrite, or pref disabled).
-      const needsConfirm = confirmOverwriteOnCopy
-        ? copies.filter((c) => c.overwrite)
-        : [];
-      const noConfirm = confirmOverwriteOnCopy
-        ? copies.filter((c) => !c.overwrite)
-        : copies;
+      const needsConfirm = confirmOverwriteOnCopy ? copies.filter((c) => c.overwrite) : [];
+      const noConfirm = confirmOverwriteOnCopy ? copies.filter((c) => !c.overwrite) : copies;
       // Execute the non-confirming items first.
       const batchErrors: string[] = [];
       for (const c of noConfirm) {
@@ -359,7 +352,13 @@ export function CompareTabBody({
         to: first.to,
         target: first.target,
         detail: first.detail,
-        remaining: rest.map((c) => ({ direction, from: c.from, to: c.to, target: c.target, detail: c.detail })),
+        remaining: rest.map((c) => ({
+          direction,
+          from: c.from,
+          to: c.to,
+          target: c.target,
+          detail: c.detail,
+        })),
         accumulatedErrors: batchErrors,
         anyExecuted: noConfirm.length > 0,
       });
@@ -368,10 +367,7 @@ export function CompareTabBody({
   );
 
   const requestCopy = useCallback(
-    (
-      direction: 'leftToRight' | 'rightToLeft',
-      pair: ComparedPair,
-    ) => {
+    (direction: 'leftToRight' | 'rightToLeft', pair: ComparedPair) => {
       const sourceEntry = direction === 'leftToRight' ? pair.left : pair.right;
       if (!sourceEntry) return;
       const sourceRoot = direction === 'leftToRight' ? leftRoot : rightRoot;
@@ -382,8 +378,7 @@ export function CompareTabBody({
       }
       const from = joinPath(sourceRoot, sourceEntry.relPath);
       const to = joinPath(destRoot, sourceEntry.relPath);
-      const destinationEntry =
-        direction === 'leftToRight' ? pair.right : pair.left;
+      const destinationEntry = direction === 'leftToRight' ? pair.right : pair.left;
       const willOverwrite = !!destinationEntry;
 
       if (willOverwrite && confirmOverwriteOnCopy) {
@@ -410,10 +405,13 @@ export function CompareTabBody({
       // otherwise fall back to whichever side has an entry.
       let primarySide: 'left' | 'right' | null = null;
       if (side) {
-        primarySide = (side === 'left' ? !!pair.left : !!pair.right) ? side
-          : pair.left ? 'left'
-          : pair.right ? 'right'
-          : null;
+        primarySide = (side === 'left' ? !!pair.left : !!pair.right)
+          ? side
+          : pair.left
+            ? 'left'
+            : pair.right
+              ? 'right'
+              : null;
       } else {
         primarySide = pair.left ? 'left' : pair.right ? 'right' : null;
       }
@@ -435,7 +433,14 @@ export function CompareTabBody({
         otherEntry && otherRoot ? joinPath(otherRoot, otherEntry.relPath) : undefined;
       const isDirectory = (primaryEntry.type ?? 'file') === 'dir';
       const target = primaryEntry.name ?? pair.relPath;
-      setDeletePrompt({ pair, primaryPath, otherPath, otherSide: otherPath ? otherSide : undefined, target, isDirectory });
+      setDeletePrompt({
+        pair,
+        primaryPath,
+        otherPath,
+        otherSide: otherPath ? otherSide : undefined,
+        target,
+        isDirectory,
+      });
     },
     [leftRoot, rightRoot, setError],
   );
@@ -461,33 +466,33 @@ export function CompareTabBody({
     [runCompare, setError],
   );
 
-  const requestRename = useCallback(
-    (pair: ComparedPair, side?: 'left' | 'right') => {
-      // Resolve primary side the same way as requestDelete.
-      let primarySide: 'left' | 'right' | null = null;
-      if (side) {
-        primarySide = (side === 'left' ? !!pair.left : !!pair.right) ? side
-          : pair.left ? 'left'
-          : pair.right ? 'right'
-          : null;
-      } else {
-        primarySide = pair.left ? 'left' : pair.right ? 'right' : null;
-      }
-      if (!primarySide) return;
-      const refEntry = primarySide === 'left' ? pair.left : pair.right;
-      if (!refEntry) return;
-      const otherSide: 'left' | 'right' = primarySide === 'left' ? 'right' : 'left';
-      const otherEntry = otherSide === 'left' ? pair.left : pair.right;
-      const originalName = refEntry.name || basename(refEntry.relPath);
-      setRenamePrompt({
-        pair,
-        originalName,
-        primarySide,
-        otherSide: otherEntry ? otherSide : undefined,
-      });
-    },
-    [],
-  );
+  const requestRename = useCallback((pair: ComparedPair, side?: 'left' | 'right') => {
+    // Resolve primary side the same way as requestDelete.
+    let primarySide: 'left' | 'right' | null = null;
+    if (side) {
+      primarySide = (side === 'left' ? !!pair.left : !!pair.right)
+        ? side
+        : pair.left
+          ? 'left'
+          : pair.right
+            ? 'right'
+            : null;
+    } else {
+      primarySide = pair.left ? 'left' : pair.right ? 'right' : null;
+    }
+    if (!primarySide) return;
+    const refEntry = primarySide === 'left' ? pair.left : pair.right;
+    if (!refEntry) return;
+    const otherSide: 'left' | 'right' = primarySide === 'left' ? 'right' : 'left';
+    const otherEntry = otherSide === 'left' ? pair.left : pair.right;
+    const originalName = refEntry.name || basename(refEntry.relPath);
+    setRenamePrompt({
+      pair,
+      originalName,
+      primarySide,
+      otherSide: otherEntry ? otherSide : undefined,
+    });
+  }, []);
 
   const performRename = useCallback(
     async (pair: ComparedPair, newName: string, sides: Array<'left' | 'right'>) => {
@@ -532,8 +537,7 @@ export function CompareTabBody({
       // Multi-selection copy bypasses the single-pair enabled check; each pair
       // is validated individually in the loop below.
       const isMultiCopy =
-        selectedPaths.size > 1 &&
-        (action === 'copyLeftToRight' || action === 'copyRightToLeft');
+        selectedPaths.size > 1 && (action === 'copyLeftToRight' || action === 'copyRightToLeft');
       if (!isMultiCopy && !isActionEnabled(action, { pair })) return;
       switch (action) {
         case 'compare':
@@ -569,7 +573,13 @@ export function CompareTabBody({
           return;
         case 'copyLeftToRight': {
           if (selectedPaths.size > 1) {
-            const copies: Array<{ from: string; to: string; overwrite: boolean; target: string; detail: string }> = [];
+            const copies: Array<{
+              from: string;
+              to: string;
+              overwrite: boolean;
+              target: string;
+              detail: string;
+            }> = [];
             for (const p of selectedPaths) {
               const cp = pairs.find((pa) => pa.relPath === p);
               if (!cp || !isActionEnabled('copyLeftToRight', { pair: cp })) continue;
@@ -578,7 +588,13 @@ export function CompareTabBody({
               if (!srcEntry) continue;
               const from = joinPath(leftRoot, srcEntry.relPath);
               const to = joinPath(rightRoot, srcEntry.relPath);
-              copies.push({ from, to, overwrite: !!cp.right, target: srcEntry.name || srcEntry.relPath, detail: to });
+              copies.push({
+                from,
+                to,
+                overwrite: !!cp.right,
+                target: srcEntry.name || srcEntry.relPath,
+                detail: to,
+              });
             }
             void requestMultiCopy('leftToRight', copies);
             return;
@@ -588,7 +604,13 @@ export function CompareTabBody({
         }
         case 'copyRightToLeft': {
           if (selectedPaths.size > 1) {
-            const copies: Array<{ from: string; to: string; overwrite: boolean; target: string; detail: string }> = [];
+            const copies: Array<{
+              from: string;
+              to: string;
+              overwrite: boolean;
+              target: string;
+              detail: string;
+            }> = [];
             for (const p of selectedPaths) {
               const cp = pairs.find((pa) => pa.relPath === p);
               if (!cp || !isActionEnabled('copyRightToLeft', { pair: cp })) continue;
@@ -597,7 +619,13 @@ export function CompareTabBody({
               if (!srcEntry) continue;
               const from = joinPath(rightRoot, srcEntry.relPath);
               const to = joinPath(leftRoot, srcEntry.relPath);
-              copies.push({ from, to, overwrite: !!cp.left, target: srcEntry.name || srcEntry.relPath, detail: to });
+              copies.push({
+                from,
+                to,
+                overwrite: !!cp.left,
+                target: srcEntry.name || srcEntry.relPath,
+                detail: to,
+              });
             }
             void requestMultiCopy('rightToLeft', copies);
             return;
@@ -625,7 +653,24 @@ export function CompareTabBody({
         }
       }
     },
-    [pairs, selected, selectedPaths, runCompare, openSelected, markSame, excludePath, setError, setLeftRoot, setRightRoot, leftRoot, rightRoot, requestMultiCopy, requestCopy, requestDelete, requestRename],
+    [
+      pairs,
+      selected,
+      selectedPaths,
+      runCompare,
+      openSelected,
+      markSame,
+      excludePath,
+      setError,
+      setLeftRoot,
+      setRightRoot,
+      leftRoot,
+      rightRoot,
+      requestMultiCopy,
+      requestCopy,
+      requestDelete,
+      requestRename,
+    ],
   );
 
   // Hotkeys + app-menu actions only fire on the active tab.
@@ -694,7 +739,12 @@ export function CompareTabBody({
             await runCompare();
             return;
           }
-          setOverwritePrompt({ ...next, remaining: rest, accumulatedErrors: allErrors, anyExecuted: true });
+          setOverwritePrompt({
+            ...next,
+            remaining: rest,
+            accumulatedErrors: allErrors,
+            anyExecuted: true,
+          });
         }
       })();
     },
@@ -720,8 +770,16 @@ export function CompareTabBody({
       // Skip this item and show the next.
       const next = prompt.remaining[0];
       const rest = prompt.remaining.slice(1);
-      if (!next) { setOverwritePrompt(null); return; }
-      setOverwritePrompt({ ...next, remaining: rest, accumulatedErrors: prompt.accumulatedErrors, anyExecuted: prompt.anyExecuted });
+      if (!next) {
+        setOverwritePrompt(null);
+        return;
+      }
+      setOverwritePrompt({
+        ...next,
+        remaining: rest,
+        accumulatedErrors: prompt.accumulatedErrors,
+        anyExecuted: prompt.anyExecuted,
+      });
     }
   }, [overwritePrompt, runCompare, setError]);
 
@@ -792,9 +850,7 @@ export function CompareTabBody({
       if (leftFile) addRecent('file', leftFile);
       if (rightFile) addRecent('file', rightFile);
       const titleParts = [leftFile, rightFile].filter((p): p is string => Boolean(p));
-      const title = titleParts
-        .map((p) => p.split(/[\\/]/u).filter(Boolean).pop() ?? p)
-        .join(' ↔ ');
+      const title = titleParts.map((p) => p.split(/[\\/]/u).filter(Boolean).pop() ?? p).join(' ↔ ');
       const relPath = `dropped:${leftFile ?? ''}|${rightFile ?? ''}`;
       openFileDiffTab(relPath, title || 'File diff', undefined, {
         left: leftFile,

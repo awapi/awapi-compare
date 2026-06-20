@@ -27,12 +27,8 @@ const PAIR: ComparedPair = {
 describe('<FileDiffTab />', () => {
   it('renders the diff region and the status legend when both sides exist', () => {
     render(<FileDiffTab relPath="src/foo.ts" pair={PAIR} />);
-    expect(
-      screen.getByRole('region', { name: 'File diff for src/foo.ts' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('status', { name: /diff status legend/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'File diff for src/foo.ts' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /diff status legend/i })).toBeInTheDocument();
   });
 
   it('renders a friendly fallback when the pair is missing', () => {
@@ -47,8 +43,6 @@ describe('<FileDiffTab />', () => {
     expect(screen.getByRole('toolbar', { name: /compare toolbar/i })).toBeInTheDocument();
     expect(screen.getByLabelText('Left file')).toBeInTheDocument();
     expect(screen.getByLabelText('Right file')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /browse for left file/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /browse for left file/i })).toBeInTheDocument();
   });
 });

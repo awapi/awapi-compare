@@ -62,7 +62,8 @@ export class SessionService {
   async save(session: Session): Promise<void> {
     await this.ensureDiskLoaded();
     const duplicate = [...this.sessions.values()].find(
-      (s) => s.id !== session.id && s.leftRoot === session.leftRoot && s.rightRoot === session.rightRoot,
+      (s) =>
+        s.id !== session.id && s.leftRoot === session.leftRoot && s.rightRoot === session.rightRoot,
     );
     if (duplicate) return;
 
@@ -92,10 +93,7 @@ export class SessionService {
     if (cached) return { ...cached };
     if (this.deps.dirPath && this.deps.fs) {
       try {
-        const raw = await this.deps.fs.readFile(
-          join(this.deps.dirPath, `${id}.json`),
-          'utf8',
-        );
+        const raw = await this.deps.fs.readFile(join(this.deps.dirPath, `${id}.json`), 'utf8');
         const s = JSON.parse(raw) as Session;
         this.sessions.set(s.id, { ...s });
         return { ...s };
@@ -118,10 +116,7 @@ export class SessionService {
       for (const file of files) {
         if (!file.endsWith('.json')) continue;
         try {
-          const raw = await this.deps.fs.readFile(
-            join(this.deps.dirPath, file),
-            'utf8',
-          );
+          const raw = await this.deps.fs.readFile(join(this.deps.dirPath, file), 'utf8');
           const s = JSON.parse(raw) as Session;
           this.sessions.set(s.id, { ...s });
           results.push({ ...s });

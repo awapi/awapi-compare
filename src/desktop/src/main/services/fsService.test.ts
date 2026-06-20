@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { mergeDiffOptions, type FsScanRequest, type Rule } from '@awapi/shared';
 
-import { FS_ERROR_EXTERNAL_MODIFICATION, FS_ERROR_FILE_TOO_LARGE, FsCodedError, FsService, type FsIo } from './fsService.js';
+import {
+  FS_ERROR_EXTERNAL_MODIFICATION,
+  FS_ERROR_FILE_TOO_LARGE,
+  FsCodedError,
+  FsService,
+  type FsIo,
+} from './fsService.js';
 import { HashService } from './hashService.js';
 
 function makeFs(tree: Record<string, string | null>): unknown {
@@ -33,7 +39,11 @@ function ioOf(fs: unknown): FsIo {
   const realFs = fs as {
     promises: {
       readFile(p: string): Promise<Uint8Array | Buffer>;
-      writeFile(p: string, data: Uint8Array | string, opts?: { encoding?: BufferEncoding | null }): Promise<void>;
+      writeFile(
+        p: string,
+        data: Uint8Array | string,
+        opts?: { encoding?: BufferEncoding | null },
+      ): Promise<void>;
       stat(p: string): Promise<{
         size: number;
         mtimeMs: number;
@@ -51,19 +61,49 @@ function ioOf(fs: unknown): FsIo {
     writeFile: (p, d, o) => realFs.promises.writeFile(p, d, o),
     stat: (p) => realFs.promises.stat(p),
     lstat: (p) =>
-      (realFs as unknown as { promises: { lstat(p: string): Promise<{ size: number; mtimeMs: number; isFile(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean }> } }).promises.lstat(p),
+      (
+        realFs as unknown as {
+          promises: {
+            lstat(
+              p: string,
+            ): Promise<{
+              size: number;
+              mtimeMs: number;
+              isFile(): boolean;
+              isDirectory(): boolean;
+              isSymbolicLink(): boolean;
+            }>;
+          };
+        }
+      ).promises.lstat(p),
     readdir: (p) =>
-      (realFs as unknown as { promises: { readdir(p: string): Promise<string[]> } }).promises.readdir(p),
+      (
+        realFs as unknown as { promises: { readdir(p: string): Promise<string[]> } }
+      ).promises.readdir(p),
     mkdir: (p, opts) =>
-      (realFs as unknown as { promises: { mkdir(p: string, opts?: { recursive?: boolean }): Promise<unknown> } }).promises
+      (
+        realFs as unknown as {
+          promises: { mkdir(p: string, opts?: { recursive?: boolean }): Promise<unknown> };
+        }
+      ).promises
         .mkdir(p, opts)
         .then(() => undefined),
     copyFile: (from, to) =>
-      (realFs as unknown as { promises: { copyFile(from: string, to: string): Promise<void> } }).promises.copyFile(from, to),
+      (
+        realFs as unknown as { promises: { copyFile(from: string, to: string): Promise<void> } }
+      ).promises.copyFile(from, to),
     rm: (p, opts) =>
-      (realFs as unknown as { promises: { rm(p: string, opts?: { recursive?: boolean; force?: boolean }): Promise<void> } }).promises.rm(p, opts),
+      (
+        realFs as unknown as {
+          promises: {
+            rm(p: string, opts?: { recursive?: boolean; force?: boolean }): Promise<void>;
+          };
+        }
+      ).promises.rm(p, opts),
     rename: (from, to) =>
-      (realFs as unknown as { promises: { rename(from: string, to: string): Promise<void> } }).promises.rename(from, to),
+      (
+        realFs as unknown as { promises: { rename(from: string, to: string): Promise<void> } }
+      ).promises.rename(from, to),
     open: (p, flags) =>
       Promise.resolve({
         async read(buf: Uint8Array, off: number, len: number, pos: number | null) {
@@ -393,7 +433,9 @@ describe('FsService.copy', () => {
     const r = await svc(fs).copy({ from: '/src', to: '/dst' });
     expect(r.copied).toBe(3);
     expect(r.errors).toEqual([]);
-    expect(new TextDecoder().decode((await svc(fs).read({ path: '/dst/sub/deep/c.txt' })).data)).toBe('c');
+    expect(
+      new TextDecoder().decode((await svc(fs).read({ path: '/dst/sub/deep/c.txt' })).data),
+    ).toBe('c');
   });
 
   it('counts as copied without writing when dryRun is true', async () => {
@@ -454,15 +496,13 @@ describe('FsService.rename', () => {
 
   it('rejects when the destination already exists', async () => {
     const fs = makeFs({ '/a.txt': 'a', '/b.txt': 'b' });
-    await expect(
-      svc(fs).rename({ from: '/a.txt', to: '/b.txt' }),
-    ).rejects.toBeInstanceOf(FsCodedError);
+    await expect(svc(fs).rename({ from: '/a.txt', to: '/b.txt' })).rejects.toBeInstanceOf(
+      FsCodedError,
+    );
   });
 
   it('is a no-op when from === to', async () => {
     const fs = makeFs({ '/a.txt': 'a' });
-    await expect(
-      svc(fs).rename({ from: '/a.txt', to: '/a.txt' }),
-    ).resolves.toBeUndefined();
+    await expect(svc(fs).rename({ from: '/a.txt', to: '/a.txt' })).resolves.toBeUndefined();
   });
 });

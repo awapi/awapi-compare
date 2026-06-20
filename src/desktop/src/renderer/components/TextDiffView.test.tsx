@@ -76,9 +76,8 @@ describe('<TextDiffView /> save flow', () => {
     const r = makeModel('right');
     const onSave = vi.fn().mockResolvedValue(undefined);
     const onDirtyChange = vi.fn();
-    const actionsRef = createRef<TextDiffActions | null>() as React.MutableRefObject<
-      TextDiffActions | null
-    >;
+    const actionsRef =
+      createRef<TextDiffActions | null>() as React.MutableRefObject<TextDiffActions | null>;
     render(
       <TextDiffView
         relPath="src/foo.ts"
@@ -100,9 +99,7 @@ describe('<TextDiffView /> save flow', () => {
       r.fire();
     });
     await waitFor(() => {
-      expect(onDirtyChange).toHaveBeenCalledWith(
-        expect.objectContaining({ right: true }),
-      );
+      expect(onDirtyChange).toHaveBeenCalledWith(expect.objectContaining({ right: true }));
     });
     await act(async () => {
       await actionsRef.current!.saveRight();
@@ -126,9 +123,8 @@ describe('<TextDiffView /> save flow', () => {
         seen.push(e);
       }
     };
-    const actionsRef = createRef<TextDiffActions | null>() as React.MutableRefObject<
-      TextDiffActions | null
-    >;
+    const actionsRef =
+      createRef<TextDiffActions | null>() as React.MutableRefObject<TextDiffActions | null>;
     render(
       <TextDiffView
         relPath="src/foo.ts"
@@ -207,20 +203,30 @@ describe('<TextDiffView /> re-sync models on prop change', () => {
 describe('<TextDiffView /> copy context-menu actions', () => {
   function makeMonacoWithActionCapture(models: { l: FakeModel; r: FakeModel }): {
     monaco: MonacoLike;
-    origEditor: MonacoEditorInstance & { capturedActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> };
-    modEditor: MonacoEditorInstance & { capturedActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> };
+    origEditor: MonacoEditorInstance & {
+      capturedActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }>;
+    };
+    modEditor: MonacoEditorInstance & {
+      capturedActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }>;
+    };
   } {
     const origActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> = [];
     const modActions: Array<{ id: string; run(ed: MonacoEditorInstance): void }> = [];
 
     const origEditor: MonacoEditorInstance & { capturedActions: typeof origActions } = {
       capturedActions: origActions,
-      addAction: (desc) => { origActions.push(desc); return { dispose: () => undefined }; },
+      addAction: (desc) => {
+        origActions.push(desc);
+        return { dispose: () => undefined };
+      },
       getSelection: () => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 }),
     };
     const modEditor: MonacoEditorInstance & { capturedActions: typeof modActions } = {
       capturedActions: modActions,
-      addAction: (desc) => { modActions.push(desc); return { dispose: () => undefined }; },
+      addAction: (desc) => {
+        modActions.push(desc);
+        return { dispose: () => undefined };
+      },
       getSelection: () => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 }),
     };
 
@@ -264,7 +270,9 @@ describe('<TextDiffView /> copy context-menu actions', () => {
 
     const action = origEditor.capturedActions.find((a) => a.id === 'awapi.copySelectionToRight');
     expect(action).toBeDefined();
-    act(() => { action!.run(origEditor); });
+    act(() => {
+      action!.run(origEditor);
+    });
 
     expect(r.getValue()).toBe('hello');
   });
@@ -288,7 +296,9 @@ describe('<TextDiffView /> copy context-menu actions', () => {
 
     const action = modEditor.capturedActions.find((a) => a.id === 'awapi.copySelectionToLeft');
     expect(action).toBeDefined();
-    act(() => { action!.run(modEditor); });
+    act(() => {
+      action!.run(modEditor);
+    });
 
     expect(l.getValue()).toBe('world');
   });
@@ -311,7 +321,9 @@ describe('<TextDiffView /> copy context-menu actions', () => {
 
     const action = origEditor.capturedActions.find((a) => a.id === 'awapi.copySelectionToRight');
     expect(action).toBeDefined();
-    act(() => { action!.run(origEditor); });
+    act(() => {
+      action!.run(origEditor);
+    });
 
     // Right model must remain unchanged.
     expect(r.getValue()).toBe('world');
@@ -325,7 +337,9 @@ describe('computeCopyEdit', () => {
     const lines = (): string[] => value.split('\n');
     return {
       getValue: () => value,
-      setValue: (v) => { value = v; },
+      setValue: (v) => {
+        value = v;
+      },
       onDidChangeContent: () => ({ dispose: () => undefined }),
       dispose: () => undefined,
       getLineCount: () => lines().length,
@@ -360,7 +374,8 @@ describe('computeCopyEdit', () => {
             const out: string[] = [];
             const endLine = ls[op.range.endLineNumber - 1] ?? '';
             out.push(endLine.slice(op.range.endColumn - 1));
-            for (let i = op.range.endLineNumber + 1; i <= ls.length; i += 1) out.push(ls[i - 1] ?? '');
+            for (let i = op.range.endLineNumber + 1; i <= ls.length; i += 1)
+              out.push(ls[i - 1] ?? '');
             return out.join('\n');
           })();
           value = before + (op.text ?? '') + after;
@@ -375,8 +390,14 @@ describe('computeCopyEdit', () => {
       setModel: () => undefined,
       layout: () => undefined,
       dispose: () => undefined,
-      getOriginalEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
-      getModifiedEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
+      getOriginalEditor: () => ({
+        addAction: () => ({ dispose: () => undefined }),
+        getSelection: () => null,
+      }),
+      getModifiedEditor: () => ({
+        addAction: () => ({ dispose: () => undefined }),
+        getSelection: () => null,
+      }),
       getLineChanges: () => changes,
     };
   }
@@ -388,11 +409,23 @@ describe('computeCopyEdit', () => {
     const { computeCopyEdit } = await import('./TextDiffView.js');
     const left = lineModel(['{', '  "name": "alpha"', '  "fastify": "^4.0.0"', '}'].join('\n'));
     const right = lineModel(
-      ['{', '  "name": "alpha"', '  "fastify": "^4.25.0"', '  "prom-client": "^15.0.0"', '  "test": "blabla3"', '}'].join('\n'),
+      [
+        '{',
+        '  "name": "alpha"',
+        '  "fastify": "^4.25.0"',
+        '  "prom-client": "^15.0.0"',
+        '  "test": "blabla3"',
+        '}',
+      ].join('\n'),
     );
     const editor = fakeEditor([
       // Pure insertion on left side: left has 0 lines, right contributes lines 4..5.
-      { originalStartLineNumber: 3, originalEndLineNumber: 0, modifiedStartLineNumber: 4, modifiedEndLineNumber: 5 },
+      {
+        originalStartLineNumber: 3,
+        originalEndLineNumber: 0,
+        modifiedStartLineNumber: 4,
+        modifiedEndLineNumber: 5,
+      },
     ]);
     // User's caret is on right line 4 (the "prom-client" line).
     const sel = { startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 };
@@ -418,7 +451,12 @@ describe('computeCopyEdit', () => {
     const left = lineModel(['a', 'old1', 'old2', 'b'].join('\n'));
     const right = lineModel(['a', 'NEW', 'b'].join('\n'));
     const editor = fakeEditor([
-      { originalStartLineNumber: 2, originalEndLineNumber: 3, modifiedStartLineNumber: 2, modifiedEndLineNumber: 2 },
+      {
+        originalStartLineNumber: 2,
+        originalEndLineNumber: 3,
+        modifiedStartLineNumber: 2,
+        modifiedEndLineNumber: 2,
+      },
     ]);
     const sel = { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 };
 
@@ -451,11 +489,27 @@ describe('computeCopyEdit', () => {
       ['PORT=8080', 'DB_HOST=localhost', 'DB_PORT=5432', 'LOG_LEVEL=info'].join('\n'),
     );
     const right = lineModel(
-      ['PORT=9090', 'DB_HOST=db.internal', 'DB_PORT=5432', 'LOG_LEVEL=debug', 'RATE_LIMIT=100'].join('\n'),
+      [
+        'PORT=9090',
+        'DB_HOST=db.internal',
+        'DB_PORT=5432',
+        'LOG_LEVEL=debug',
+        'RATE_LIMIT=100',
+      ].join('\n'),
     );
     const editor = fakeEditor([
-      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
-      { originalStartLineNumber: 4, originalEndLineNumber: 4, modifiedStartLineNumber: 4, modifiedEndLineNumber: 5 },
+      {
+        originalStartLineNumber: 1,
+        originalEndLineNumber: 2,
+        modifiedStartLineNumber: 1,
+        modifiedEndLineNumber: 2,
+      },
+      {
+        originalStartLineNumber: 4,
+        originalEndLineNumber: 4,
+        modifiedStartLineNumber: 4,
+        modifiedEndLineNumber: 5,
+      },
     ]);
     // Real selection covering only right line 5 ("RATE_LIMIT=100").
     const sel = { startLineNumber: 5, startColumn: 1, endLineNumber: 5, endColumn: 14 };
@@ -465,7 +519,9 @@ describe('computeCopyEdit', () => {
     left.pushEditOperations([], [op!], () => null);
 
     expect(left.getValue()).toBe(
-      ['PORT=8080', 'DB_HOST=localhost', 'DB_PORT=5432', 'LOG_LEVEL=info', 'RATE_LIMIT=100'].join('\n'),
+      ['PORT=8080', 'DB_HOST=localhost', 'DB_PORT=5432', 'LOG_LEVEL=info', 'RATE_LIMIT=100'].join(
+        '\n',
+      ),
     );
   });
 
@@ -477,7 +533,12 @@ describe('computeCopyEdit', () => {
     const left = lineModel(['PORT=8080', 'DB_HOST=localhost', 'DB_PORT=5432'].join('\n'));
     const right = lineModel(['PORT=9090', 'DB_HOST=db.internal', 'DB_PORT=5432'].join('\n'));
     const editor = fakeEditor([
-      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
+      {
+        originalStartLineNumber: 1,
+        originalEndLineNumber: 2,
+        modifiedStartLineNumber: 1,
+        modifiedEndLineNumber: 2,
+      },
     ]);
     const sel = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 };
 
@@ -493,7 +554,12 @@ describe('computeCopyEdit', () => {
     const left = lineModel(['PORT=8080', 'DB_HOST=localhost'].join('\n'));
     const right = lineModel(['PORT=9090', 'DB_HOST=db.internal'].join('\n'));
     const editor = fakeEditor([
-      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
+      {
+        originalStartLineNumber: 1,
+        originalEndLineNumber: 2,
+        modifiedStartLineNumber: 1,
+        modifiedEndLineNumber: 2,
+      },
     ]);
     // Caret only — start === end.
     const sel = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
@@ -512,7 +578,9 @@ describe('computeCopyEdits (multi-hunk)', () => {
     const lines = (): string[] => value.split('\n');
     return {
       getValue: () => value,
-      setValue: (v) => { value = v; },
+      setValue: (v) => {
+        value = v;
+      },
       onDidChangeContent: () => ({ dispose: () => undefined }),
       dispose: () => undefined,
       getLineCount: () => lines().length,
@@ -547,7 +615,8 @@ describe('computeCopyEdits (multi-hunk)', () => {
             const out: string[] = [];
             const endLine = ls[op.range.endLineNumber - 1] ?? '';
             out.push(endLine.slice(op.range.endColumn - 1));
-            for (let i = op.range.endLineNumber + 1; i <= ls.length; i += 1) out.push(ls[i - 1] ?? '');
+            for (let i = op.range.endLineNumber + 1; i <= ls.length; i += 1)
+              out.push(ls[i - 1] ?? '');
             return out.join('\n');
           })();
           value = before + (op.text ?? '') + after;
@@ -562,8 +631,14 @@ describe('computeCopyEdits (multi-hunk)', () => {
       setModel: () => undefined,
       layout: () => undefined,
       dispose: () => undefined,
-      getOriginalEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
-      getModifiedEditor: () => ({ addAction: () => ({ dispose: () => undefined }), getSelection: () => null }),
+      getOriginalEditor: () => ({
+        addAction: () => ({ dispose: () => undefined }),
+        getSelection: () => null,
+      }),
+      getModifiedEditor: () => ({
+        addAction: () => ({ dispose: () => undefined }),
+        getSelection: () => null,
+      }),
       getLineChanges: () => changes,
     };
   }
@@ -573,15 +648,44 @@ describe('computeCopyEdits (multi-hunk)', () => {
     // in the file. Cmd+A selects from line 1 to the last line.
     // Previously only the first hunk was copied.
     const left = lineModel(
-      ['PORT=8080', 'DB_HOST=localhost', 'SAME=true', 'LOG_LEVEL=info', 'SAME2=yes', 'TIMEOUT=30'].join('\n'),
+      [
+        'PORT=8080',
+        'DB_HOST=localhost',
+        'SAME=true',
+        'LOG_LEVEL=info',
+        'SAME2=yes',
+        'TIMEOUT=30',
+      ].join('\n'),
     );
     const right = lineModel(
-      ['PORT=9090', 'DB_HOST=db.internal', 'SAME=true', 'LOG_LEVEL=debug', 'SAME2=yes', 'TIMEOUT=60'].join('\n'),
+      [
+        'PORT=9090',
+        'DB_HOST=db.internal',
+        'SAME=true',
+        'LOG_LEVEL=debug',
+        'SAME2=yes',
+        'TIMEOUT=60',
+      ].join('\n'),
     );
     const editor = fakeEditor([
-      { originalStartLineNumber: 1, originalEndLineNumber: 2, modifiedStartLineNumber: 1, modifiedEndLineNumber: 2 },
-      { originalStartLineNumber: 4, originalEndLineNumber: 4, modifiedStartLineNumber: 4, modifiedEndLineNumber: 4 },
-      { originalStartLineNumber: 6, originalEndLineNumber: 6, modifiedStartLineNumber: 6, modifiedEndLineNumber: 6 },
+      {
+        originalStartLineNumber: 1,
+        originalEndLineNumber: 2,
+        modifiedStartLineNumber: 1,
+        modifiedEndLineNumber: 2,
+      },
+      {
+        originalStartLineNumber: 4,
+        originalEndLineNumber: 4,
+        modifiedStartLineNumber: 4,
+        modifiedEndLineNumber: 4,
+      },
+      {
+        originalStartLineNumber: 6,
+        originalEndLineNumber: 6,
+        modifiedStartLineNumber: 6,
+        modifiedEndLineNumber: 6,
+      },
     ]);
     // Cmd+A: select all 6 lines on the right side.
     const sel = { startLineNumber: 1, startColumn: 1, endLineNumber: 6, endColumn: 9 };

@@ -1,8 +1,13 @@
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { parseDesktopArgs } from './cliArgs.js';
 
 const opts = { cwd: '/work', env: {} as NodeJS.ProcessEnv };
+
+/** Resolve a relative path against the test cwd the same way the parser does. */
+const r = (p: string): string => resolve('/work', p);
 
 describe('parseDesktopArgs', () => {
   it('returns null when no --left/--right and no env vars', () => {
@@ -15,8 +20,8 @@ describe('parseDesktopArgs', () => {
       kind: 'compare',
       session: {
         type: 'folder',
-        leftRoot: '/work/a',
-        rightRoot: '/work/b',
+        leftRoot: r('./a'),
+        rightRoot: r('./b'),
         mode: 'quick',
       },
     });
@@ -29,8 +34,8 @@ describe('parseDesktopArgs', () => {
       kind: 'compare',
       session: {
         type: 'folder',
-        leftRoot: '/work/a',
-        rightRoot: '/work/b',
+        leftRoot: r('./a'),
+        rightRoot: r('./b'),
         mode: 'thorough',
       },
     });
@@ -41,8 +46,8 @@ describe('parseDesktopArgs', () => {
       kind: 'compare',
       session: {
         type: 'file',
-        leftRoot: '/work/a.txt',
-        rightRoot: '/work/b.txt',
+        leftRoot: r('./a.txt'),
+        rightRoot: r('./b.txt'),
         mode: 'quick',
       },
     });
@@ -67,7 +72,7 @@ describe('parseDesktopArgs', () => {
       kind: 'compare',
       session: {
         type: 'folder',
-        leftRoot: '/work/a',
+        leftRoot: r('./a'),
         rightRoot: '/abs/b',
         mode: 'binary',
       },
@@ -84,8 +89,8 @@ describe('parseDesktopArgs', () => {
       kind: 'compare',
       session: {
         type: 'folder',
-        leftRoot: '/work/cli-a',
-        rightRoot: '/work/cli-b',
+        leftRoot: r('./cli-a'),
+        rightRoot: r('./cli-b'),
         mode: 'quick',
       },
     });
@@ -122,7 +127,10 @@ describe('parseDesktopArgs', () => {
   });
 
   it('resolves --left relative path for openLeft', () => {
-    expect(parseDesktopArgs(['--left', './rel'], opts)).toEqual({ kind: 'openLeft', path: '/work/rel' });
+    expect(parseDesktopArgs(['--left', './rel'], opts)).toEqual({
+      kind: 'openLeft',
+      path: r('./rel'),
+    });
   });
 
   it('rejects --right without --left', () => {
@@ -147,34 +155,55 @@ describe('parseDesktopArgs', () => {
   it('parses --set-left', () => {
     expect(parseDesktopArgs(['--set-left', './left'], opts)).toEqual({
       kind: 'setLeft',
-      path: '/work/left',
+      path: r('./left'),
     });
   });
 
   it('parses --compare-pending', () => {
     expect(parseDesktopArgs(['--compare-pending', './right'], opts)).toEqual({
       kind: 'comparePending',
-      rightPath: '/work/right',
+      rightPath: r('./right'),
     });
   });
 
   it('parses --compare-two with two positional paths', () => {
     expect(parseDesktopArgs(['--compare-two', './left', './right'], opts)).toEqual({
       kind: 'compareTwo',
-      leftPath: '/work/left',
-      rightPath: '/work/right',
+      leftPath: r('./left'),
+      rightPath: r('./right'),
     });
   });
 
   it('parses --compare-two=<left>,<right>', () => {
     expect(parseDesktopArgs(['--compare-two=./left,./right'], opts)).toEqual({
       kind: 'compareTwo',
-      leftPath: '/work/left',
-      rightPath: '/work/right',
+      leftPath: r('./left'),
+      rightPath: r('./right'),
     });
   });
 
   it('rejects --compare-two with missing second path', () => {
     expect(() => parseDesktopArgs(['--compare-two', './left'], opts)).toThrow(/compare-two/);
+  });
+
+  it('parses --compare-add with a single path', () => {
+    expect(parseDesktopArgs(['--compare-add', './folder'], opts)).toEqual({
+      kind: 'compareAdd',
+      path: r('./folder'),
+    });
+  });
+
+  it('parses --compare-add=<path>', () => {
+    expect(parseDesktopArgs(['--compare-add=./folder'], opts)).toEqual({
+      kind: 'compareAdd',
+      path: r('./folder'),
+    });
+  });
+
+  it('keeps an absolute --compare-add path as-is', () => {
+    expect(parseDesktopArgs(['--compare-add', '/abs/folder'], opts)).toEqual({
+      kind: 'compareAdd',
+      path: '/abs/folder',
+    });
   });
 });

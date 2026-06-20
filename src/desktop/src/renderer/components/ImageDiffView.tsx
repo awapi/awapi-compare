@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { JSX, ReactNode } from 'react';
 import { type FileKindResult } from '@awapi/shared';
-import { ImageSizeMismatchError, diffImages, rasterToDataUrl, type RasterImage } from '../imageDiff.js';
+import {
+  ImageSizeMismatchError,
+  diffImages,
+  rasterToDataUrl,
+  type RasterImage,
+} from '../imageDiff.js';
 
 export interface ImageDiffViewProps {
   /** Raw bytes of the left image, or `null` when absent. */
@@ -25,11 +30,7 @@ type Mode = 'side-by-side' | 'onion-skin' | 'pixel-diff';
  * `img-src`, which is what we use to feed both bytes and diff buffers
  * back to the DOM.
  */
-export function ImageDiffView({
-  left,
-  right,
-  imageFormat,
-}: ImageDiffViewProps): JSX.Element {
+export function ImageDiffView({ left, right, imageFormat }: ImageDiffViewProps): JSX.Element {
   const mime = mimeFor(imageFormat);
   const leftUrl = useDataUrl(left, mime);
   const rightUrl = useDataUrl(right, mime);
@@ -89,7 +90,12 @@ export function ImageDiffView({
         <ModeButton current={mode} mode="side-by-side" onSelect={setMode}>
           Side by side
         </ModeButton>
-        <ModeButton current={mode} mode="onion-skin" onSelect={setMode} disabled={!leftUrl || !rightUrl}>
+        <ModeButton
+          current={mode}
+          mode="onion-skin"
+          onSelect={setMode}
+          disabled={!leftUrl || !rightUrl}
+        >
           Onion skin
         </ModeButton>
         <ModeButton current={mode} mode="pixel-diff" onSelect={setMode} disabled={!diffUrl}>
@@ -137,7 +143,12 @@ export function ImageDiffView({
           <div className="awapi-imgdiff__onion">
             {leftUrl ? <img src={leftUrl} alt="left" /> : null}
             {rightUrl ? (
-              <img src={rightUrl} alt="right" style={{ opacity }} className="awapi-imgdiff__onion-overlay" />
+              <img
+                src={rightUrl}
+                alt="right"
+                style={{ opacity }}
+                className="awapi-imgdiff__onion-overlay"
+              />
             ) : null}
           </div>
         ) : null}

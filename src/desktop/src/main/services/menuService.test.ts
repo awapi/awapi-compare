@@ -43,7 +43,11 @@ describe('buildMenuTemplate', () => {
   });
 
   it('emits every MenuAction from the shared contract at least once', () => {
-    const template = buildMenuTemplate({ platform: 'darwin', appName: 'AwapiCompare', isDev: true });
+    const template = buildMenuTemplate({
+      platform: 'darwin',
+      appName: 'AwapiCompare',
+      isDev: true,
+    });
     const actions = new Set(collectActions(template));
     const expected: MenuAction[] = [
       'session.new',

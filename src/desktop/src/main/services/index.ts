@@ -138,9 +138,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.UpdaterDownload, () => wrap(() => updater.download()));
   ipcMain.handle(IpcChannel.UpdaterInstall, () => wrap(() => updater.install()));
 
-  ipcMain.handle(IpcChannel.AppOpenExternal, (_e, url: string) =>
-    shell.openExternal(url),
-  );
+  ipcMain.handle(IpcChannel.AppOpenExternal, (_e, url: string) => shell.openExternal(url));
 
   ipcMain.on(IpcChannel.AppRevealInFolder, (_e, path: string) => {
     shell.showItemInFolder(path);
@@ -162,17 +160,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   }));
 
   // SFTP deferred to v1.1 — reserve channel, reject cleanly.
-  ipcMain.handle(IpcChannel.SftpConnect, (_e, req) =>
-    wrap(() => services.sftp.connect(req)),
-  );
+  ipcMain.handle(IpcChannel.SftpConnect, (_e, req) => wrap(() => services.sftp.connect(req)));
 
   ipcMain.handle(IpcChannel.DialogPickFolder, (_e, req) =>
     wrap(() => services.dialog.pickFolder(req)),
   );
 
-  ipcMain.handle(IpcChannel.DialogPickFile, (_e, req) =>
-    wrap(() => services.dialog.pickFile(req)),
-  );
+  ipcMain.handle(IpcChannel.DialogPickFile, (_e, req) => wrap(() => services.dialog.pickFile(req)));
 
   ipcMain.handle(IpcChannel.DialogConfirmUnsaved, (_e, req) =>
     wrap(() => services.dialog.confirmUnsaved(req)),
@@ -181,7 +175,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   ipcMain.handle(IpcChannel.AppGetInitialCompare, () => services.initialCompare);
 
   ipcMain.handle(IpcChannel.ShellIntegrationStatus, () =>
-    wrap(() => services.shellIntegration.isRegistered()),
+    wrap(() => services.shellIntegration.getRegistrationStatus()),
   );
   ipcMain.handle(IpcChannel.ShellIntegrationRegister, () =>
     wrap(() => services.shellIntegration.register(app.getPath('exe'))),

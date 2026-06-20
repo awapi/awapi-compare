@@ -1,11 +1,22 @@
 ; Custom NSIS macros included by electron-builder.
 ; electron-builder calls these four macros at the appropriate install/uninstall
-; phases. Only the un.customUnInstall macro is used here — it removes the
-; AwapiCompare Windows Explorer context menu registry keys that were written by
-; the in-app "Enable Explorer Integration" feature.
+; phases. The install hook registers the Explorer integration best-effort using
+; the freshly installed app binary, and the uninstall hook removes the same
+; registry keys best-effort.
 
-; ---- Install phase (no-op) ------------------------------------------------
+; ---- Install phase ---------------------------------------------------------
+; Register the Explorer context menu entries using the installed app's own
+; `--register-shell` flow. This keeps the installer logic thin and reuses the
+; same shell-registration code path as the in-app Preferences toggle.
+;
+; Safety contract: best-effort only. A failure here must never block install.
+; The same ClearErrors / Pop / ClearErrors pattern is used as in uninstall.
 !macro customInstall
+  ClearErrors
+  DetailPrint "Registering AwapiCompare Explorer context menu entries (best-effort)..."
+  nsExec::ExecToLog '"$INSTDIR\AwapiCompare.exe" --register-shell'
+  Pop $0
+  ClearErrors
 !macroend
 
 !macro customUnInstall
@@ -36,9 +47,14 @@
   nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \
     "Remove-Item -Path ''HKCU:\Software\Classes\*\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Classes\Directory\shell\AwapiCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Classes\*\shell\AwapiCompareDoCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Classes\*\shell\AwapiCompareSetLeft'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Classes\Directory\shell\AwapiCompareDoCompare'' -Recurse -Force -ErrorAction SilentlyContinue; \
+     Remove-Item -Path ''HKCU:\Software\Classes\Directory\shell\AwapiCompareSetLeft'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.SelectLeft'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.ComparePending'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\AwapiCompare.CompareTwo'' -Recurse -Force -ErrorAction SilentlyContinue; \
+    Remove-Item -Path ''HKCU:\Software\Classes\CLSID\{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A10}'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Classes\CLSID\{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A11}'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Classes\CLSID\{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A12}'' -Recurse -Force -ErrorAction SilentlyContinue; \
      Remove-Item -Path ''HKCU:\Software\Classes\CLSID\{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A13}'' -Recurse -Force -ErrorAction SilentlyContinue; \

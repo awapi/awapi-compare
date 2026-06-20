@@ -65,12 +65,18 @@ describe('useSessionPersistence', () => {
     renderHook(() => useSessionPersistence('tab-3'));
 
     // Consume the initial trigger.
-    act(() => { vi.advanceTimersByTime(DEBOUNCE + 100); });
+    act(() => {
+      vi.advanceTimersByTime(DEBOUNCE + 100);
+    });
     await vi.runAllTimersAsync();
     save.mockClear();
 
-    act(() => { store.getState().setMode('binary'); });
-    act(() => { vi.advanceTimersByTime(DEBOUNCE + 100); });
+    act(() => {
+      store.getState().setMode('binary');
+    });
+    act(() => {
+      vi.advanceTimersByTime(DEBOUNCE + 100);
+    });
     await vi.runAllTimersAsync();
 
     expect(save).toHaveBeenCalledOnce();
@@ -84,12 +90,18 @@ describe('useSessionPersistence', () => {
     renderHook(() => useSessionPersistence('tab-4'));
 
     // Consume the initial trigger.
-    act(() => { vi.advanceTimersByTime(DEBOUNCE + 100); });
+    act(() => {
+      vi.advanceTimersByTime(DEBOUNCE + 100);
+    });
     await vi.runAllTimersAsync();
     save.mockClear();
 
-    act(() => { store.getState().setName('My project'); });
-    act(() => { vi.advanceTimersByTime(DEBOUNCE + 100); });
+    act(() => {
+      store.getState().setName('My project');
+    });
+    act(() => {
+      vi.advanceTimersByTime(DEBOUNCE + 100);
+    });
     await vi.runAllTimersAsync();
 
     expect(save).toHaveBeenCalledOnce();
@@ -105,7 +117,9 @@ describe('useSessionPersistence', () => {
     store.getState().setDiffOptions({ ...cloneDiffOptions(DEFAULT_DIFF_OPTIONS) });
 
     renderHook(() => useSessionPersistence('tab-5'));
-    act(() => { vi.advanceTimersByTime(DEBOUNCE + 100); });
+    act(() => {
+      vi.advanceTimersByTime(DEBOUNCE + 100);
+    });
     await vi.runAllTimersAsync();
 
     expect(save).toHaveBeenCalledOnce();
@@ -131,7 +145,9 @@ describe('useSessionPersistence', () => {
       vi.advanceTimersByTime(200);
     });
     // Only after the full debounce window does the save fire.
-    act(() => { vi.advanceTimersByTime(DEBOUNCE); });
+    act(() => {
+      vi.advanceTimersByTime(DEBOUNCE);
+    });
     await vi.runAllTimersAsync();
 
     // The initial leftRoot trigger + the last mode-change trigger = 2,
@@ -144,8 +160,12 @@ describe('useSessionPersistence', () => {
     const store = getSessionStore('tab-7');
     renderHook(() => useSessionPersistence('tab-7'));
 
-    act(() => { store.getState().setLeftRoot('/left'); });
-    act(() => { vi.advanceTimersByTime(DEBOUNCE + 100); });
+    act(() => {
+      store.getState().setLeftRoot('/left');
+    });
+    act(() => {
+      vi.advanceTimersByTime(DEBOUNCE + 100);
+    });
 
     // No error thrown; save never called because awapi is absent.
     // (The test passes if no exception is raised.)

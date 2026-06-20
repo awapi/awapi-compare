@@ -14,7 +14,18 @@ describe('IpcChannel', () => {
   it('groups channels by service prefix', () => {
     const prefixes = new Set(Object.values(IpcChannel).map((c) => c.split('.')[0]));
     expect(prefixes).toEqual(
-      new Set(['fs', 'session', 'rules', 'license', 'updater', 'sftp', 'app', 'dialog', 'shell', 'recents']),
+      new Set([
+        'fs',
+        'session',
+        'rules',
+        'license',
+        'updater',
+        'sftp',
+        'app',
+        'dialog',
+        'shell',
+        'recents',
+      ]),
     );
   });
 });

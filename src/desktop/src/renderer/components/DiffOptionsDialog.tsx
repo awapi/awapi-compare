@@ -36,7 +36,11 @@ const TABS: ReadonlyArray<{ id: DiffOptionsTab; label: string }> = [
 
 const CONTENT_MODES: ReadonlyArray<{ value: ContentCompareMode; label: string; hint: string }> = [
   { value: 'off', label: 'Off (attributes only)', hint: 'Never read file contents.' },
-  { value: 'checksum', label: 'Checksum (SHA-256)', hint: 'Hash both files; equal hash = identical.' },
+  {
+    value: 'checksum',
+    label: 'Checksum (SHA-256)',
+    hint: 'Hash both files; equal hash = identical.',
+  },
   { value: 'binary', label: 'Binary (byte-by-byte)', hint: 'Compare raw bytes.' },
   { value: 'rules', label: 'Rule-driven', hint: 'Reserved for per-extension content rules.' },
 ];
@@ -79,11 +83,7 @@ export function DiffOptionsDialog(props: DiffOptionsDialogProps): JSX.Element {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="awapi-modal awapi-diffopts"
-        role="dialog"
-        aria-label="Diff options"
-      >
+      <div className="awapi-modal awapi-diffopts" role="dialog" aria-label="Diff options">
         <header className="awapi-modal__header">
           <h2>Diff options</h2>
           <button
@@ -111,11 +111,7 @@ export function DiffOptionsDialog(props: DiffOptionsDialogProps): JSX.Element {
           ))}
         </nav>
 
-        <div
-          className="awapi-diffopts__body"
-          role="tabpanel"
-          aria-label={`${tab} tab`}
-        >
+        <div className="awapi-diffopts__body" role="tabpanel" aria-label={`${tab} tab`}>
           {tab === 'match' && (
             <MatchTab
               size={draft.attributes.size}
@@ -124,12 +120,8 @@ export function DiffOptionsDialog(props: DiffOptionsDialogProps): JSX.Element {
               onChangeMtime={updateMtime}
             />
           )}
-          {tab === 'pairing' && (
-            <PairingTab pairing={draft.pairing} onChange={updatePairing} />
-          )}
-          {tab === 'content' && (
-            <ContentTab content={draft.content} onChange={updateContent} />
-          )}
+          {tab === 'pairing' && <PairingTab pairing={draft.pairing} onChange={updatePairing} />}
+          {tab === 'content' && <ContentTab content={draft.content} onChange={updateContent} />}
           {tab === 'filters' && <FiltersTab onOpenRules={onOpenRules} />}
           {tab === 'misc' && <MiscTab onResetDefaults={resetDefaults} />}
         </div>
@@ -165,8 +157,7 @@ function MatchTab(props: MatchTabProps): JSX.Element {
     <section className="awapi-diffopts__section">
       <h3>Attribute checks</h3>
       <p className="awapi-diffopts__hint">
-        Used to decide whether two files are equal without reading their
-        contents.
+        Used to decide whether two files are equal without reading their contents.
       </p>
       <label className="awapi-diffopts__row">
         <input
@@ -244,8 +235,7 @@ function PairingTab({ pairing, onChange }: PairingTabProps): JSX.Element {
     <section className="awapi-diffopts__section">
       <h3>Filename pairing</h3>
       <p className="awapi-diffopts__hint">
-        Controls how entries on the two sides are matched up before they
-        are compared.
+        Controls how entries on the two sides are matched up before they are compared.
       </p>
       <label className="awapi-diffopts__row">
         <input
@@ -285,13 +275,9 @@ function ContentTab({ content, onChange }: ContentTabProps): JSX.Element {
     <section className="awapi-diffopts__section">
       <h3>Content comparison</h3>
       <p className="awapi-diffopts__hint">
-        How file content is compared when attribute checks are
-        inconclusive.
+        How file content is compared when attribute checks are inconclusive.
       </p>
-      <fieldset
-        className="awapi-diffopts__radios"
-        aria-label="Content comparison mode"
-      >
+      <fieldset className="awapi-diffopts__radios" aria-label="Content comparison mode">
         {CONTENT_MODES.map((m) => (
           <label key={m.value} className="awapi-diffopts__row">
             <input
@@ -303,10 +289,7 @@ function ContentTab({ content, onChange }: ContentTabProps): JSX.Element {
             />
             <span>
               <strong>{m.label}</strong>
-              <span className="awapi-diffopts__hint awapi-diffopts__hint--inline">
-                {' '}
-                — {m.hint}
-              </span>
+              <span className="awapi-diffopts__hint awapi-diffopts__hint--inline"> — {m.hint}</span>
             </span>
           </label>
         ))}
@@ -340,17 +323,11 @@ function FiltersTab({ onOpenRules }: { onOpenRules?: () => void }): JSX.Element 
         Per-session include/exclude rules live in the Rules editor.
       </p>
       {onOpenRules ? (
-        <button
-          type="button"
-          className="awapi-button awapi-button--primary"
-          onClick={onOpenRules}
-        >
+        <button type="button" className="awapi-button awapi-button--primary" onClick={onOpenRules}>
           Open Rules editor…
         </button>
       ) : (
-        <p className="awapi-diffopts__hint">
-          (Open the Rules editor from the toolbar.)
-        </p>
+        <p className="awapi-diffopts__hint">(Open the Rules editor from the toolbar.)</p>
       )}
     </section>
   );

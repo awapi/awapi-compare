@@ -24,9 +24,7 @@ describe('diffHex', () => {
     expect(result.truncated).toBe(false);
     expect(result.leftRows).toBe(2);
     expect(result.rightRows).toBe(2);
-    expect(result.segments).toEqual([
-      { kind: 'equal', leftOffset: 0, rightOffset: 0, rows: 2 },
-    ]);
+    expect(result.segments).toEqual([{ kind: 'equal', leftOffset: 0, rightOffset: 0, rows: 2 }]);
   });
 
   it('returns an empty diff for two empty buffers', () => {
@@ -186,9 +184,7 @@ describe('rowSlice', () => {
   it('returns the requested 16-byte window', () => {
     const buf = Uint8Array.from({ length: 40 }, (_, i) => i);
     expect(Array.from(rowSlice(buf, 0))).toEqual(Array.from({ length: 16 }, (_, i) => i));
-    expect(Array.from(rowSlice(buf, 1))).toEqual(
-      Array.from({ length: 16 }, (_, i) => i + 16),
-    );
+    expect(Array.from(rowSlice(buf, 1))).toEqual(Array.from({ length: 16 }, (_, i) => i + 16));
     // Last partial row.
     expect(Array.from(rowSlice(buf, 2))).toEqual([32, 33, 34, 35, 36, 37, 38, 39]);
   });

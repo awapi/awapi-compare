@@ -21,12 +21,12 @@ Only the registration mechanism differs.
 
 Key source files to read before starting:
 
-| File | Why |
-|------|-----|
-| `src/desktop/src/main/cliArgs.ts` | CLI arg parsing — `--set-left`, `--compare-pending` already handled |
-| `src/desktop/src/main/services/shellIntegrationService.ts` | Pending-left state + Windows registration |
-| `src/desktop/src/main/index.ts` | How `--set-left` / `--compare-pending` are handled at startup |
-| `src/shared/src/ipc.ts` | IPC channels — `shell.*` channels already declared |
+| File                                                       | Why                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------- |
+| `src/desktop/src/main/cliArgs.ts`                          | CLI arg parsing — `--set-left`, `--compare-pending` already handled |
+| `src/desktop/src/main/services/shellIntegrationService.ts` | Pending-left state + Windows registration                           |
+| `src/desktop/src/main/index.ts`                            | How `--set-left` / `--compare-pending` are handled at startup       |
+| `src/shared/src/ipc.ts`                                    | IPC channels — `shell.*` channels already declared                  |
 
 ---
 
@@ -45,6 +45,7 @@ It lives at `~/Library/Services/<name>.workflow`. Finder picks it up
 automatically; no registration step is needed beyond copying the file.
 
 Each workflow runs a shell script:
+
 ```sh
 # "Select as Left Side" workflow
 for f in "$@"; do
@@ -53,7 +54,7 @@ done
 ```
 
 ```sh
-# "Compare with AwapiCompare" workflow  
+# "Compare with AwapiCompare" workflow
 for f in "$@"; do
   /path/to/AwapiCompare.app/Contents/MacOS/AwapiCompare --compare-pending "$f"
 done
@@ -178,6 +179,7 @@ done</string>
 ```
 
 `Info.plist` for the workflow bundle:
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -232,9 +234,10 @@ Check whether the `.workflow` files exist in `~/Library/Services/`:
 ```typescript
 if (process.platform === 'darwin') {
   const servicesDir = join(homedir(), 'Library', 'Services');
-  const exists = await fsp.access(
-    join(servicesDir, 'AwapiCompare - Select Left Side.workflow')
-  ).then(() => true).catch(() => false);
+  const exists = await fsp
+    .access(join(servicesDir, 'AwapiCompare - Select Left Side.workflow'))
+    .then(() => true)
+    .catch(() => false);
   return exists;
 }
 ```
@@ -267,11 +270,11 @@ if (process.platform === 'darwin') {
 
 ## Files to create / modify
 
-| Action | File |
-|--------|------|
-| Create | `resources/macos/AwapiCompare - Select Left Side.workflow/Contents/Info.plist` |
-| Create | `resources/macos/AwapiCompare - Select Left Side.workflow/Contents/document.wflow` |
-| Create | `resources/macos/AwapiCompare - Compare.workflow/Contents/Info.plist` |
-| Create | `resources/macos/AwapiCompare - Compare.workflow/Contents/document.wflow` |
+| Action | File                                                                                                                                                                          |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create | `resources/macos/AwapiCompare - Select Left Side.workflow/Contents/Info.plist`                                                                                                |
+| Create | `resources/macos/AwapiCompare - Select Left Side.workflow/Contents/document.wflow`                                                                                            |
+| Create | `resources/macos/AwapiCompare - Compare.workflow/Contents/Info.plist`                                                                                                         |
+| Create | `resources/macos/AwapiCompare - Compare.workflow/Contents/document.wflow`                                                                                                     |
 | Modify | `src/desktop/src/main/services/shellIntegrationService.ts` — add `registerQuickActions`, `unregisterQuickActions`, extend `register`, `unregister`, `isRegistered` for darwin |
-| Modify | `src/desktop/src/main/services/shellIntegrationService.test.ts` — add macOS tests |
+| Modify | `src/desktop/src/main/services/shellIntegrationService.test.ts` — add macOS tests                                                                                             |

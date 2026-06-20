@@ -94,11 +94,7 @@ export class RulesService {
       }
     }
     const payload: RulesFile = { version: 1, rules: this.rules };
-    await this.deps.fs.writeFile(
-      this.deps.filePath,
-      JSON.stringify(payload, null, 2),
-      'utf8',
-    );
+    await this.deps.fs.writeFile(this.deps.filePath, JSON.stringify(payload, null, 2), 'utf8');
   }
 
   /**
@@ -141,9 +137,5 @@ function isRule(value: unknown): value is Rule {
 }
 
 function isNotFound(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as { code?: string }).code === 'ENOENT'
-  );
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'ENOENT';
 }

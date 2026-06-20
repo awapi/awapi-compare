@@ -41,9 +41,11 @@ describe('registerIpcHandlers', () => {
         c !== IpcChannel.AppMenuAction &&
         c !== IpcChannel.AppRequestClose &&
         c !== IpcChannel.AppCloseWindow &&
+        c !== IpcChannel.AppOpenCompare &&
         // Fire-and-forget send channels (use ipcMain.on, not handle).
         c !== IpcChannel.AppRevealInFolder &&
-        c !== IpcChannel.AppSetNativeTheme,
+        c !== IpcChannel.AppSetNativeTheme &&
+        c !== IpcChannel.AppRendererReady,
     );
     expect(mockIpc.channels().sort()).toEqual([...expected].sort());
   });
@@ -53,9 +55,10 @@ describe('registerIpcHandlers', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     registerIpcHandlers(mockIpc as any, createServices());
 
-    await expect(
-      mockIpc.invoke(IpcChannel.UpdaterDownload),
-    ).rejects.toMatchObject({ code: 'E_NOT_IMPLEMENTED', phase: 'Phase 9' });
+    await expect(mockIpc.invoke(IpcChannel.UpdaterDownload)).rejects.toMatchObject({
+      code: 'E_NOT_IMPLEMENTED',
+      phase: 'Phase 9',
+    });
   });
 
   it('returns skeleton values for handlers that are already functional', async () => {

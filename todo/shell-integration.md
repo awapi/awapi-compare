@@ -109,6 +109,12 @@ on Windows 10 and Windows 11.
       regular AwapiCompare installer (per-user by default, per-machine
       when the installer is run elevated) and is fully removed by the
       uninstaller, including registry entries and the extension binary.
+
+      > ✅ NSIS install now invokes `AwapiCompare.exe --register-shell`
+      > best-effort after files are copied, and uninstall removes the
+      > HKCU shell keys best-effort. MSI/per-machine behavior still
+      > needs runtime validation.
+
 - [ ] **C5** — The shell extension is code-signed with the same
       identity as the main app, loads in 64-bit Explorer without
       blocking other extensions, and never crashes Explorer when
@@ -118,8 +124,10 @@ on Windows 10 and Windows 11.
       and shows the current registration state (per-user / per-machine
       / disabled).
 
-      > ⚠️ IPC channels (`shell.*`) and preload bindings exist; the
-      > Preferences UI toggle is not yet wired — C0.6.
+      > ✅ Preferences now includes a Windows-only Explorer section
+      > backed by `shell.status`, `shell.register`, and
+      > `shell.unregister`. It reports registration scope as
+      > per-user / per-machine / disabled.
 
 ### 🔧 Implementation steps
 
@@ -135,9 +143,8 @@ on Windows 10 and Windows 11.
       clear the file, and open the comparison.
 - [x] **C0.4** — Support `--type file` (auto-detect via stat +
       heuristic) so individual files can be compared from Explorer.
-- [ ] **C0.5** — Add a COM `IExplorerCommand` handler (out-of-process,
-      e.g. a dedicated console EXE registered under
-      `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\`)
+- [ ] **C0.5** — Add a native COM `IExplorerCommand` handler (registered
+      via `ExplorerCommandHandler` CLSIDs on CommandStore verbs)
       so the verbs can: - receive the full `IShellItemArray` → multi-select works - show directly in the Windows 11 compact context menu - display dynamic labels ("Compare to _readme.txt_" when a
       pending-left is set).
 
@@ -152,13 +159,19 @@ on Windows 10 and Windows 11.
       > `ExplorerCommandHandler` (guarded by `Test-Path` on the DLL), and
       > `electron-builder.yml` bundles the DLL into `resources/`.
       >
+      > ✅ Startup flow now auto-detects compare pair type for shell verbs:
+      > file+file opens file compare, folder+folder opens folder compare,
+      > and mixed/unsupported pairs are rejected instead of opening a broken
+      > compare tab.
+      >
       > ⏳ Remaining before ticking C0.5: build the DLL on a Windows box
       > with MSVC + Windows SDK + CMake (`just shellext`) and validate it
       > in Explorer. Win11 **compact**-menu placement additionally needs a
       > **signed** sparse MSIX package (blocked on code signing being
-      > disabled for v1).
+      > disabled for v1). Validation helpers are available via
+      > `just shellext-validate` and `just c0-5-validate`.
 
-- [ ] **C0.6** — Wire the Preferences → Shell Integration UI
+- [x] **C0.6** — Wire the Preferences → Shell Integration UI
       (`PreferencesDialog.tsx`) to the existing `shell.*` IPC channels.
 
 ---

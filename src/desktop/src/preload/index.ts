@@ -26,27 +26,22 @@ import type {
   RulesTestRequest,
   RulesTestResponse,
   ScanProgress,
+  ShellIntegrationStatus,
   Session,
 } from '@awapi/shared';
 import { IpcChannel } from '@awapi/shared';
 
 const api: AwapiApi = {
   fs: {
-    scan: (req: FsScanRequest): Promise<FsScanResult> =>
-      ipcRenderer.invoke(IpcChannel.FsScan, req),
-    read: (req: FsReadRequest): Promise<FsReadResult> =>
-      ipcRenderer.invoke(IpcChannel.FsRead, req),
+    scan: (req: FsScanRequest): Promise<FsScanResult> => ipcRenderer.invoke(IpcChannel.FsScan, req),
+    read: (req: FsReadRequest): Promise<FsReadResult> => ipcRenderer.invoke(IpcChannel.FsRead, req),
     readChunk: (req: FsReadChunkRequest): Promise<Uint8Array> =>
       ipcRenderer.invoke(IpcChannel.FsReadChunk, req),
     hash: (path: string): Promise<string> => ipcRenderer.invoke(IpcChannel.FsHash, path),
-    stat: (req: FsStatRequest): Promise<FsStatResult> =>
-      ipcRenderer.invoke(IpcChannel.FsStat, req),
-    rm: (req: FsRmRequest): Promise<FsRmResult> =>
-      ipcRenderer.invoke(IpcChannel.FsRm, req),
-    rename: (req: FsRenameRequest): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.FsRename, req),
-    copy: (req: FsCopyRequest): Promise<FsCopyResult> =>
-      ipcRenderer.invoke(IpcChannel.FsCopy, req),
+    stat: (req: FsStatRequest): Promise<FsStatResult> => ipcRenderer.invoke(IpcChannel.FsStat, req),
+    rm: (req: FsRmRequest): Promise<FsRmResult> => ipcRenderer.invoke(IpcChannel.FsRm, req),
+    rename: (req: FsRenameRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.FsRename, req),
+    copy: (req: FsCopyRequest): Promise<FsCopyResult> => ipcRenderer.invoke(IpcChannel.FsCopy, req),
     write: (req: FsWriteRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.FsWrite, req),
     onScanProgress: (cb: (p: ScanProgress) => void): (() => void) => {
       const listener = (_: Electron.IpcRendererEvent, p: ScanProgress): void => cb(p);
@@ -56,8 +51,7 @@ const api: AwapiApi = {
   },
   session: {
     save: (s: Session): Promise<void> => ipcRenderer.invoke(IpcChannel.SessionSave, s),
-    load: (id: string): Promise<Session | null> =>
-      ipcRenderer.invoke(IpcChannel.SessionLoad, id),
+    load: (id: string): Promise<Session | null> => ipcRenderer.invoke(IpcChannel.SessionLoad, id),
     list: (): Promise<Session[]> => ipcRenderer.invoke(IpcChannel.SessionList),
     delete: (id: string): Promise<void> => ipcRenderer.invoke(IpcChannel.SessionDelete, id),
   },
@@ -92,6 +86,15 @@ const api: AwapiApi = {
     },
     getInitialCompare: (): Promise<InitialCompareSession | null> =>
       ipcRenderer.invoke(IpcChannel.AppGetInitialCompare),
+    onOpenCompare: (cb: (session: InitialCompareSession) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, session: InitialCompareSession): void =>
+        cb(session);
+      ipcRenderer.on(IpcChannel.AppOpenCompare, listener);
+      return () => ipcRenderer.removeListener(IpcChannel.AppOpenCompare, listener);
+    },
+    notifyReady: (): void => {
+      ipcRenderer.send(IpcChannel.AppRendererReady);
+    },
     onCloseRequest: (cb: () => void): (() => void) => {
       const listener = (): void => cb();
       ipcRenderer.on(IpcChannel.AppRequestClose, listener);
@@ -131,13 +134,12 @@ const api: AwapiApi = {
       ipcRenderer.invoke(IpcChannel.DialogPickFolder, req ?? {}),
     pickFile: (req?: DialogPickFileRequest): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.DialogPickFile, req ?? {}),
-    confirmUnsaved: (
-      req?: DialogConfirmUnsavedRequest,
-    ): Promise<DialogConfirmUnsavedChoice> =>
+    confirmUnsaved: (req?: DialogConfirmUnsavedRequest): Promise<DialogConfirmUnsavedChoice> =>
       ipcRenderer.invoke(IpcChannel.DialogConfirmUnsaved, req ?? {}),
   },
   shell: {
-    status: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.ShellIntegrationStatus),
+    status: (): Promise<ShellIntegrationStatus> =>
+      ipcRenderer.invoke(IpcChannel.ShellIntegrationStatus),
     register: (): Promise<void> => ipcRenderer.invoke(IpcChannel.ShellIntegrationRegister),
     unregister: (): Promise<void> => ipcRenderer.invoke(IpcChannel.ShellIntegrationUnregister),
   },

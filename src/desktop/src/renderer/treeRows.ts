@@ -100,9 +100,7 @@ export function buildTreeRows(
       isDir: node.isDir,
       hasChildren: node.children.length > 0,
       expanded,
-      displayStatus: node.isDir
-        ? aggregateDirStatus(node)
-        : node.pair.status,
+      displayStatus: node.isDir ? aggregateDirStatus(node) : node.pair.status,
     });
     if (!expanded) return;
     for (const child of node.children) walk(child, depth + 1);

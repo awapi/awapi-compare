@@ -77,7 +77,7 @@ function main(): void {
     '# Third-Party Notices',
     '',
     'AwapiCompare includes third-party open-source software listed below.',
-    'The full license texts are included in each dependency\'s package.',
+    "The full license texts are included in each dependency's package.",
     '',
     '| Package | Version | License |',
     '| --- | --- | --- |',

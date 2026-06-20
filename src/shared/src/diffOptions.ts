@@ -42,9 +42,7 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = Object.freeze({
  * Deep-merge a partial {@link DiffOptions} on top of {@link DEFAULT_DIFF_OPTIONS}.
  * Pure; returns a fresh object so callers can mutate safely.
  */
-export function mergeDiffOptions(
-  partial?: DeepPartial<DiffOptions> | null,
-): DiffOptions {
+export function mergeDiffOptions(partial?: DeepPartial<DiffOptions> | null): DiffOptions {
   const base = DEFAULT_DIFF_OPTIONS;
   if (!partial) {
     return cloneDiffOptions(base);

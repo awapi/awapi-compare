@@ -11,10 +11,7 @@ import { useFileDiffData } from '../useFileDiffData.js';
 import { joinPath, basename, extname } from '../paths.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
 import { useThemeStore, useWorkspaceStore, useRecentsStore } from '../state/stores.js';
-import {
-  registerTabSaveHandler,
-  unregisterTabSaveHandler,
-} from '../state/tabSaveRegistry.js';
+import { registerTabSaveHandler, unregisterTabSaveHandler } from '../state/tabSaveRegistry.js';
 import type { ThemeName } from '../state/themeStore.js';
 import { getPalette, statusLabel } from '../theme.js';
 import type { ViewFilter } from '../viewFilter.js';
@@ -132,10 +129,7 @@ function SessionBoundFileDiffBody({
   const leftRoot = useSession((s) => s.leftRoot);
   const rightRoot = useSession((s) => s.rightRoot);
   const pairs = useSession((s) => s.pairs);
-  const lookedUpPair = useMemo(
-    () => pairs.find((p) => p.relPath === relPath),
-    [pairs, relPath],
-  );
+  const lookedUpPair = useMemo(() => pairs.find((p) => p.relPath === relPath), [pairs, relPath]);
   const initialPair = pairProp ?? lookedUpPair;
   const roots: RootPair | null = leftRoot || rightRoot ? { leftRoot, rightRoot } : null;
   return (
@@ -176,15 +170,11 @@ function FileDiffBody({
   // state, so the file tab is independent of the parent session.
   const [seededLeft] = useState<string>(() => {
     if (initialLeftPath) return initialLeftPath;
-    return initialPair?.left && roots
-      ? joinPath(roots.leftRoot, initialPair.left.relPath)
-      : '';
+    return initialPair?.left && roots ? joinPath(roots.leftRoot, initialPair.left.relPath) : '';
   });
   const [seededRight] = useState<string>(() => {
     if (initialRightPath) return initialRightPath;
-    return initialPair?.right && roots
-      ? joinPath(roots.rightRoot, initialPair.right.relPath)
-      : '';
+    return initialPair?.right && roots ? joinPath(roots.rightRoot, initialPair.right.relPath) : '';
   });
 
   const [leftPath, setLeftPath] = useState<string>(seededLeft);
@@ -556,8 +546,8 @@ function FileDiffBody({
       <div className="awapi-file-diff__content">
         {!pair && !leftPath && !rightPath ? (
           <p className="awapi-file-diff__notice">
-            No matching pair for <code>{relPath}</code> in the current scan result. Click
-            Refresh to re-run the comparison.
+            No matching pair for <code>{relPath}</code> in the current scan result. Click Refresh to
+            re-run the comparison.
           </p>
         ) : (
           <FileDiffViewSwitcher
@@ -620,8 +610,7 @@ function FileDiffViewSwitcher({
     return (
       <div className="awapi-file-diff__warn" role="alertdialog" aria-live="polite">
         <p>
-          One or both files are larger than the soft limit. Loading them may slow down the
-          editor.
+          One or both files are larger than the soft limit. Loading them may slow down the editor.
         </p>
         <button type="button" onClick={data.confirmLarge}>
           Open anyway
@@ -632,8 +621,8 @@ function FileDiffViewSwitcher({
   if (blockingState === 'too-large') {
     return (
       <p className="awapi-file-diff__warn awapi-file-diff__warn--hard">
-        One or both files exceed the hard read cap and cannot be displayed. Use the CLI or
-        external tools.
+        One or both files exceed the hard read cap and cannot be displayed. Use the CLI or external
+        tools.
       </p>
     );
   }
@@ -703,13 +692,7 @@ const FILE_LEGEND_ORDER: readonly DiffStatus[] = [
   'error',
 ];
 
-function FileDiffLegend({
-  status,
-  theme,
-}: {
-  status?: DiffStatus;
-  theme: ThemeName;
-}): JSX.Element {
+function FileDiffLegend({ status, theme }: { status?: DiffStatus; theme: ThemeName }): JSX.Element {
   const palette = getPalette(theme);
   return (
     <footer

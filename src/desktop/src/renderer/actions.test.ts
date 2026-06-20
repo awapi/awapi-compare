@@ -54,44 +54,38 @@ describe('isActionEnabled', () => {
   });
 
   it('copy L→R requires a left side', () => {
-    expect(
-      isActionEnabled('copyLeftToRight', { pair: pair('right-only', { right: true }) }),
-    ).toBe(false);
-    expect(
-      isActionEnabled('copyLeftToRight', { pair: pair('left-only', { left: true }) }),
-    ).toBe(true);
+    expect(isActionEnabled('copyLeftToRight', { pair: pair('right-only', { right: true }) })).toBe(
+      false,
+    );
+    expect(isActionEnabled('copyLeftToRight', { pair: pair('left-only', { left: true }) })).toBe(
+      true,
+    );
   });
 
   it('copy R→L requires a right side', () => {
-    expect(
-      isActionEnabled('copyRightToLeft', { pair: pair('left-only', { left: true }) }),
-    ).toBe(false);
-    expect(
-      isActionEnabled('copyRightToLeft', { pair: pair('right-only', { right: true }) }),
-    ).toBe(true);
+    expect(isActionEnabled('copyRightToLeft', { pair: pair('left-only', { left: true }) })).toBe(
+      false,
+    );
+    expect(isActionEnabled('copyRightToLeft', { pair: pair('right-only', { right: true }) })).toBe(
+      true,
+    );
   });
 
   it('markSame requires both sides', () => {
-    expect(
-      isActionEnabled('markSame', { pair: pair('left-only', { left: true }) }),
-    ).toBe(false);
+    expect(isActionEnabled('markSame', { pair: pair('left-only', { left: true }) })).toBe(false);
     expect(isActionEnabled('markSame', { pair: pair('different') })).toBe(true);
   });
 
   it('delete requires at least one side', () => {
     const empty: ComparedPair = { relPath: 'x', status: 'identical' };
     expect(isActionEnabled('delete', { pair: empty })).toBe(false);
-    expect(isActionEnabled('delete', { pair: pair('left-only', { left: true }) })).toBe(
-      true,
-    );
+    expect(isActionEnabled('delete', { pair: pair('left-only', { left: true }) })).toBe(true);
   });
 
   it('rename requires at least one side', () => {
     const empty: ComparedPair = { relPath: 'x', status: 'identical' };
     expect(isActionEnabled('rename', { pair: empty })).toBe(false);
-    expect(isActionEnabled('rename', { pair: pair('left-only', { left: true }) })).toBe(
-      true,
-    );
+    expect(isActionEnabled('rename', { pair: pair('left-only', { left: true }) })).toBe(true);
   });
 
   it('open is disabled for error pairs', () => {
@@ -170,12 +164,8 @@ describe('buildRowMenuItems', () => {
 
   it('disables every row action when no pair is focused', () => {
     const items = buildRowMenuItems({});
-    const compareItem = items.find(
-      (i) => i.type !== 'separator' && i.action === 'compare',
-    );
-    expect(compareItem && compareItem.type !== 'separator' && compareItem.disabled).toBe(
-      false,
-    );
+    const compareItem = items.find((i) => i.type !== 'separator' && i.action === 'compare');
+    expect(compareItem && compareItem.type !== 'separator' && compareItem.disabled).toBe(false);
     for (const item of items) {
       if (item.type === 'separator') continue;
       if (item.action === 'compare') continue;

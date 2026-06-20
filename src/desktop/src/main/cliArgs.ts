@@ -38,6 +38,7 @@ export type DesktopArgs =
   | { kind: 'setLeft'; path: string }
   | { kind: 'comparePending'; rightPath: string }
   | { kind: 'compareTwo'; leftPath: string; rightPath: string }
+  | { kind: 'compareAdd'; path: string }
   | { kind: 'registerShell' }
   | { kind: 'unregisterShell' }
   | null;
@@ -62,6 +63,7 @@ export function parseDesktopArgs(
   let comparePendingPath: string | undefined;
   let compareTwoLeft: string | undefined;
   let compareTwoRight: string | undefined;
+  let compareAddPath: string | undefined;
 
   const requireValue = (raw: string | undefined, flag: string): string => {
     if (raw === undefined || raw.startsWith('--')) {
@@ -126,6 +128,10 @@ export function parseDesktopArgs(
       }
       compareTwoLeft = parts[0];
       compareTwoRight = parts[1];
+    } else if (arg === '--compare-add') {
+      compareAddPath = requireValue(argv[++i], '--compare-add');
+    } else if (arg?.startsWith('--compare-add=')) {
+      compareAddPath = arg.slice('--compare-add='.length);
     }
     // anything else is ignored (Electron internal flags, etc.)
   }
@@ -156,6 +162,12 @@ export function parseDesktopArgs(
       kind: 'compareTwo',
       leftPath: isAbsolute(compareTwoLeft) ? compareTwoLeft : resolve(cwd, compareTwoLeft),
       rightPath: isAbsolute(compareTwoRight) ? compareTwoRight : resolve(cwd, compareTwoRight),
+    };
+  }
+  if (compareAddPath !== undefined) {
+    return {
+      kind: 'compareAdd',
+      path: isAbsolute(compareAddPath) ? compareAddPath : resolve(cwd, compareAddPath),
     };
   }
 

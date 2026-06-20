@@ -35,9 +35,7 @@ const SOURCE_LABEL: Record<CreateMissingSideDialogProps['direction'], string> = 
  * when the destination side does not exist yet. The destination file
  * will be created as a whole-file copy of the source side.
  */
-export function CreateMissingSideDialog(
-  props: CreateMissingSideDialogProps,
-): JSX.Element {
+export function CreateMissingSideDialog(props: CreateMissingSideDialogProps): JSX.Element {
   const { direction, target, destinationPath, sourcePath, onConfirm, onCancel } = props;
 
   return (
@@ -69,9 +67,7 @@ export function CreateMissingSideDialog(
           <p>
             <strong>{target}</strong> does not exist on the {SIDE_LABEL[direction]} side.
           </p>
-          <p>
-            It will be created as a copy of the {SOURCE_LABEL[direction]} file.
-          </p>
+          <p>It will be created as a copy of the {SOURCE_LABEL[direction]} file.</p>
           <p className="awapi-modal__detail">
             <span className="awapi-modal__detail-label">From:</span> {sourcePath}
           </p>
@@ -83,12 +79,7 @@ export function CreateMissingSideDialog(
           <button type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button
-            type="button"
-            className="awapi-button--primary"
-            onClick={onConfirm}
-            autoFocus
-          >
+          <button type="button" className="awapi-button--primary" onClick={onConfirm} autoFocus>
             Create
           </button>
         </footer>

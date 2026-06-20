@@ -230,9 +230,7 @@ describe('tryDecompileToSimpleRules', () => {
   });
 
   it('returns null when an exclude-folder descendant rule appears without its name pair', () => {
-    const rules: Rule[] = [
-      rule({ kind: 'exclude', target: 'path', pattern: '**/.git/**' }),
-    ];
+    const rules: Rule[] = [rule({ kind: 'exclude', target: 'path', pattern: '**/.git/**' })];
     expect(tryDecompileToSimpleRules(rules)).toBeNull();
   });
 

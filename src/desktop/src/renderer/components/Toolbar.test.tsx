@@ -68,17 +68,13 @@ describe('<Toolbar />', () => {
 
   it('clicking the left folder-picker button calls onPickLeftFolder', async () => {
     const handlers = renderToolbar();
-    await userEvent.click(
-      screen.getByRole('button', { name: /browse for left folder/i }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: /browse for left folder/i }));
     expect(handlers.onPickLeftFolder).toHaveBeenCalledTimes(1);
   });
 
   it('clicking the right folder-picker button calls onPickRightFolder', async () => {
     const handlers = renderToolbar();
-    await userEvent.click(
-      screen.getByRole('button', { name: /browse for right folder/i }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: /browse for right folder/i }));
     expect(handlers.onPickRightFolder).toHaveBeenCalledTimes(1);
   });
 
@@ -98,24 +94,16 @@ describe('<Toolbar />', () => {
         onOpenRules={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole('button', { name: /browse for left folder/i }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: /browse for right folder/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: /browse for left folder/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /browse for right folder/i })).toBeDisabled();
   });
 
   it('switches the path-bar labels to "file" when pathLabel="file"', () => {
     renderToolbar({ pathLabel: 'file' });
     expect(screen.getByLabelText('Left file')).toBeInTheDocument();
     expect(screen.getByLabelText('Right file')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /browse for left file/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /browse for right file/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /browse for left file/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /browse for right file/i })).toBeInTheDocument();
   });
 
   it('pressing Enter in the left path input calls onSubmitPaths', async () => {
@@ -146,12 +134,8 @@ describe('<Toolbar />', () => {
 
   it('hides the up buttons when no go-up handlers are provided', () => {
     renderToolbar({ leftRoot: '/a/b', rightRoot: '/c/d' });
-    expect(
-      screen.queryByRole('button', { name: /go up from left folder/i }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole('button', { name: /go up from right folder/i }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: /go up from left folder/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /go up from right folder/i })).toBeNull();
   });
 
   it('clicking the up buttons invokes the go-up handlers', async () => {
@@ -163,12 +147,8 @@ describe('<Toolbar />', () => {
       onGoUpLeft,
       onGoUpRight,
     });
-    await userEvent.click(
-      screen.getByRole('button', { name: /go up from left folder/i }),
-    );
-    await userEvent.click(
-      screen.getByRole('button', { name: /go up from right folder/i }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: /go up from left folder/i }));
+    await userEvent.click(screen.getByRole('button', { name: /go up from right folder/i }));
     expect(onGoUpLeft).toHaveBeenCalledTimes(1);
     expect(onGoUpRight).toHaveBeenCalledTimes(1);
   });
@@ -180,12 +160,8 @@ describe('<Toolbar />', () => {
       onGoUpLeft: vi.fn(),
       onGoUpRight: vi.fn(),
     });
-    expect(
-      screen.getByRole('button', { name: /go up from left folder/i }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: /go up from right folder/i }),
-    ).toBeEnabled();
+    expect(screen.getByRole('button', { name: /go up from left folder/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /go up from right folder/i })).toBeEnabled();
   });
 
   it('renders <datalist> options for recent paths and links them to the inputs', () => {

@@ -7,11 +7,11 @@ directories:
   output: ../../release
 
 files:
-  - "out/**"
-  - "!**/*.map"
-  - "!**/*.test.*"
-  - "!**/tsconfig*.json"
-  - "!**/{.eslintrc,.prettierrc,.editorconfig}*"
+  - 'out/**'
+  - '!**/*.map'
+  - '!**/*.test.*'
+  - '!**/tsconfig*.json'
+  - '!**/{.eslintrc,.prettierrc,.editorconfig}*'
 
 # Signing is intentionally disabled for v1. Reintroduce when certificates
 # are provisioned. See docs/release-process.md.
@@ -76,4 +76,4 @@ publish:
   private: true
 
 asarUnpack:
-  - "**/*.node"
+  - '**/*.node'

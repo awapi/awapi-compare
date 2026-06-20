@@ -172,9 +172,7 @@ function isDefaultIncludeFiles(globs: ReadonlyArray<string>): boolean {
 }
 
 function isDefaultIncludeFolders(globs: ReadonlyArray<string>): boolean {
-  return (
-    globs.length === 0 || (globs.length === 1 && globs[0] === SIMPLE_INCLUDE_FOLDERS_DEFAULT)
-  );
+  return globs.length === 0 || (globs.length === 1 && globs[0] === SIMPLE_INCLUDE_FOLDERS_DEFAULT);
 }
 
 /**
@@ -189,9 +187,7 @@ function isDefaultIncludeFolders(globs: ReadonlyArray<string>): boolean {
  * to gate the "edit in Advanced tab" banner, and we'd rather force the
  * Advanced tab than silently reshape the user's rules.
  */
-export function tryDecompileToSimpleRules(
-  rules: ReadonlyArray<Rule>,
-): SimpleRulesPayload | null {
+export function tryDecompileToSimpleRules(rules: ReadonlyArray<Rule>): SimpleRulesPayload | null {
   if (rules.length === 0) {
     return { ...EMPTY_SIMPLE_RULES };
   }
@@ -278,13 +274,14 @@ export function tryDecompileToSimpleRules(
   return {
     includeFiles: includeFiles.length > 0 ? includeFiles : [SIMPLE_INCLUDE_FILES_DEFAULT],
     excludeFiles,
-    includeFolders:
-      includeFolders.length > 0 ? includeFolders : [SIMPLE_INCLUDE_FOLDERS_DEFAULT],
+    includeFolders: includeFolders.length > 0 ? includeFolders : [SIMPLE_INCLUDE_FOLDERS_DEFAULT],
     excludeFolders,
   };
 }
 
-function classifyRule(r: Rule):
+function classifyRule(
+  r: Rule,
+):
   | { kind: 'exclude-folder-name'; glob: string }
   | { kind: 'exclude-folder-path'; glob: string }
   | { kind: 'exclude-file'; glob: string }

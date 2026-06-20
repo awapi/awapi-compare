@@ -129,8 +129,9 @@ function defaultTitleFor(relPath: string): string {
 export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
   const generateId = opts.generateId ?? defaultGenerateId;
   const onTabClosed = opts.onTabClosed;
-  const initialTabs: WorkspaceTab[] =
-    opts.initialTabs ?? [{ id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' }];
+  const initialTabs: WorkspaceTab[] = opts.initialTabs ?? [
+    { id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' },
+  ];
   const initialActiveTabId = opts.initialActiveTabId ?? initialTabs[0]?.id ?? COMPARE_TAB_ID;
 
   return create<WorkspaceState>((set, get) => ({
@@ -261,8 +262,7 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
       const closed = tabs.filter((t) => t.id !== keepId);
       if (closed.length === 0) return [];
       const kept =
-        firstCompare ??
-        ({ id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' } as CompareTab);
+        firstCompare ?? ({ id: COMPARE_TAB_ID, kind: 'compare', title: 'Compare' } as CompareTab);
       set({ tabs: [kept], activeTabId: kept.id });
       for (const t of closed) onTabClosed?.(t);
       return closed.map((t) => t.id);

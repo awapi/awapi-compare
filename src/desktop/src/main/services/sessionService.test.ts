@@ -1,3 +1,5 @@
+import { join, sep } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import type { Session } from '@awapi/shared';
@@ -57,10 +59,13 @@ describe('SessionService (disk)', () => {
         files.set(path, contents);
       },
       mkdir: async () => undefined,
-      readdir: async (dir) =>
-        [...files.keys()]
-          .filter((p) => p.startsWith(dir + '/'))
-          .map((p) => p.slice(dir.length + 1)),
+      readdir: async (dir) => {
+        // Production builds keys via path.join(), which normalises separators
+        // (e.g. '\sessions\x.json' on Windows). Normalise the incoming dir the
+        // same way so the prefix match is platform-independent.
+        const prefix = join(dir) + sep;
+        return [...files.keys()].filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
+      },
       unlink: async (path) => {
         files.delete(path);
       },
@@ -75,8 +80,8 @@ describe('SessionService (disk)', () => {
     const s = session('abc');
     await svc.save(s);
 
-    expect(files.has('/sessions/abc.json')).toBe(true);
-    expect(JSON.parse(files.get('/sessions/abc.json')!)).toEqual(s);
+    expect(files.has(join('/sessions', 'abc.json'))).toBe(true);
+    expect(JSON.parse(files.get(join('/sessions', 'abc.json'))!)).toEqual(s);
 
     // A second instance with the same fs should read from disk.
     const svc2 = new SessionService({ dirPath: '/sessions', fs });
@@ -89,8 +94,8 @@ describe('SessionService (disk)', () => {
     const svc = new SessionService({ dirPath: '/sessions', fs });
 
     await svc.save(session('ok'));
-    files.set('/sessions/readme.txt', 'not json');
-    files.set('/sessions/broken.json', '{bad json');
+    files.set(join('/sessions', 'readme.txt'), 'not json');
+    files.set(join('/sessions', 'broken.json'), '{bad json');
 
     const list = await svc.list();
     expect(list.map((s) => s.id)).toEqual(['ok']);
@@ -124,6 +129,6 @@ describe('SessionService (disk)', () => {
     expect(list).toHaveLength(10);
     // s1 is the oldest (updatedAt=1) and should have been pruned.
     expect(list.map((s) => s.id)).not.toContain('s1');
-    expect(files.has('/sessions/s1.json')).toBe(false);
+    expect(files.has(join('/sessions', 's1.json'))).toBe(false);
   });
 });

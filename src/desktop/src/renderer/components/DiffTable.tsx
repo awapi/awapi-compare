@@ -109,10 +109,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
             Pick a left or right folder to list its contents, or both to compare.
           </div>
         ) : (
-          <div
-            className="awapi-diff-table__body"
-            style={{ height: virtualizer.getTotalSize() }}
-          >
+          <div className="awapi-diff-table__body" style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index];
               if (!row) return null;
@@ -144,9 +141,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                       const clickedIdx = virtualRow.index;
                       const lo = Math.min(anchorIdx, clickedIdx);
                       const hi = Math.max(anchorIdx, clickedIdx);
-                      const range = new Set(
-                        rows.slice(lo, hi + 1).map((r) => r.pair.relPath),
-                      );
+                      const range = new Set(rows.slice(lo, hi + 1).map((r) => r.pair.relPath));
                       onSelectionChange?.(range, pair.relPath);
                     } else if (isCtrl) {
                       const next = new Set(selectedPaths ?? []);
@@ -197,9 +192,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                     // carry a `data-side` attribute; the centre status
                     // cell falls back to the side that has an entry.
                     const target = event.target as HTMLElement | null;
-                    const cell = target?.closest('[data-side]') as
-                      | HTMLElement
-                      | null;
+                    const cell = target?.closest('[data-side]') as HTMLElement | null;
                     const attr = cell?.dataset.side;
                     let side: 'left' | 'right';
                     if (attr === 'left' || attr === 'right') {
@@ -219,18 +212,14 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                       exists={!!pair.left}
                       onToggle={() => toggle(pair.relPath)}
                     />
-                    <span className="awapi-diff-cell__name">
-                      {pair.left?.name ?? ''}
-                    </span>
+                    <span className="awapi-diff-cell__name">{pair.left?.name ?? ''}</span>
                   </div>
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
                     data-side="left"
                   >
-                    {pair.left && pair.left.type !== 'dir'
-                      ? formatSize(pair.left.size)
-                      : ''}
+                    {pair.left && pair.left.type !== 'dir' ? formatSize(pair.left.size) : ''}
                   </div>
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
@@ -264,18 +253,14 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                         {isDir ? '📁' : '📄'}
                       </span>
                     )}
-                    <span className="awapi-diff-cell__name">
-                      {pair.right?.name ?? ''}
-                    </span>
+                    <span className="awapi-diff-cell__name">{pair.right?.name ?? ''}</span>
                   </div>
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
                     data-side="right"
                   >
-                    {pair.right && pair.right.type !== 'dir'
-                      ? formatSize(pair.right.size)
-                      : ''}
+                    {pair.right && pair.right.type !== 'dir' ? formatSize(pair.right.size) : ''}
                   </div>
                   <div
                     className="awapi-diff-cell awapi-diff-cell--meta"
@@ -307,11 +292,7 @@ function TreeCellLead(props: TreeCellLeadProps): JSX.Element {
   const { indent, isDir, hasChildren, expanded, exists, onToggle } = props;
   return (
     <>
-      <span
-        className="awapi-diff-tree__spacer"
-        style={{ width: indent }}
-        aria-hidden="true"
-      />
+      <span className="awapi-diff-tree__spacer" style={{ width: indent }} aria-hidden="true" />
       {isDir && hasChildren ? (
         <button
           type="button"

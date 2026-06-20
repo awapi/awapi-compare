@@ -123,9 +123,7 @@ describe('workspaceStore', () => {
     });
     const id = useStore.getState().openCompareTab();
     useStore.getState().closeTab(id);
-    expect(onTabClosed).toHaveBeenCalledWith(
-      expect.objectContaining({ id, kind: 'compare' }),
-    );
+    expect(onTabClosed).toHaveBeenCalledWith(expect.objectContaining({ id, kind: 'compare' }));
   });
 
   it('does not invoke onTabClosed when refusing to close the last compare', () => {
@@ -177,9 +175,7 @@ describe('workspaceStore', () => {
     useStore.getState().openFileDiffTab('b.txt');
     useStore.getState().closeOtherTabs(a);
     expect(onTabClosed).toHaveBeenCalledTimes(1);
-    expect(onTabClosed).toHaveBeenCalledWith(
-      expect.objectContaining({ relPath: 'b.txt' }),
-    );
+    expect(onTabClosed).toHaveBeenCalledWith(expect.objectContaining({ relPath: 'b.txt' }));
   });
 
   it('closeAllTabs leaves a single compare tab and focuses it', () => {

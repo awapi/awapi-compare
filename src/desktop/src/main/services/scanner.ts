@@ -12,7 +12,9 @@ export interface ScannerFs {
     readdir(
       path: string,
       options: { withFileTypes: true },
-    ): Promise<Array<{ name: string; isFile(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean }>>;
+    ): Promise<
+      Array<{ name: string; isFile(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean }>
+    >;
     lstat(path: string): Promise<{
       size: number;
       mtimeMs: number;

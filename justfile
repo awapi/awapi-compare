@@ -94,6 +94,34 @@ shellext:
     cmake -S src/shell-ext-win -B src/shell-ext-win/build -A x64
     cmake --build src/shell-ext-win/build --config Release
 
+# Validate Windows shell extension registration for C0.5.
+# Optionally registers the built DLL before checks when mode="register".
+# Usage:
+#   just shellext-validate
+#   just shellext-validate register
+shellext-validate mode="check":
+    powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/validate-shellext.ps1 {{ if mode == "register" { "-RegisterDll" } else { "" } }}
+
+# Generate a C0.5 Windows validation report (automated checks + manual checklist).
+# Usage:
+#   just c0-5-validate
+#   just c0-5-validate register
+c0-5-validate mode="check":
+    powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/c05-windows-validation.ps1 {{ if mode == "register" { "-RegisterDll" } else { "" } }}
+
+# Bootstrap C0.5 Windows prerequisites and (optionally) run build + validation.
+# Usage:
+#   just c0-5-bootstrap
+#   just c0-5-bootstrap run
+#   just c0-5-bootstrap run-register
+c0-5-bootstrap mode="check":
+    powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/bootstrap-c05-windows.ps1 {{ if mode == "run" { "-AutoRun" } else if mode == "run-register" { "-AutoRun -RegisterDll" } else { "" } }}
+
+# Register local shell integration against the unpacked Windows app and built DLL.
+# Useful for manual Explorer validation on a dev machine.
+register-shellext-local:
+    powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/register-shellext-local.ps1
+
 # Package an installer for the current OS.
 # Usage: just package           (current OS)
 #        just package mac       (dmg+zip, x64+arm64)
@@ -104,11 +132,11 @@ shellext:
 # the root `electron-builder.yml`. `--projectDir` points it at the
 # packaged Electron app under `src/desktop/`.
 package target="": build notices
-    ./src/desktop/node_modules/.bin/electron-builder --config {{justfile_directory()}}/electron-builder.yml --projectDir src/desktop {{ if target == "" { "" } else if target == "mac" { "--mac" } else if target == "win" { "--win" } else if target == "linux" { "--linux" } else { "--" + target } }}
+    ./src/desktop/node_modules/.bin/electron-builder --config ../../electron-builder.yml --projectDir ./src/desktop {{ if target == "" { "" } else if target == "mac" { "--mac" } else if target == "win" { "--win" } else if target == "linux" { "--linux" } else { "--" + target } }}
 
 # Package for all platforms (CI only; requires cross-build tooling).
 package-all: build notices
-    ./src/desktop/node_modules/.bin/electron-builder --config {{justfile_directory()}}/electron-builder.yml --projectDir src/desktop -mwl
+    ./src/desktop/node_modules/.bin/electron-builder --config ../../electron-builder.yml --projectDir ./src/desktop -mwl
 
 # Regenerate THIRD_PARTY_NOTICES.md from all production deps.
 notices:

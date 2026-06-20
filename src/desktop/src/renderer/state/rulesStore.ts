@@ -48,9 +48,7 @@ export const DEFAULT_SAMPLE_PATHS: ReadonlyArray<string> = [
  * synchronous, all-`'kept'` result when the bridge is unavailable
  * (e.g. in tests / SSR), so the UI can render without the preload layer.
  */
-export async function previewVerdicts(
-  req: RulesTestRequest,
-): Promise<RuleVerdict[]> {
+export async function previewVerdicts(req: RulesTestRequest): Promise<RuleVerdict[]> {
   const api = (globalThis as { awapi?: typeof window.awapi }).awapi;
   if (!api?.rules?.test) {
     return req.samples.map(() => 'kept' as const);

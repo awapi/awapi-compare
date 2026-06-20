@@ -70,12 +70,8 @@ const PAIR_REQUIRED: ReadonlySet<RowAction> = new Set<RowAction>([
   'revealInFolder',
 ]);
 
-const NEEDS_LEFT: ReadonlySet<RowAction> = new Set<RowAction>([
-  'copyLeftToRight',
-]);
-const NEEDS_RIGHT: ReadonlySet<RowAction> = new Set<RowAction>([
-  'copyRightToLeft',
-]);
+const NEEDS_LEFT: ReadonlySet<RowAction> = new Set<RowAction>(['copyLeftToRight']);
+const NEEDS_RIGHT: ReadonlySet<RowAction> = new Set<RowAction>(['copyRightToLeft']);
 /** Both sides must be present for these actions. */
 const NEEDS_BOTH: ReadonlySet<RowAction> = new Set<RowAction>(['markSame']);
 

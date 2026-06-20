@@ -35,7 +35,7 @@
 The pairing rules, attribute checks (size, mtime tolerance, DST,
 timezone), and content-comparison strategy live in
 [`DiffOptions`](./diff-options.md). Include/exclude filters live in the
-[rules engine](./rules-syntax.md) and run *before* pairing.
+[rules engine](./rules-syntax.md) and run _before_ pairing.
 
 ## Launch arguments
 
@@ -52,8 +52,8 @@ user-facing contract.
 
 ## File-diff dispatch (Phase 7)
 
-Once the user opens a row in the compare tree, a dedicated *file-diff
-tab* mounts. The dispatch is content-driven, not extension-driven:
+Once the user opens a row in the compare tree, a dedicated _file-diff
+tab_ mounts. The dispatch is content-driven, not extension-driven:
 
 1. The renderer hook `useFileDiffData` calls `window.awapi.fs.stat`
    followed by `window.awapi.fs.read` for each side, gating reads on
@@ -98,5 +98,3 @@ coverage and no `electron` dependency.
 the code and an optional details bag through `registerIpcHandlers`'
 error wrapper so the renderer sees a structured `{ code, message }`
 on rejection.
-
-

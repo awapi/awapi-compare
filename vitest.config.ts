@@ -11,19 +11,14 @@ export default defineConfig({
       // Monaco's heavy ESM tree.
       {
         find: /^monaco-editor(\/.*)?(\?worker)?$/,
-        replacement: resolve(
-          __dirname,
-          'src/desktop/src/renderer/test-stubs/monaco-editor.ts',
-        ),
+        replacement: resolve(__dirname, 'src/desktop/src/renderer/test-stubs/monaco-editor.ts'),
       },
     ],
   },
   test: {
     globals: true,
     environment: 'node',
-    environmentMatchGlobs: [
-      ['src/desktop/src/renderer/**/*.test.{ts,tsx}', 'jsdom'],
-    ],
+    environmentMatchGlobs: [['src/desktop/src/renderer/**/*.test.{ts,tsx}', 'jsdom']],
     setupFiles: ['./src/desktop/src/renderer/test-setup.ts'],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', 'tests/e2e/**'],

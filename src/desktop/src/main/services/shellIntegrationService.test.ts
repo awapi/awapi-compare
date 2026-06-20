@@ -38,6 +38,13 @@ describe('ShellIntegrationService — platform guards', () => {
       expect(await svc.isRegistered()).toBe(false);
     }
   });
+
+  it('getRegistrationScope() returns disabled on non-win32 platforms', async () => {
+    const svc = new ShellIntegrationService('', makeExec());
+    if (process.platform !== 'win32') {
+      expect(await svc.getRegistrationScope()).toBe('disabled');
+    }
+  });
 });
 
 // ---- Windows exec calls (tested via injected exec) -------------------------
@@ -71,7 +78,7 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     expect(cmd).toBe('powershell.exe');
   });
 
-  it('isRegistered() queries the Directory registry key', async () => {
+  it('isRegistered() queries the registry key', async () => {
     if (process.platform !== 'win32') return;
 
     const exec = makeExec();
@@ -83,6 +90,36 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     expect(cmd).toBe('reg');
     expect(args.some((a) => a.includes('CommandStore'))).toBe(true);
     expect(args.some((a) => a.includes('AwapiCompare.CompareTwo'))).toBe(true);
+  });
+
+  it('getRegistrationScope() returns per-user when HKCU key exists', async () => {
+    if (process.platform !== 'win32') return;
+
+    const exec = makeExec();
+    const svc = new ShellIntegrationService('', exec);
+
+    await expect(svc.getRegistrationScope()).resolves.toBe('per-user');
+  });
+
+  it('getRegistrationScope() returns per-machine when HKCU is missing and HKLM exists', async () => {
+    if (process.platform !== 'win32') return;
+
+    const exec = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('hkcu missing'))
+      .mockResolvedValueOnce({ stdout: '', stderr: '' });
+    const svc = new ShellIntegrationService('', exec);
+
+    await expect(svc.getRegistrationScope()).resolves.toBe('per-machine');
+  });
+
+  it('getRegistrationScope() returns disabled when neither HKCU nor HKLM exists', async () => {
+    if (process.platform !== 'win32') return;
+
+    const exec = vi.fn().mockRejectedValue(new Error('missing'));
+    const svc = new ShellIntegrationService('', exec);
+
+    await expect(svc.getRegistrationScope()).resolves.toBe('disabled');
   });
 
   it('isRegistered() returns false when reg query fails', async () => {
@@ -118,6 +155,7 @@ describe('buildRegisterScript', () => {
   });
 
   it('registers an InprocServer32 CLSID for each verb (Apartment threading)', () => {
+    expect(script).toContain(SHELL_EXT_CLSIDS.root);
     expect(script).toContain(SHELL_EXT_CLSIDS.compareTwo);
     expect(script).toContain(SHELL_EXT_CLSIDS.selectLeft);
     expect(script).toContain(SHELL_EXT_CLSIDS.comparePending);
@@ -125,12 +163,25 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('Apartment');
   });
 
-  it('binds each CommandStore verb to its ExplorerCommandHandler CLSID', () => {
+  it('binds the root shell keys and each CommandStore verb to ExplorerCommandHandler CLSIDs', () => {
     expect(script).toContain('ExplorerCommandHandler');
+    expect(script).toContain(SHELL_EXT_CLSIDS.root);
   });
 
-  it('guards the native COM bindings behind Test-Path on the DLL', () => {
-    expect(script).toContain('if (Test-Path $dll)');
+  it('guards the native COM bindings behind a DLL load/arch check', () => {
+    expect(script).toContain('$dllLoadable = Test-AwapiDllLoadable $dll');
+    expect(script).toContain('if ($dllLoadable) {');
+  });
+
+  it('detects the handler DLL architecture against the host architecture', () => {
+    expect(script).toContain('function Test-AwapiDllLoadable($path) {');
+    // True native OS arch comes from the HKLM Session Manager value so emulated
+    // x64 PowerShell on arm64 is not mistaken for an AMD64 host.
+    expect(script).toContain('Session Manager\\Environment');
+    expect(script).toContain('PROCESSOR_ARCHITECTURE');
+    expect(script).toContain('PROCESSOR_ARCHITEW6432');
+    expect(script).toContain('0xAA64');
+    expect(script).toContain('0x8664');
   });
 
   it('targets both the file (*) and folder (Directory) registry keys', () => {
@@ -152,17 +203,55 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('--compare-pending');
   });
 
-  it('includes the --compare-two flag for multi-select compare', () => {
-    expect(script).toContain('--compare-two');
+  it('includes the --compare-add flag for the multi-select verb', () => {
+    expect(script).toContain('--compare-add');
   });
 
   it('uses %1 as the Explorer path placeholder', () => {
     expect(script).toContain('%1');
   });
 
-  it('sets MUIVerb and SubCommands for the submenu grouping', () => {
-    expect(script).toContain('MUIVerb');
-    expect(script).toContain('SubCommands');
+  it('binds the COM submenu (root + verbs) only when the DLL is loadable', () => {
+    expect(script).toContain('if ($dllLoadable) {');
+    expect(script).toContain(SHELL_EXT_CLSIDS.root);
+    expect(script).toContain(
+      "Set-ItemProperty -LiteralPath $t -Name 'ExplorerCommandHandler' -Value $clsidRoot",
+    );
+  });
+
+  it('falls back to a classic ExtendedSubCommandsKey submenu when the DLL cannot load', () => {
+    expect(script).toContain('} else {');
+    expect(script).toContain(
+      "Set-ItemProperty -LiteralPath $t -Name 'MUIVerb' -Value 'AwapiCompare'",
+    );
+    expect(script).toContain(
+      "Set-ItemProperty -LiteralPath $t -Name 'ExtendedSubCommandsKey' -Value 'AwapiCompare.Cascade'",
+    );
+    // The cascade class key backs the per-user submenu reliably.
+    expect(script).toContain("$cascade = 'HKCU:\\Software\\Classes\\AwapiCompare.Cascade'");
+    expect(script).toContain('01SelectLeft');
+    expect(script).toContain('03CompareTwo');
+  });
+
+  it('clears stale per-mode keys so re-registration can switch modes cleanly', () => {
+    expect(script).toContain("Remove-ItemProperty -LiteralPath $t -Name 'MUIVerb'");
+    expect(script).toContain("Remove-ItemProperty -LiteralPath $t -Name 'SubCommands'");
+    expect(script).toContain("Remove-ItemProperty -LiteralPath $t -Name 'ExtendedSubCommandsKey'");
+    expect(script).toContain("Remove-ItemProperty -LiteralPath $t -Name 'ExplorerCommandHandler'");
+    expect(script).toContain("Remove-Item -LiteralPath ($t + '\\command')");
+  });
+
+  it('uses LiteralPath for wildcard file-class writes', () => {
+    expect(script).toContain(
+      "Set-ItemProperty -LiteralPath $t -Name '(default)' -Value 'AwapiCompare'",
+    );
+    expect(script).toContain(
+      "Set-ItemProperty -LiteralPath $t -Name 'MultiSelectModel' -Value 'Player'",
+    );
+    expect(script).toContain("Set-ItemProperty -LiteralPath $t -Name 'Icon'");
+    expect(script).toContain(
+      "Set-ItemProperty -LiteralPath $t -Name 'ExplorerCommandHandler' -Value $clsidRoot",
+    );
   });
 
   it('sets MultiSelectModel to Player', () => {
@@ -194,6 +283,13 @@ describe('buildUnregisterScript', () => {
     expect(script).toContain('Classes\\Directory\\shell\\AwapiCompare');
   });
 
+  it('removes legacy pre-COM verb keys from file and folder shells', () => {
+    expect(script).toContain('Classes\\*\\shell\\AwapiCompareDoCompare');
+    expect(script).toContain('Classes\\*\\shell\\AwapiCompareSetLeft');
+    expect(script).toContain('Classes\\Directory\\shell\\AwapiCompareDoCompare');
+    expect(script).toContain('Classes\\Directory\\shell\\AwapiCompareSetLeft');
+  });
+
   it('removes CommandStore keys', () => {
     expect(script).toContain('CommandStore\\shell\\AwapiCompare.SelectLeft');
     expect(script).toContain('CommandStore\\shell\\AwapiCompare.ComparePending');
@@ -201,6 +297,7 @@ describe('buildUnregisterScript', () => {
   });
 
   it('removes the native CLSID and config keys', () => {
+    expect(script).toContain(`CLSID\\${SHELL_EXT_CLSIDS.root}`);
     expect(script).toContain(`CLSID\\${SHELL_EXT_CLSIDS.compareTwo}`);
     expect(script).toContain(`CLSID\\${SHELL_EXT_CLSIDS.selectLeft}`);
     expect(script).toContain(`CLSID\\${SHELL_EXT_CLSIDS.comparePending}`);
@@ -210,6 +307,18 @@ describe('buildUnregisterScript', () => {
   it('uses Remove-Item with -Recurse', () => {
     expect(script).toContain('Remove-Item');
     expect(script).toContain('-Recurse');
+  });
+
+  it('uses LiteralPath for wildcard file-class removals', () => {
+    expect(script).toContain(
+      "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompare'",
+    );
+    expect(script).toContain(
+      "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompareDoCompare'",
+    );
+    expect(script).toContain(
+      "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompareSetLeft'",
+    );
   });
 
   it('suppresses errors for missing keys', () => {

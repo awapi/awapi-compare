@@ -32,7 +32,9 @@ describe('scanner', () => {
     });
 
     const items = await collect(scan('/root', { fs }));
-    const rel = items.filter((i) => i.kind === 'entry').map((i) => i.kind === 'entry' && i.entry.relPath);
+    const rel = items
+      .filter((i) => i.kind === 'entry')
+      .map((i) => i.kind === 'entry' && i.entry.relPath);
 
     expect(rel).toEqual(['a.txt', 'sub', 'sub/b.txt', 'sub/c.bin']);
   });
@@ -66,7 +68,10 @@ describe('scanner', () => {
 
   it('does not follow symlinks by default; reports them as symlink entries', async () => {
     const fs = makeFs({ '/root/a.txt': 'x', '/other/c.txt': 'y' });
-    (fs as unknown as { symlinkSync: (t: string, p: string) => void }).symlinkSync('/other', '/root/link');
+    (fs as unknown as { symlinkSync: (t: string, p: string) => void }).symlinkSync(
+      '/other',
+      '/root/link',
+    );
 
     const items = await collect(scan('/root', { fs }));
     const symlinks = items.filter((i) => i.kind === 'entry' && i.entry.type === 'symlink');

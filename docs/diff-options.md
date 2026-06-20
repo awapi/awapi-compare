@@ -4,7 +4,7 @@
 entries on the two sides are paired up, (b) which file attributes count
 as "the same", and (c) how file content is compared. It is the engine
 layer underneath the [include/exclude rules](./rules-syntax.md) and is
-edited from the **Match** toolbar button (the tabbed *Diff options*
+edited from the **Match** toolbar button (the tabbed _Diff options_
 dialog).
 
 The shape lives in [`src/shared/src/types.ts`](../src/shared/src/types.ts)
@@ -16,18 +16,18 @@ and the defaults / helpers in
 ```ts
 interface DiffOptions {
   attributes: {
-    size: boolean;            // compare byte size
+    size: boolean; // compare byte size
     mtime: {
-      enabled: boolean;       // compare modification time at all
+      enabled: boolean; // compare modification time at all
       toleranceSeconds: number; // equality window (default 2)
-      ignoreDstShift: boolean;  // accept ±1 h skew
-      ignoreTimezone: boolean;  // fold whole-hour offsets to zero
+      ignoreDstShift: boolean; // accept ±1 h skew
+      ignoreTimezone: boolean; // fold whole-hour offsets to zero
     };
   };
   pairing: {
-    caseSensitive: boolean;     // false → 'Foo.txt' ↔ 'foo.txt'
-    ignoreExtension: boolean;   // true  → 'foo.ts' ↔ 'foo.js'
-    unicodeNormalize: boolean;  // true  → NFC-fold filenames before pairing
+    caseSensitive: boolean; // false → 'Foo.txt' ↔ 'foo.txt'
+    ignoreExtension: boolean; // true  → 'foo.ts' ↔ 'foo.js'
+    unicodeNormalize: boolean; // true  → NFC-fold filenames before pairing
   };
   content: {
     mode: 'off' | 'checksum' | 'binary' | 'rules';
@@ -41,19 +41,19 @@ interface DiffOptions {
 
 `DEFAULT_DIFF_OPTIONS` is conservative:
 
-| Group       | Field                       | Default      |
-| ----------- | --------------------------- | ------------ |
-| attributes  | `size`                      | `true`       |
-|             | `mtime.enabled`             | `true`       |
-|             | `mtime.toleranceSeconds`    | `2`          |
-|             | `mtime.ignoreDstShift`      | `false`      |
-|             | `mtime.ignoreTimezone`      | `false`      |
-| pairing     | `caseSensitive`             | `true`       |
-|             | `ignoreExtension`           | `false`      |
-|             | `unicodeNormalize`          | `true`       |
-| content     | `mode`                      | `'checksum'` |
-|             | `skipWhenAttributesMatch`   | `true`       |
-|             | `overrideAttributesResult`  | `true`       |
+| Group      | Field                      | Default      |
+| ---------- | -------------------------- | ------------ |
+| attributes | `size`                     | `true`       |
+|            | `mtime.enabled`            | `true`       |
+|            | `mtime.toleranceSeconds`   | `2`          |
+|            | `mtime.ignoreDstShift`     | `false`      |
+|            | `mtime.ignoreTimezone`     | `false`      |
+| pairing    | `caseSensitive`            | `true`       |
+|            | `ignoreExtension`          | `false`      |
+|            | `unicodeNormalize`         | `true`       |
+| content    | `mode`                     | `'checksum'` |
+|            | `skipWhenAttributesMatch`  | `true`       |
+|            | `overrideAttributesResult` | `true`       |
 
 `mergeDiffOptions(partial)` deep-merges a partial override on top of the
 defaults. `cloneDiffOptions(o)` returns a fully-independent mutable
@@ -63,19 +63,23 @@ coarse `CompareMode` preset (`'quick'` → `content.mode: 'off'`,
 
 ## Pairing semantics
 
-Two entries (one per side) are paired iff their *pairing keys* are
+Two entries (one per side) are paired iff their _pairing keys_ are
 equal. The key is computed by `pairingKey(relPath, options.pairing)`:
 
 1. Optional Unicode NFC normalisation.
 2. Optional case folding (the entire path is lower-cased).
 3. Optional extension stripping — only the trailing `.ext` of the
-   *basename* is removed; directory components keep their dots.
+   _basename_ is removed; directory components keep their dots.
    Dotfiles like `.env` are left intact.
 
 ```ts
-pairingKey('src/Foo.TS', { caseSensitive: false, ignoreExtension: true, unicodeNormalize: true })
+pairingKey('src/Foo.TS', { caseSensitive: false, ignoreExtension: true, unicodeNormalize: true });
 // → 'src/foo'
-pairingKey('archive.tar.gz', { caseSensitive: true, ignoreExtension: true, unicodeNormalize: true })
+pairingKey('archive.tar.gz', {
+  caseSensitive: true,
+  ignoreExtension: true,
+  unicodeNormalize: true,
+});
 // → 'archive.tar'
 ```
 

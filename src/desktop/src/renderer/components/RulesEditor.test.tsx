@@ -50,9 +50,7 @@ describe('<RulesEditor />', () => {
   it('renders an empty-state hint when there are no rules', async () => {
     renderEditor();
     await switchToAdvanced();
-    expect(
-      screen.getByText(/no rules\. everything will be included\./i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/no rules\. everything will be included\./i)).toBeInTheDocument();
   });
 
   it('lists existing rules with their pattern, kind, and target', async () => {
@@ -107,9 +105,7 @@ describe('<RulesEditor />', () => {
     const { onSave } = renderEditor({ rules });
     await switchToAdvanced();
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /move rule 2 up/i }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: /move rule 2 up/i }));
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     const saved = onSave.mock.calls[0]?.[0] as Rule[];
@@ -117,9 +113,7 @@ describe('<RulesEditor />', () => {
   });
 
   it('removes a rule via its delete button', async () => {
-    const rules: Rule[] = [
-      { id: 'r1', kind: 'exclude', pattern: 'gone', enabled: true },
-    ];
+    const rules: Rule[] = [{ id: 'r1', kind: 'exclude', pattern: 'gone', enabled: true }];
     const { onSave } = renderEditor({ rules });
     await switchToAdvanced();
     await userEvent.click(screen.getByRole('button', { name: /delete rule 1/i }));
@@ -136,13 +130,10 @@ describe('<RulesEditor />', () => {
 
   it('renders verdicts from the live preview evaluator', async () => {
     renderEditor({
-      rules: [
-        { id: 'r1', kind: 'exclude', pattern: 'README.md', enabled: true },
-      ],
+      rules: [{ id: 'r1', kind: 'exclude', pattern: 'README.md', enabled: true }],
     });
     const verdict = await screen.findByText(
-      (_text, el) =>
-        el?.tagName === 'CODE' && el.textContent === 'README.md',
+      (_text, el) => el?.tagName === 'CODE' && el.textContent === 'README.md',
     );
     const li = verdict.closest('li');
     expect(li).not.toBeNull();
@@ -151,9 +142,7 @@ describe('<RulesEditor />', () => {
 
   it('closes via the close (×) button', async () => {
     const { onClose } = renderEditor();
-    await userEvent.click(
-      screen.getByRole('button', { name: /close rules editor/i }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: /close rules editor/i }));
     expect(onClose).toHaveBeenCalled();
   });
 });
@@ -161,10 +150,7 @@ describe('<RulesEditor />', () => {
 describe('<RulesEditor /> — Simple tab (Phase 6.1)', () => {
   it('opens on the Simple tab by default for an empty rule set', () => {
     renderEditor();
-    expect(screen.getByRole('tab', { name: /simple/i })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
+    expect(screen.getByRole('tab', { name: /simple/i })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByLabelText(/include files/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/exclude files/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/include folders/i)).toBeInTheDocument();
@@ -236,19 +222,13 @@ describe('<RulesEditor /> — Simple tab (Phase 6.1)', () => {
     renderEditor({ rules });
     // Initial tab is Advanced because the rule set is not representable.
     await userEvent.click(screen.getByRole('tab', { name: /^simple$/i }));
-    expect(
-      screen.getByTestId('simple-unavailable-banner'),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('simple-unavailable-banner')).toBeInTheDocument();
     // The banner offers a one-click escape hatch back to Advanced.
     await userEvent.click(
-      within(screen.getByTestId('simple-unavailable-banner')).getByRole(
-        'button',
-        { name: /advanced/i },
-      ),
+      within(screen.getByTestId('simple-unavailable-banner')).getByRole('button', {
+        name: /advanced/i,
+      }),
     );
-    expect(screen.getByRole('tab', { name: /advanced/i })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
+    expect(screen.getByRole('tab', { name: /advanced/i })).toHaveAttribute('aria-selected', 'true');
   });
 });

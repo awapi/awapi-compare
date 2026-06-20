@@ -47,12 +47,12 @@ integrations, and scripted workflows.
 awapi-compare --type folder --left <leftPath> --right <rightPath> [--mode quick|thorough|binary]
 ```
 
-| Flag       | Required | Default  | Description                                                  |
-| ---------- | -------- | -------- | ------------------------------------------------------------ |
-| `--type`   | no       | `folder` | Compare type. Only `folder` is supported today.              |
-| `--left`   | yes\*    | —        | Left-hand path. Relative paths resolve against `cwd`.        |
-| `--right`  | yes\*    | —        | Right-hand path. Relative paths resolve against `cwd`.       |
-| `--mode`   | no       | `quick`  | Compare algorithm: `quick`, `thorough`, or `binary`.         |
+| Flag      | Required | Default  | Description                                            |
+| --------- | -------- | -------- | ------------------------------------------------------ |
+| `--type`  | no       | `folder` | Compare type. Only `folder` is supported today.        |
+| `--left`  | yes\*    | —        | Left-hand path. Relative paths resolve against `cwd`.  |
+| `--right` | yes\*    | —        | Right-hand path. Relative paths resolve against `cwd`. |
+| `--mode`  | no       | `quick`  | Compare algorithm: `quick`, `thorough`, or `binary`.   |
 
 \* Both `--left` and `--right` must be provided together, or neither.
 
@@ -99,12 +99,12 @@ The toolbar's **Rules** button opens the Rules editor. It has two tabs:
 - **Simple** (default) — four boxes, mirroring Beyond Compare's Name
   Filters dialog. One glob per line.
 
-  | Box              | What it does                                                       | Default |
-  | ---------------- | ------------------------------------------------------------------ | ------- |
-  | Include files    | Whitelists file basenames. Custom value flips files into whitelist. | `**`    |
-  | Exclude files    | Blacklists file basenames.                                          | (empty) |
-  | Include folders  | Whitelists folder names.                                            | `*`     |
-  | Exclude folders  | Drops the folder **and** everything beneath it.                     | (empty) |
+  | Box             | What it does                                                        | Default |
+  | --------------- | ------------------------------------------------------------------- | ------- |
+  | Include files   | Whitelists file basenames. Custom value flips files into whitelist. | `**`    |
+  | Exclude files   | Blacklists file basenames.                                          | (empty) |
+  | Include folders | Whitelists folder names.                                            | `*`     |
+  | Exclude folders | Drops the folder **and** everything beneath it.                     | (empty) |
 
   Defaults are intentionally permissive — typing nothing keeps every
   entry. Whitelist mode is per-scope: an "include files" filter never
@@ -122,7 +122,6 @@ Advanced tab.
 
 The live-preview pane on the right works from both tabs and uses the
 exact same matcher the scanner will use.
-
 
 ## File-diff view
 

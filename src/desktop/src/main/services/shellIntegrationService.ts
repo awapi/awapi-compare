@@ -13,6 +13,12 @@ const execFileAsync = promisify(execFile);
 
 type ExecFn = (cmd: string, args: string[]) => Promise<unknown>;
 
+export type ShellRegistrationScope = 'disabled' | 'per-user' | 'per-machine';
+export interface ShellRegistrationStatus {
+  enabled: boolean;
+  scope: ShellRegistrationScope;
+}
+
 /**
  * Manages Windows Explorer context menu registration for AwapiCompare
  * and the pending-left-file workflow used by the two-step
@@ -99,18 +105,42 @@ export class ShellIntegrationService {
    * Always `false` on non-Windows platforms.
    */
   async isRegistered(): Promise<boolean> {
+    const status = await this.getRegistrationStatus();
+    return status.enabled;
+  }
+
+  /**
+   * Returns registration scope for Explorer context-menu entries.
+   *
+   * `per-user` checks HKCU, `per-machine` checks HKLM, otherwise `disabled`.
+   */
+  async getRegistrationScope(): Promise<ShellRegistrationScope> {
     if (process.platform === 'win32') {
-      try {
-        await this.execFn('reg', [
-          'query',
+      if (
+        await this.keyExists(
           'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.CompareTwo',
-        ]);
-        return true;
-      } catch {
-        return false;
+        )
+      ) {
+        return 'per-user';
+      }
+      if (
+        await this.keyExists(
+          'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.CompareTwo',
+        )
+      ) {
+        return 'per-machine';
       }
     }
-    return false;
+    return 'disabled';
+  }
+
+  /** Returns enabled/disabled plus scope in one call for IPC consumers. */
+  async getRegistrationStatus(): Promise<ShellRegistrationStatus> {
+    const scope = await this.getRegistrationScope();
+    return {
+      enabled: scope !== 'disabled',
+      scope,
+    };
   }
 
   // ---- PowerShell helpers ------------------------------------------------
@@ -125,6 +155,15 @@ export class ShellIntegrationService {
       script,
     ]);
   }
+
+  private async keyExists(path: string): Promise<boolean> {
+    try {
+      await this.execFn('reg', ['query', path]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +177,7 @@ export class ShellIntegrationService {
  * them via `ExplorerCommandHandler`.
  */
 export const SHELL_EXT_CLSIDS = {
+  root: '{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A10}',
   compareTwo: '{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A11}',
   selectLeft: '{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A12}',
   comparePending: '{7E2C9A41-3B5D-4C8E-9F1A-2D6B8C4E0A13}',
@@ -184,10 +224,42 @@ export function buildRegisterScript(
     "$idSetLeft = 'AwapiCompare.SelectLeft'",
     "$idComparePending = 'AwapiCompare.ComparePending'",
     "$idCompareTwo = 'AwapiCompare.CompareTwo'",
+    // Dedicated class key whose shell\ subkeys back the classic ExtendedSubCommandsKey submenu.
+    "$cascade = 'HKCU:\\Software\\Classes\\AwapiCompare.Cascade'",
+    "$clsidRoot = '" + SHELL_EXT_CLSIDS.root + "'",
     "$clsidCompareTwo = '" + SHELL_EXT_CLSIDS.compareTwo + "'",
     "$clsidSelectLeft = '" + SHELL_EXT_CLSIDS.selectLeft + "'",
     "$clsidComparePending = '" + SHELL_EXT_CLSIDS.comparePending + "'",
-    '$subCommands = "$idSetLeft;$idComparePending;$idCompareTwo"',
+    // An in-process COM shell handler must match Explorer's architecture. Read
+    // the DLL's PE machine field and compare it to the host arch so the COM
+    // submenu is only bound when it can actually load (e.g. an x64 DLL cannot
+    // load into an arm64 Explorer). Otherwise we fall back to the classic
+    // ExtendedSubCommandsKey submenu below, which needs no DLL at all.
+    'function Test-AwapiDllLoadable($path) {',
+    '  if (-not (Test-Path -LiteralPath $path)) { return $false }',
+    '  try {',
+    '    $fs = [System.IO.File]::OpenRead($path)',
+    '    try {',
+    '      $br = New-Object System.IO.BinaryReader($fs)',
+    '      $fs.Position = 0x3C',
+    '      $peOff = $br.ReadInt32()',
+    '      $fs.Position = $peOff + 4',
+    '      $machine = $br.ReadUInt16()',
+    '    } finally { $fs.Close() }',
+    '  } catch { return $false }',
+    // Explorer always runs native, so compare the DLL against the real OS arch.
+    // The HKLM Session Manager value reports the true machine arch regardless of
+    // x64 emulation (where $env:PROCESSOR_ARCHITECTURE would read AMD64 on arm64).
+    "    try { $hostArch = (Get-ItemProperty -LiteralPath 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment' -Name PROCESSOR_ARCHITECTURE -ErrorAction Stop).PROCESSOR_ARCHITECTURE } catch { $hostArch = $null }",
+    '  if (-not $hostArch) { $hostArch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE } }',
+    '  switch ($hostArch) {',
+    "    'AMD64' { return ($machine -eq 0x8664) }",
+    "    'ARM64' { return ($machine -eq 0xAA64) }",
+    "    'x86' { return ($machine -eq 0x14C) }",
+    '    default { return $false }',
+    '  }',
+    '}',
+    '$dllLoadable = Test-AwapiDllLoadable $dll',
     // Config the native IExplorerCommand handler reads at runtime.
     "$cfg = 'HKCU:\\Software\\Awapi\\AwapiCompare'",
     'New-Item -Path $cfg -Force | Out-Null',
@@ -200,11 +272,18 @@ export function buildRegisterScript(
       ')',
     'foreach ($t in $targets) {',
     '  New-Item -Path $t -Force | Out-Null',
-    "  Set-ItemProperty -Path $t -Name '(default)' -Value 'AwapiCompare'",
-    "  Set-ItemProperty -Path $t -Name 'MUIVerb' -Value 'AwapiCompare'",
-    "  Set-ItemProperty -Path $t -Name 'SubCommands' -Value $subCommands",
-    "  Set-ItemProperty -Path $t -Name 'MultiSelectModel' -Value 'Player'",
-    "  Set-ItemProperty -Path $t -Name 'Icon' -Value ('\"' + $exe + '\",0')",
+    // Wipe every mode-specific value first so re-registration can switch
+    // cleanly between the COM submenu and the classic submenu. A stale root
+    // 'command' subkey is what made Explorer fall back to the "no app
+    // associated" file-open error when the COM handler could not load.
+    "  Remove-ItemProperty -LiteralPath $t -Name 'MUIVerb' -ErrorAction SilentlyContinue",
+    "  Remove-ItemProperty -LiteralPath $t -Name 'SubCommands' -ErrorAction SilentlyContinue",
+    "  Remove-ItemProperty -LiteralPath $t -Name 'ExtendedSubCommandsKey' -ErrorAction SilentlyContinue",
+    "  Remove-ItemProperty -LiteralPath $t -Name 'ExplorerCommandHandler' -ErrorAction SilentlyContinue",
+    "  Remove-Item -LiteralPath ($t + '\\command') -Recurse -Force -ErrorAction SilentlyContinue",
+    "  Set-ItemProperty -LiteralPath $t -Name '(default)' -Value 'AwapiCompare'",
+    "  Set-ItemProperty -LiteralPath $t -Name 'MultiSelectModel' -Value 'Player'",
+    "  Set-ItemProperty -LiteralPath $t -Name 'Icon' -Value ('\"' + $exe + '\",0')",
     '}',
     '$kSetLeft = "$cmdStore\\$idSetLeft"',
     'New-Item -Path $kSetLeft -Force | Out-Null',
@@ -225,19 +304,53 @@ export function buildRegisterScript(
     "Set-ItemProperty -Path $kCompareTwo -Name 'MultiSelectModel' -Value 'Player'",
     'New-Item -Path "$kCompareTwo\\command" -Force | Out-Null',
     "Set-ItemProperty -Path \"$kCompareTwo\\command\" -Name '(default)' -Value ('\"' + $exe + '\" --compare-two %V')",
-    // Native IExplorerCommand bindings — only when the handler DLL exists so
-    // Explorer is never pointed at a CLSID it cannot instantiate.
-    'if (Test-Path $dll) {',
-    '  $clsids = @($clsidCompareTwo, $clsidSelectLeft, $clsidComparePending)',
+    // Native IExplorerCommand bindings — only when the handler DLL exists AND
+    // matches Explorer's architecture (an in-process COM DLL cannot load into a
+    // mismatched-arch Explorer, e.g. an x64 DLL on an arm64 host). Otherwise we
+    // fall back to the classic MUIVerb/SubCommands submenu, which launches the
+    // app purely via the per-verb 'command' subkeys and works on any arch.
+    'if ($dllLoadable) {',
+    '  $clsids = @($clsidRoot, $clsidCompareTwo, $clsidSelectLeft, $clsidComparePending)',
     '  foreach ($c in $clsids) {',
     '    $ip = "HKCU:\\Software\\Classes\\CLSID\\$c\\InprocServer32"',
     '    New-Item -Path $ip -Force | Out-Null',
     "    Set-ItemProperty -Path $ip -Name '(default)' -Value $dll",
     "    Set-ItemProperty -Path $ip -Name 'ThreadingModel' -Value 'Apartment'",
     '  }',
+    '  foreach ($t in $targets) {',
+    "    Set-ItemProperty -LiteralPath $t -Name 'ExplorerCommandHandler' -Value $clsidRoot",
+    '  }',
     "  Set-ItemProperty -Path $kCompareTwo -Name 'ExplorerCommandHandler' -Value $clsidCompareTwo",
     "  Set-ItemProperty -Path $kSetLeft -Name 'ExplorerCommandHandler' -Value $clsidSelectLeft",
     "  Set-ItemProperty -Path $kComparePending -Name 'ExplorerCommandHandler' -Value $clsidComparePending",
+    // Drop any stale classic cascade so the COM submenu is the only active path.
+    '  Remove-Item -LiteralPath $cascade -Recurse -Force -ErrorAction SilentlyContinue',
+    '} else {',
+    // Classic, DLL-free submenu via ExtendedSubCommandsKey. The SubCommands +
+    // CommandStore mechanism is unreliable for per-user (HKCU) registration —
+    // Explorer frequently renders an EMPTY submenu. ExtendedSubCommandsKey points
+    // at a dedicated class key whose shell\ subkeys are the verbs; this populates
+    // reliably per-user. Each verb launches the app purely via its 'command'
+    // subkey, so it works on any architecture.
+    "  $cascadeShell = $cascade + '\\shell'",
+    '  Remove-Item -LiteralPath $cascade -Recurse -Force -ErrorAction SilentlyContinue',
+    "  New-Item -Path ($cascadeShell + '\\01SelectLeft\\command') -Force | Out-Null",
+    "  Set-ItemProperty -Path ($cascadeShell + '\\01SelectLeft') -Name '(default)' -Value 'Select as Left Side'",
+    "  Set-ItemProperty -Path ($cascadeShell + '\\01SelectLeft\\command') -Name '(default)' -Value ('\"' + $exe + '\" --set-left \"%1\"')",
+    "  New-Item -Path ($cascadeShell + '\\02ComparePending\\command') -Force | Out-Null",
+    "  Set-ItemProperty -Path ($cascadeShell + '\\02ComparePending') -Name '(default)' -Value 'Compare to Pending Left'",
+    "  Set-ItemProperty -Path ($cascadeShell + '\\02ComparePending\\command') -Name '(default)' -Value ('\"' + $exe + '\" --compare-pending \"%1\"')",
+    "  New-Item -Path ($cascadeShell + '\\03CompareTwo\\command') -Force | Out-Null",
+    "  Set-ItemProperty -Path ($cascadeShell + '\\03CompareTwo') -Name '(default)' -Value 'Compare with AwapiCompare'",
+    "  Set-ItemProperty -Path ($cascadeShell + '\\03CompareTwo') -Name 'MultiSelectModel' -Value 'Player'",
+    "  Set-ItemProperty -Path ($cascadeShell + '\\03CompareTwo\\command') -Name '(default)' -Value ('\"' + $exe + '\" --compare-add \"%1\"')",
+    '  foreach ($t in $targets) {',
+    "    Set-ItemProperty -LiteralPath $t -Name 'MUIVerb' -Value 'AwapiCompare'",
+    "    Set-ItemProperty -LiteralPath $t -Name 'ExtendedSubCommandsKey' -Value 'AwapiCompare.Cascade'",
+    '  }',
+    "  Remove-ItemProperty -Path $kCompareTwo -Name 'ExplorerCommandHandler' -ErrorAction SilentlyContinue",
+    "  Remove-ItemProperty -Path $kSetLeft -Name 'ExplorerCommandHandler' -ErrorAction SilentlyContinue",
+    "  Remove-ItemProperty -Path $kComparePending -Name 'ExplorerCommandHandler' -ErrorAction SilentlyContinue",
     '}',
   ].join('\n');
 }
@@ -245,11 +358,19 @@ export function buildRegisterScript(
 /** Builds the PowerShell script that removes all registered context menu entries. */
 export function buildUnregisterScript(): string {
   return [
-    "Remove-Item -Path 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompare' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompare' -Recurse -Force -ErrorAction SilentlyContinue",
     "Remove-Item -Path 'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompare' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompareDoCompare' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\*\\shell\\AwapiCompareSetLeft' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompareDoCompare' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'HKCU:\\Software\\Classes\\Directory\\shell\\AwapiCompareSetLeft' -Recurse -Force -ErrorAction SilentlyContinue",
     "Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.SelectLeft' -Recurse -Force -ErrorAction SilentlyContinue",
     "Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.ComparePending' -Recurse -Force -ErrorAction SilentlyContinue",
     "Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell\\AwapiCompare.CompareTwo' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\AwapiCompare.Cascade' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\" +
+      SHELL_EXT_CLSIDS.root +
+      "' -Recurse -Force -ErrorAction SilentlyContinue",
     "Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\" +
       SHELL_EXT_CLSIDS.compareTwo +
       "' -Recurse -Force -ErrorAction SilentlyContinue",

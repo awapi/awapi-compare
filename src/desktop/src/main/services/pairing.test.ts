@@ -13,7 +13,7 @@ describe('pairingKey — defaults', () => {
 
   it('NFC-normalises decomposed Unicode under defaults', () => {
     const decomposed = 'cafe\u0301.txt'; // café (NFD)
-    const composed = 'caf\u00e9.txt';     // café (NFC)
+    const composed = 'caf\u00e9.txt'; // café (NFC)
     expect(pairingKey(decomposed, DEFAULT_PAIRING)).toBe(composed);
     expect(pairingKey(composed, DEFAULT_PAIRING)).toBe(composed);
   });

@@ -48,9 +48,7 @@ function defaultStorage(): Pick<Storage, 'getItem' | 'setItem'> | null {
  * Read the persisted preferences. Pure with respect to the injected
  * storage so tests can drive it without touching the global.
  */
-export function loadInitialPreferences(
-  opts: CreatePreferencesStoreOptions = {},
-): Preferences {
+export function loadInitialPreferences(opts: CreatePreferencesStoreOptions = {}): Preferences {
   const storage = opts.storage === undefined ? defaultStorage() : opts.storage;
   const merged: Preferences = { ...DEFAULT_PREFERENCES, ...(opts.initial ?? {}) };
   if (!storage) return merged;

@@ -25,8 +25,7 @@ export function RenameDialog(props: RenameDialogProps): JSX.Element {
   const [applyToOther, setApplyToOther] = useState(false);
 
   const trimmed = value.trim();
-  const invalid =
-    trimmed.length === 0 || INVALID.test(trimmed) || trimmed === originalName;
+  const invalid = trimmed.length === 0 || INVALID.test(trimmed) || trimmed === originalName;
 
   return (
     <div
@@ -59,9 +58,7 @@ export function RenameDialog(props: RenameDialogProps): JSX.Element {
           </button>
         </header>
         <div className="awapi-modal__body">
-          <label
-            style={{ display: 'flex', flexDirection: 'column', gap: '0.4em' }}
-          >
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4em' }}>
             <span>New name</span>
             <input
               type="text"
@@ -97,11 +94,7 @@ export function RenameDialog(props: RenameDialogProps): JSX.Element {
           <button type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="awapi-button--primary"
-            disabled={invalid}
-          >
+          <button type="submit" className="awapi-button--primary" disabled={invalid}>
             Rename
           </button>
         </footer>

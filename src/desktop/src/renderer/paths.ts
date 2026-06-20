@@ -12,7 +12,10 @@ export function joinPath(root: string, relPath: string): string {
   if (!relPath) return root;
   const sep = root.includes('\\') && !root.includes('/') ? '\\' : '/';
   const trimmedRoot = root.replace(/[\\/]+$/, '');
-  const trimmedRel = relPath.replace(/^[\\/]+/, '').split(/[\\/]/).join(sep);
+  const trimmedRel = relPath
+    .replace(/^[\\/]+/, '')
+    .split(/[\\/]/)
+    .join(sep);
   return `${trimmedRoot}${sep}${trimmedRel}`;
 }
 

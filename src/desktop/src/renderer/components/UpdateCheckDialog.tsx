@@ -33,12 +33,7 @@ export function UpdateCheckDialog(props: UpdateCheckDialogProps): JSX.Element {
       >
         <header className="awapi-modal__header">
           <h2>Check for Updates</h2>
-          <button
-            type="button"
-            className="awapi-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
+          <button type="button" className="awapi-modal__close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>

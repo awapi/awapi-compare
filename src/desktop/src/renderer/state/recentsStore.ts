@@ -80,11 +80,7 @@ function sanitize(list: unknown): string[] {
  * a new unified bucket so data migrates gracefully on first launch after
  * the upgrade.
  */
-function mergeOldBuckets(
-  direct: unknown,
-  left: unknown,
-  right: unknown,
-): string[] {
+function mergeOldBuckets(direct: unknown, left: unknown, right: unknown): string[] {
   const fromDirect = sanitize(direct);
   if (fromDirect.length > 0) return fromDirect;
   // Interleave left and right preserving approximate recency.
@@ -106,9 +102,7 @@ function mergeOldBuckets(
   return out;
 }
 
-export function loadInitialRecents(
-  opts: CreateRecentsStoreOptions = {},
-): RecentsMap {
+export function loadInitialRecents(opts: CreateRecentsStoreOptions = {}): RecentsMap {
   const merged: RecentsMap = {
     folder: [...(opts.initial?.['folder'] ?? [])],
     file: [...(opts.initial?.['file'] ?? [])],
@@ -122,16 +116,8 @@ export function loadInitialRecents(
   if (!raw) return merged;
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const folder = mergeOldBuckets(
-      parsed['folder'],
-      parsed['folder:left'],
-      parsed['folder:right'],
-    );
-    const file = mergeOldBuckets(
-      parsed['file'],
-      parsed['file:left'],
-      parsed['file:right'],
-    );
+    const folder = mergeOldBuckets(parsed['folder'], parsed['folder:left'], parsed['folder:right']);
+    const file = mergeOldBuckets(parsed['file'], parsed['file:left'], parsed['file:right']);
     if (folder.length > 0) merged['folder'] = folder;
     if (file.length > 0) merged['file'] = file;
   } catch {
@@ -178,16 +164,8 @@ export function createRecentsStore(opts: CreateRecentsStoreOptions = {}) {
     load: (data) => {
       set({
         recents: {
-          folder: mergeOldBuckets(
-            data['folder'],
-            data['folder:left'],
-            data['folder:right'],
-          ),
-          file: mergeOldBuckets(
-            data['file'],
-            data['file:left'],
-            data['file:right'],
-          ),
+          folder: mergeOldBuckets(data['folder'], data['folder:left'], data['folder:right']),
+          file: mergeOldBuckets(data['file'], data['file:left'], data['file:right']),
         },
       });
     },

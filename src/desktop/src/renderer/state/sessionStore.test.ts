@@ -6,11 +6,7 @@ import {
   type ComparedPair,
   type Rule,
 } from '@awapi/shared';
-import {
-  createEmptySnapshot,
-  createSessionStore,
-  type SessionSnapshot,
-} from './sessionStore.js';
+import { createEmptySnapshot, createSessionStore, type SessionSnapshot } from './sessionStore.js';
 
 const FIXED_NOW = 1_700_000_000_000;
 
@@ -82,9 +78,7 @@ describe('sessionStore', () => {
     const pairs: ComparedPair[] = [{ relPath: 'a', status: 'identical' }];
     store.getState().setPairs(pairs);
 
-    const rules: Rule[] = [
-      { id: 'r1', kind: 'exclude', pattern: '*.log', enabled: true },
-    ];
+    const rules: Rule[] = [{ id: 'r1', kind: 'exclude', pattern: '*.log', enabled: true }];
     store.getState().setRules(rules);
     store.getState().setName('My session');
 
@@ -95,9 +89,7 @@ describe('sessionStore', () => {
 
   it('produces a serializable snapshot via toSnapshot()', () => {
     const store = makeStore({ leftRoot: '/l', rightRoot: '/r' });
-    store.getState().setRules([
-      { id: 'r1', kind: 'exclude', pattern: '*.tmp', enabled: true },
-    ]);
+    store.getState().setRules([{ id: 'r1', kind: 'exclude', pattern: '*.tmp', enabled: true }]);
     store.getState().setPairs([{ relPath: 'x', status: 'different' }]);
 
     const snap = store.getState().toSnapshot();
@@ -191,7 +183,8 @@ describe('sessionStore', () => {
     ]);
   });
 
-  it('markSame and excludePath are no-ops when the path is unknown', () => {    const store = makeStore();
+  it('markSame and excludePath are no-ops when the path is unknown', () => {
+    const store = makeStore();
     const before: ComparedPair[] = [{ relPath: 'a', status: 'different' }];
     store.getState().setPairs(before);
     store.getState().markSame('zzz');

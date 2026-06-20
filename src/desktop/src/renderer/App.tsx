@@ -50,9 +50,7 @@ export function App(): JSX.Element {
   const [saveSessionOpen, setSaveSessionOpen] = useState(false);
   const [saveSessionInitialName, setSaveSessionInitialName] = useState('');
 
-  const confirmOverwriteOnCopy = usePreferencesStore(
-    (s) => s.confirmOverwriteOnCopy,
-  );
+  const confirmOverwriteOnCopy = usePreferencesStore((s) => s.confirmOverwriteOnCopy);
   const setPreferences = usePreferencesStore((s) => s.setPreferences);
 
   // Fetch platform once on mount.
@@ -105,9 +103,7 @@ export function App(): JSX.Element {
     let cancelled = false;
     void (async () => {
       if (!window.awapi) return;
-      const firstCompareTab = useWorkspaceStore
-        .getState()
-        .tabs.find((t) => t.kind === 'compare');
+      const firstCompareTab = useWorkspaceStore.getState().tabs.find((t) => t.kind === 'compare');
       if (!firstCompareTab) return;
       const session = getSessionStore(firstCompareTab.id).getState();
       // Don't clobber an in-progress edit (e.g. HMR re-mount).
@@ -125,10 +121,41 @@ export function App(): JSX.Element {
       } catch (err) {
         console.warn('[awapi] failed to read initial compare:', err);
       }
-
     })();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Open a fresh compare tab whenever the main process pushes a compare
+  // session (e.g. an Explorer multi-select "Compare with AwapiCompare"
+  // funnelled through the single-instance lock into the running app).
+  // `notifyReady` tells main we've subscribed so it can flush any session
+  // that resolved before this effect ran.
+  useEffect(() => {
+    if (!window.awapi?.app?.onOpenCompare) return;
+    const off = window.awapi.app.onOpenCompare((incoming) => {
+      const ws = useWorkspaceStore.getState();
+      // Reuse the blank first compare tab (e.g. the empty tab from a fresh
+      // launch) so the comparison lands there; otherwise open a NEW tab so
+      // existing work isn't clobbered (matches "new tab if already open").
+      const firstCompare = ws.tabs.find((t) => t.kind === 'compare');
+      let targetId: string;
+      if (firstCompare) {
+        const existing = getSessionStore(firstCompare.id).getState();
+        targetId = existing.leftRoot || existing.rightRoot ? ws.openCompareTab() : firstCompare.id;
+      } else {
+        targetId = ws.openCompareTab();
+      }
+      const session = getSessionStore(targetId).getState();
+      session.setLeftRoot(incoming.leftRoot);
+      if (incoming.rightRoot) session.setRightRoot(incoming.rightRoot);
+      session.setMode(incoming.mode);
+      useWorkspaceStore.getState().setActiveTab(targetId);
+    });
+    window.awapi.app.notifyReady?.();
+    return () => {
+      off?.();
     };
   }, []);
 
@@ -147,7 +174,7 @@ export function App(): JSX.Element {
   const activeCompareId =
     activeTab?.kind === 'compare'
       ? activeTab.id
-      : tabs.find((t) => t.kind === 'compare')?.id ?? null;
+      : (tabs.find((t) => t.kind === 'compare')?.id ?? null);
 
   const getActiveSessionRules = (): Rule[] => {
     if (!activeCompareId) return [];
@@ -199,9 +226,7 @@ export function App(): JSX.Element {
   // Walk a list of candidate tab ids through the dirty-prompt
   // pipeline; returns the ids the user confirmed (or that were
   // already clean). Stops on the first cancel.
-  const collectCloseableIds = async (
-    candidates: readonly string[],
-  ): Promise<string[]> => {
+  const collectCloseableIds = async (candidates: readonly string[]): Promise<string[]> => {
     const ok: string[] = [];
     for (const id of candidates) {
       const tab = useWorkspaceStore.getState().tabs.find((t) => t.id === id);
@@ -230,9 +255,7 @@ export function App(): JSX.Element {
 
   const tryCloseAllTabs = (): void => {
     void (async () => {
-      const candidates = useWorkspaceStore
-        .getState()
-        .tabs.map((t) => t.id);
+      const candidates = useWorkspaceStore.getState().tabs.map((t) => t.id);
       const confirmed = await collectCloseableIds(candidates);
       const closeOne = useWorkspaceStore.getState().closeTab;
       // closeTab refuses to close the last compare tab; closing the
@@ -251,9 +274,7 @@ export function App(): JSX.Element {
     if (!window.awapi?.app?.onCloseRequest) return;
     return window.awapi.app.onCloseRequest(() => {
       void (async () => {
-        const dirtyTabs = useWorkspaceStore
-          .getState()
-          .tabs.filter((t) => t.dirty === true);
+        const dirtyTabs = useWorkspaceStore.getState().tabs.filter((t) => t.dirty === true);
         for (const tab of dirtyTabs) {
           // Focus the dirty tab so the user knows which file the
           // prompt is about.

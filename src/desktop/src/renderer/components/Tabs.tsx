@@ -71,9 +71,7 @@ export function Tabs({
             aria-selected={isActive}
             data-tab-id={tab.id}
             data-dirty={tab.dirty ? 'true' : undefined}
-            className={
-              isActive ? 'awapi-tab awapi-tab--active' : 'awapi-tab'
-            }
+            className={isActive ? 'awapi-tab awapi-tab--active' : 'awapi-tab'}
             onClick={() => onSelect(tab.id)}
             onKeyDown={handleKeyDown}
             onContextMenu={handleContextMenu}
@@ -173,9 +171,7 @@ function TabContextMenu({
 
   const target = tabs.find((t) => t.id === tabId);
   const targetClosable = target ? isClosable(target, tabs) : false;
-  const otherClosableCount = tabs.filter(
-    (t) => t.id !== tabId && isClosable(t, tabs),
-  ).length;
+  const otherClosableCount = tabs.filter((t) => t.id !== tabId && isClosable(t, tabs)).length;
   const anyClosable = tabs.some((t) => isClosable(t, tabs));
 
   const items: ReadonlyArray<{

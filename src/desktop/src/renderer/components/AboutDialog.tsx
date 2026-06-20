@@ -40,12 +40,7 @@ export function AboutDialog(props: AboutDialogProps): JSX.Element {
       >
         <header className="awapi-modal__header">
           <h2>About {info?.name ?? 'AwapiCompare'}</h2>
-          <button
-            type="button"
-            className="awapi-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
+          <button type="button" className="awapi-modal__close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>

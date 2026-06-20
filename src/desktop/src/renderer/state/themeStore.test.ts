@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createThemeStore,
-  loadInitialTheme,
-  THEME_STORAGE_KEY,
-} from './themeStore.js';
+import { createThemeStore, loadInitialTheme, THEME_STORAGE_KEY } from './themeStore.js';
 
 function memStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -46,18 +42,14 @@ describe('loadInitialTheme', () => {
   });
 
   it('falls back to OS preference when nothing persisted', () => {
-    expect(
-      loadInitialTheme({ storage: memStorage(), systemPrefersDark: () => true }),
-    ).toBe('dark');
-    expect(
-      loadInitialTheme({ storage: memStorage(), systemPrefersDark: () => false }),
-    ).toBe('light');
+    expect(loadInitialTheme({ storage: memStorage(), systemPrefersDark: () => true })).toBe('dark');
+    expect(loadInitialTheme({ storage: memStorage(), systemPrefersDark: () => false })).toBe(
+      'light',
+    );
   });
 
   it('handles missing storage by using OS preference', () => {
-    expect(loadInitialTheme({ storage: null, systemPrefersDark: () => true })).toBe(
-      'dark',
-    );
+    expect(loadInitialTheme({ storage: null, systemPrefersDark: () => true })).toBe('dark');
   });
 });
 

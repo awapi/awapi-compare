@@ -8,10 +8,7 @@ export type DropSide = 'left' | 'right';
  * of a drop target, decide whether the drop targets the left or
  * right half. Exported for unit testing.
  */
-export function sideFromPointer(
-  clientX: number,
-  rect: { left: number; width: number },
-): DropSide {
+export function sideFromPointer(clientX: number, rect: { left: number; width: number }): DropSide {
   if (rect.width <= 0) return 'left';
   return clientX - rect.left < rect.width / 2 ? 'left' : 'right';
 }
@@ -24,8 +21,7 @@ export function sideFromPointer(
  */
 export function extractDroppedPaths(dt: DataTransfer | null): string[] {
   if (!dt) return [];
-  const api = (globalThis as { awapi?: { app?: { getPathForFile?(f: File): string } } })
-    .awapi;
+  const api = (globalThis as { awapi?: { app?: { getPathForFile?(f: File): string } } }).awapi;
   const getPath = api?.app?.getPathForFile;
   if (!getPath) return [];
   const out: string[] = [];

@@ -10,9 +10,7 @@ labels: [enhancement]
 
 ## Proposed solution
 
-
 ## Alternatives considered
-
 
 ## Additional context
 

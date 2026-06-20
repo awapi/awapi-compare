@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  createRulesStore,
-  DEFAULT_SAMPLE_PATHS,
-  previewVerdicts,
-} from './rulesStore.js';
+import { createRulesStore, DEFAULT_SAMPLE_PATHS, previewVerdicts } from './rulesStore.js';
 
 describe('rulesStore', () => {
   it('seeds with empty rules and not-loaded state', () => {
@@ -15,9 +11,7 @@ describe('rulesStore', () => {
 
   it('honours initial rules and supports replace + markLoaded', () => {
     const store = createRulesStore({
-      initial: [
-        { id: 'r1', kind: 'exclude', pattern: '*.log', enabled: true },
-      ],
+      initial: [{ id: 'r1', kind: 'exclude', pattern: '*.log', enabled: true }],
     });
     expect(store.getState().rules).toHaveLength(1);
     store.getState().setRules([]);

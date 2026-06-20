@@ -5,7 +5,9 @@ import { BrowserWindow, Menu, app, ipcMain } from 'electron';
 
 import { IpcChannel, type InitialCompareSession } from '@awapi/shared';
 
-import { parseDesktopArgs } from './cliArgs.js';
+import { parseDesktopArgs, type DesktopArgs } from './cliArgs.js';
+import { MultiSelectCollector } from './multiSelectCollector.js';
+import { resolveShellCompareType } from './shellCompareSession.js';
 import {
   attachProgressBridge,
   createServices,
@@ -24,6 +26,29 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  * Save / Don't Save) goes through unimpeded.
  */
 const closeApprovedWindows = new WeakSet<BrowserWindow>();
+
+/**
+ * The single primary application window. Tracked at module scope so
+ * second-instance launches (Explorer multi-select compares funnelled
+ * through the single-instance lock) can target and reveal it.
+ */
+let mainWindow: BrowserWindow | null = null;
+/** True once the renderer mounted and subscribed to AppOpenCompare. */
+let rendererReady = false;
+/** Compare sessions resolved before the renderer was ready to receive them. */
+const pendingCompares: InitialCompareSession[] = [];
+/**
+ * Routes a second-instance launch's argv into the running app. Assigned
+ * once services exist during startup; a no-op until then.
+ */
+let routeSecondInstance: (argv: readonly string[]) => void = () => {};
+
+/** Restore (if minimized), show and focus a window. */
+function revealWindow(win: BrowserWindow): void {
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
 
 // Resolves to <repo>/resources/icon.png both in dev (electron-vite serves
 // the main process from src/desktop/out/main) and in packaged builds
@@ -48,8 +73,15 @@ function createMainWindow(services: Services): BrowserWindow {
     },
   });
 
+  mainWindow = win;
   const detachProgress = attachProgressBridge(win, services);
-  win.on('closed', detachProgress);
+  win.on('closed', () => {
+    detachProgress();
+    if (mainWindow === win) {
+      mainWindow = null;
+      rendererReady = false;
+    }
+  });
 
   // Intercept the first close attempt so the renderer can prompt the
   // user about any unsaved changes. The renderer either calls back
@@ -74,20 +106,151 @@ function createMainWindow(services: Services): BrowserWindow {
   return win;
 }
 
-void app.whenReady().then(async () => {
-  const userDataPath = app.getPath('userData');
-  const shellIntegration = new ShellIntegrationService(userDataPath);
-
-  let args: ReturnType<typeof parseDesktopArgs> = null;
+/** Parse argv defensively; log and treat parse failures as "no args". */
+function safeParseArgs(argv: readonly string[]): DesktopArgs {
   try {
-    // Skip the executable + script paths in `process.argv`. In packaged
-    // builds argv[0] is the Electron binary and argv[1+] are user args;
-    // in `electron-vite dev` the same shape holds.
-    args = parseDesktopArgs(process.argv.slice(1));
+    // Skip the executable + script paths in `argv`. In packaged builds
+    // argv[0] is the Electron binary and argv[1+] are user args; in
+    // `electron-vite dev` the same shape holds.
+    return parseDesktopArgs(argv.slice(1) as string[]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[awapi] CLI argument error: ${msg}`);
+    return null;
   }
+}
+
+const startupArgs = safeParseArgs(process.argv);
+
+// Short-lived "fire and quit" verbs must run standalone (they don't open
+// a window): they write registry/pending state and exit. Everything else
+// is a GUI/compare launch that should funnel into ONE app instance so
+// Explorer's per-item multi-select launches collapse into a single window
+// (and a second compare opens a new tab, not a new process).
+const isFireAndQuit =
+  startupArgs?.kind === 'registerShell' ||
+  startupArgs?.kind === 'unregisterShell' ||
+  startupArgs?.kind === 'setLeft';
+
+const hasInstanceLock = isFireAndQuit || app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
+  // Another instance owns the app and will receive our argv via the
+  // primary's 'second-instance' handler. Quit immediately.
+  app.quit();
+}
+if (hasInstanceLock && !isFireAndQuit) {
+  app.on('second-instance', (_event, argv) => routeSecondInstance(argv));
+}
+
+void app.whenReady().then(async () => {
+  // Secondary instances bail out here (the primary handles their argv).
+  if (!hasInstanceLock) return;
+
+  const userDataPath = app.getPath('userData');
+  const shellIntegration = new ShellIntegrationService(userDataPath);
+
+  let args: DesktopArgs = startupArgs;
+
+  // --- Single-instance compare routing ---------------------------------
+  // Buffers Explorer's per-item multi-select launches and pairs them.
+  const collector = new MultiSelectCollector({
+    onResolve: (paths) => void onCollected(paths),
+  });
+
+  /** Send a compare session to the renderer, or queue it until ready. */
+  function pushCompare(session: InitialCompareSession): void {
+    const win = mainWindow;
+    if (win && !win.isDestroyed() && rendererReady) {
+      revealWindow(win);
+      win.webContents.send(IpcChannel.AppOpenCompare, session);
+    } else {
+      pendingCompares.push(session);
+    }
+  }
+
+  /** Resolve a collected batch of single paths into one comparison. */
+  async function onCollected(paths: readonly string[]): Promise<void> {
+    if (paths.length >= 2) {
+      const leftPath = paths[0] as string;
+      const rightPath = paths[1] as string;
+      const pairType = await resolveShellCompareType(leftPath, rightPath);
+      if (pairType) {
+        pushCompare({ type: pairType, leftRoot: leftPath, rightRoot: rightPath, mode: 'quick' });
+      } else {
+        console.warn(
+          `[awapi] multi-select rejected mixed/unsupported pair: '${leftPath}' vs '${rightPath}'`,
+        );
+        pushCompare({ type: 'folder', leftRoot: leftPath, mode: 'quick' });
+      }
+      return;
+    }
+    const only = paths[0];
+    if (only) pushCompare({ type: 'folder', leftRoot: only, mode: 'quick' });
+  }
+
+  /** Route a (second-instance) launch's parsed args into the running app. */
+  async function routeArgs(a: DesktopArgs): Promise<void> {
+    if (!a) {
+      if (mainWindow) revealWindow(mainWindow);
+      return;
+    }
+    switch (a.kind) {
+      case 'compareAdd':
+        collector.add(a.path);
+        return;
+      case 'setLeft':
+        try {
+          await shellIntegration.setPendingLeft(a.path);
+        } catch (err) {
+          console.error('[awapi] set-left failed:', err);
+        }
+        return;
+      case 'comparePending': {
+        const pendingLeft = await shellIntegration.getPendingLeft();
+        if (!pendingLeft) {
+          pushCompare({ type: 'folder', leftRoot: a.rightPath, mode: 'quick' });
+          return;
+        }
+        const pairType = await resolveShellCompareType(pendingLeft, a.rightPath);
+        if (pairType) {
+          await shellIntegration.clearPendingLeft();
+          pushCompare({
+            type: pairType,
+            leftRoot: pendingLeft,
+            rightRoot: a.rightPath,
+            mode: 'quick',
+          });
+        } else {
+          pushCompare({ type: 'folder', leftRoot: a.rightPath, mode: 'quick' });
+        }
+        return;
+      }
+      case 'compareTwo': {
+        const pairType = await resolveShellCompareType(a.leftPath, a.rightPath);
+        if (pairType) {
+          pushCompare({
+            type: pairType,
+            leftRoot: a.leftPath,
+            rightRoot: a.rightPath,
+            mode: 'quick',
+          });
+        } else {
+          pushCompare({ type: 'folder', leftRoot: a.leftPath, mode: 'quick' });
+        }
+        return;
+      }
+      case 'compare':
+        pushCompare(a.session);
+        return;
+      case 'openLeft':
+        pushCompare({ type: 'folder', leftRoot: a.path, mode: 'quick' });
+        return;
+      default:
+        if (mainWindow) revealWindow(mainWindow);
+    }
+  }
+
+  routeSecondInstance = (argv) => void routeArgs(safeParseArgs(argv));
 
   // --register-shell / --unregister-shell: manage Explorer context menu entries.
   if (args?.kind === 'registerShell') {
@@ -128,17 +291,25 @@ void app.whenReady().then(async () => {
     const { rightPath } = args;
     const pendingLeft = await shellIntegration.getPendingLeft();
     if (pendingLeft) {
-      await shellIntegration.clearPendingLeft();
-      console.log(`[awapi] compare-pending: '${pendingLeft}' ↔ '${rightPath}'`);
-      args = {
-        kind: 'compare',
-        session: {
-          type: 'folder' as const,
-          leftRoot: pendingLeft,
-          rightRoot: rightPath,
-          mode: 'quick',
-        },
-      };
+      const pairType = await resolveShellCompareType(pendingLeft, rightPath);
+      if (pairType) {
+        await shellIntegration.clearPendingLeft();
+        console.log(`[awapi] compare-pending: '${pendingLeft}' ↔ '${rightPath}'`);
+        args = {
+          kind: 'compare',
+          session: {
+            type: pairType,
+            leftRoot: pendingLeft,
+            rightRoot: rightPath,
+            mode: 'quick',
+          },
+        };
+      } else {
+        console.warn(
+          `[awapi] compare-pending rejected mixed/unsupported pair: '${pendingLeft}' vs '${rightPath}'`,
+        );
+        args = { kind: 'openLeft', path: rightPath };
+      }
     } else {
       console.warn('[awapi] compare-pending invoked with no pending left stashed');
       args = { kind: 'openLeft', path: rightPath };
@@ -149,17 +320,34 @@ void app.whenReady().then(async () => {
   // --compare-two: multi-select from Explorer — compare two items directly.
   if (args?.kind === 'compareTwo') {
     const { leftPath, rightPath } = args;
-    console.log(`[awapi] compare-two: '${leftPath}' ↔ '${rightPath}'`);
-    args = {
-      kind: 'compare',
-      session: {
-        type: 'folder' as const,
-        leftRoot: leftPath,
-        rightRoot: rightPath,
-        mode: 'quick',
-      },
-    };
+    const pairType = await resolveShellCompareType(leftPath, rightPath);
+    if (pairType) {
+      console.log(`[awapi] compare-two: '${leftPath}' ↔ '${rightPath}'`);
+      args = {
+        kind: 'compare',
+        session: {
+          type: pairType,
+          leftRoot: leftPath,
+          rightRoot: rightPath,
+          mode: 'quick',
+        },
+      };
+    } else {
+      console.warn(
+        `[awapi] compare-two rejected mixed/unsupported pair: '${leftPath}' vs '${rightPath}'`,
+      );
+      args = { kind: 'openLeft', path: leftPath };
+    }
     // Fall through to normal flow.
+  }
+
+  // --compare-add: a single item from Explorer's multi-select "Compare
+  // with AwapiCompare" verb. Buffer it; the collector pairs it with the
+  // sibling launch(es) funnelled through the single-instance lock and
+  // opens exactly one comparison (see onCollected / pushCompare).
+  if (args?.kind === 'compareAdd') {
+    collector.add(args.path);
+    args = null;
   }
 
   // Resolve the initial compare session.
@@ -219,6 +407,17 @@ void app.whenReady().then(async () => {
     closeApprovedWindows.add(win);
     win.close();
   });
+
+  // Renderer finished mounting and subscribed to AppOpenCompare. Flush any
+  // compare sessions that resolved before it was ready (e.g. a multi-select
+  // compare that settled during window startup).
+  ipcMain.on(IpcChannel.AppRendererReady, (event) => {
+    rendererReady = true;
+    while (pendingCompares.length > 0) {
+      const session = pendingCompares.shift();
+      if (session) event.sender.send(IpcChannel.AppOpenCompare, session);
+    }
+  });
   // eslint-disable-next-line no-console
   console.log('[awapi] IPC handlers registered');
   // Best-effort: warm the rules cache. Failures here are non-fatal.
@@ -239,10 +438,12 @@ void app.whenReady().then(async () => {
       isDev: process.env['ELECTRON_RENDERER_URL'] !== undefined,
     },
   );
-  createMainWindow(services);
+  mainWindow = createMainWindow(services);
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow(services);
+    if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createMainWindow(services);
+    }
   });
 });
 

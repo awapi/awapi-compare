@@ -34,6 +34,8 @@
 #include <shlwapi.h>
 #include <strsafe.h>
 
+#include <initguid.h>
+
 #include <new>
 #include <string>
 
@@ -186,6 +188,36 @@ bool LaunchApp(const std::wstring& args) {
 // ---------------------------------------------------------------------------
 
 enum class Verb { CompareTwo, SelectLeft, ComparePending };
+
+class CExplorerCommand;
+
+class CEnumExplorerCommand final : public IEnumExplorerCommand {
+ public:
+  explicit CEnumExplorerCommand(const Verb* verbs, size_t count);
+
+  IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override;
+
+  IFACEMETHODIMP_(ULONG) AddRef() override;
+
+  IFACEMETHODIMP_(ULONG) Release() override;
+
+  IFACEMETHODIMP Next(ULONG celt, IExplorerCommand** pUICommand,
+                      ULONG* pceltFetched) override;
+
+  IFACEMETHODIMP Skip(ULONG celt) override;
+
+  IFACEMETHODIMP Reset() override;
+
+  IFACEMETHODIMP Clone(IEnumExplorerCommand** ppEnum) override;
+
+ private:
+  ~CEnumExplorerCommand();
+
+  const Verb* verbs_;
+  size_t count_;
+  size_t index_ = 0;
+  long cRef_ = 1;
+};
 
 // ---------------------------------------------------------------------------
 // CExplorerCommand — shared IExplorerCommand implementation for all verbs.
@@ -355,6 +387,181 @@ class CExplorerCommand : public IExplorerCommand {
   long cRef_ = 1;
 };
 
+CEnumExplorerCommand::CEnumExplorerCommand(const Verb* verbs, size_t count)
+    : verbs_(verbs), count_(count) {
+  DllAddRef();
+}
+
+IFACEMETHODIMP CEnumExplorerCommand::QueryInterface(REFIID riid, void** ppv) {
+  if (!ppv) return E_POINTER;
+  if (riid == IID_IUnknown || riid == IID_IEnumExplorerCommand) {
+    *ppv = static_cast<IEnumExplorerCommand*>(this);
+    AddRef();
+    return S_OK;
+  }
+  *ppv = nullptr;
+  return E_NOINTERFACE;
+}
+
+IFACEMETHODIMP_(ULONG) CEnumExplorerCommand::AddRef() {
+  return InterlockedIncrement(&cRef_);
+}
+
+IFACEMETHODIMP_(ULONG) CEnumExplorerCommand::Release() {
+  const ULONG ref = InterlockedDecrement(&cRef_);
+  if (ref == 0) delete this;
+  return ref;
+}
+
+IFACEMETHODIMP CEnumExplorerCommand::Next(ULONG celt,
+                                          IExplorerCommand** pUICommand,
+                                          ULONG* pceltFetched) {
+  if (!pUICommand) return E_POINTER;
+  if (pceltFetched) *pceltFetched = 0;
+
+  ULONG fetched = 0;
+  while (fetched < celt && index_ < count_) {
+    auto* command = new (std::nothrow) CExplorerCommand(verbs_[index_++]);
+    if (!command) {
+      while (fetched > 0) {
+        pUICommand[--fetched]->Release();
+        pUICommand[fetched] = nullptr;
+      }
+      return E_OUTOFMEMORY;
+    }
+    pUICommand[fetched++] = command;
+  }
+
+  if (pceltFetched) *pceltFetched = fetched;
+  return (fetched == celt) ? S_OK : S_FALSE;
+}
+
+IFACEMETHODIMP CEnumExplorerCommand::Skip(ULONG celt) {
+  index_ = (index_ + celt > count_) ? count_ : index_ + celt;
+  return (index_ < count_) ? S_OK : S_FALSE;
+}
+
+IFACEMETHODIMP CEnumExplorerCommand::Reset() {
+  index_ = 0;
+  return S_OK;
+}
+
+IFACEMETHODIMP CEnumExplorerCommand::Clone(IEnumExplorerCommand** ppEnum) {
+  if (!ppEnum) return E_POINTER;
+  *ppEnum = nullptr;
+  auto* clone = new (std::nothrow) CEnumExplorerCommand(verbs_, count_);
+  if (!clone) return E_OUTOFMEMORY;
+  clone->index_ = index_;
+  *ppEnum = clone;
+  return S_OK;
+}
+
+CEnumExplorerCommand::~CEnumExplorerCommand() { DllRelease(); }
+
+class CRootExplorerCommand final : public IExplorerCommand {
+ public:
+  CRootExplorerCommand() { DllAddRef(); }
+
+  IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
+    if (!ppv) return E_POINTER;
+    if (riid == IID_IUnknown || riid == IID_IExplorerCommand) {
+      *ppv = static_cast<IExplorerCommand*>(this);
+      AddRef();
+      return S_OK;
+    }
+    *ppv = nullptr;
+    return E_NOINTERFACE;
+  }
+
+  IFACEMETHODIMP_(ULONG) AddRef() override {
+    return InterlockedIncrement(&cRef_);
+  }
+
+  IFACEMETHODIMP_(ULONG) Release() override {
+    const ULONG ref = InterlockedDecrement(&cRef_);
+    if (ref == 0) delete this;
+    return ref;
+  }
+
+  IFACEMETHODIMP GetTitle(IShellItemArray*, LPWSTR* ppszName) override {
+    return CloneString(L"AwapiCompare", ppszName);
+  }
+
+  IFACEMETHODIMP GetIcon(IShellItemArray*, LPWSTR* ppszIcon) override {
+    if (!ppszIcon) return E_POINTER;
+    *ppszIcon = nullptr;
+    const std::wstring exe = GetExePath();
+    if (exe.empty()) return S_FALSE;
+    std::wstring icon = exe;
+    icon.append(L",0");
+    return CloneString(icon, ppszIcon);
+  }
+
+  IFACEMETHODIMP GetToolTip(IShellItemArray*, LPWSTR* ppszInfotip) override {
+    if (ppszInfotip) *ppszInfotip = nullptr;
+    return E_NOTIMPL;
+  }
+
+  IFACEMETHODIMP GetCanonicalName(GUID* pguid) override {
+    if (!pguid) return E_POINTER;
+    *pguid = CLSID_AwapiCompareRoot;
+    return S_OK;
+  }
+
+  IFACEMETHODIMP GetState(IShellItemArray* items, BOOL,
+                          EXPCMDSTATE* pCmdState) override {
+    if (!pCmdState) return E_POINTER;
+    const std::wstring exe = GetExePath();
+    if (exe.empty() || GetFileAttributesW(exe.c_str()) == INVALID_FILE_ATTRIBUTES) {
+      *pCmdState = ECS_HIDDEN;
+      return S_OK;
+    }
+
+    const DWORD count = ItemCount(items);
+    if (count == 2) {
+      *pCmdState = ECS_ENABLED;
+      return S_OK;
+    }
+    if (count == 1) {
+      *pCmdState = ECS_ENABLED;
+      return S_OK;
+    }
+
+    *pCmdState = ECS_HIDDEN;
+    return S_OK;
+  }
+
+  IFACEMETHODIMP Invoke(IShellItemArray*, IBindCtx*) override {
+    // The root is a container only; clicking it merely expands the submenu.
+    return S_OK;
+  }
+
+  IFACEMETHODIMP GetFlags(EXPCMDFLAGS* pFlags) override {
+    if (!pFlags) return E_POINTER;
+    // Tell Explorer this command owns a dynamically-enumerated submenu.
+    *pFlags = ECF_HASSUBCOMMANDS;
+    return S_OK;
+  }
+
+  IFACEMETHODIMP EnumSubCommands(IEnumExplorerCommand** ppEnum) override {
+    if (!ppEnum) return E_POINTER;
+    *ppEnum = nullptr;
+    // Static lifetime: CEnumExplorerCommand stores the pointer without copying.
+    static const Verb kSubVerbs[] = {Verb::SelectLeft, Verb::ComparePending,
+                                     Verb::CompareTwo};
+    auto* e = new (std::nothrow)
+        CEnumExplorerCommand(kSubVerbs, ARRAYSIZE(kSubVerbs));
+    if (!e) return E_OUTOFMEMORY;
+    *ppEnum = e;
+    return S_OK;
+  }
+
+ private:
+  ~CRootExplorerCommand() { DllRelease(); }
+
+  long cRef_ = 1;
+};
+
 // ---------------------------------------------------------------------------
 // CClassFactory — produces a CExplorerCommand for the requested verb.
 // ---------------------------------------------------------------------------
@@ -414,6 +621,9 @@ class CClassFactory : public IClassFactory {
 };
 
 bool ClsidToVerb(REFCLSID rclsid, Verb* out) {
+  if (rclsid == CLSID_AwapiCompareRoot) {
+    return false;
+  }
   if (rclsid == CLSID_AwapiCompareCompareTwo) {
     *out = Verb::CompareTwo;
     return true;
@@ -495,6 +705,60 @@ STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, void** ppv) {
   *ppv = nullptr;
 
   Verb verb;
+  if (rclsid == CLSID_AwapiCompareRoot) {
+    class CRootFactory final : public IClassFactory {
+     public:
+      CRootFactory() { DllAddRef(); }
+      IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
+        if (!ppv) return E_POINTER;
+        if (riid == IID_IUnknown || riid == IID_IClassFactory) {
+          *ppv = static_cast<IClassFactory*>(this);
+          AddRef();
+          return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
+      }
+      IFACEMETHODIMP_(ULONG) AddRef() override {
+        return InterlockedIncrement(&cRef_);
+      }
+      IFACEMETHODIMP_(ULONG) Release() override {
+        const ULONG ref = InterlockedDecrement(&cRef_);
+        if (ref == 0) delete this;
+        return ref;
+      }
+      IFACEMETHODIMP CreateInstance(IUnknown* pUnkOuter, REFIID riid,
+                                    void** ppv) override {
+        if (!ppv) return E_POINTER;
+        *ppv = nullptr;
+        if (pUnkOuter) return CLASS_E_NOAGGREGATION;
+        auto* cmd = new (std::nothrow) CRootExplorerCommand();
+        if (!cmd) return E_OUTOFMEMORY;
+        const HRESULT hr = cmd->QueryInterface(riid, ppv);
+        cmd->Release();
+        return hr;
+      }
+      IFACEMETHODIMP LockServer(BOOL fLock) override {
+        if (fLock) {
+          DllAddRef();
+        } else {
+          DllRelease();
+        }
+        return S_OK;
+      }
+
+     private:
+      ~CRootFactory() { DllRelease(); }
+      long cRef_ = 1;
+    };
+
+    auto* factory = new (std::nothrow) CRootFactory();
+    if (!factory) return E_OUTOFMEMORY;
+    const HRESULT hr = factory->QueryInterface(riid, ppv);
+    factory->Release();
+    return hr;
+  }
+
   if (!ClsidToVerb(rclsid, &verb)) return CLASS_E_CLASSNOTAVAILABLE;
 
   auto* factory = new (std::nothrow) CClassFactory(verb);
@@ -512,6 +776,9 @@ STDAPI DllRegisterServer() {
   HRESULT hr = RegisterOneClsid(SZ_CLSID_AWAPI_COMPARE_TWO,
                                 L"AwapiCompare Compare", modulePath);
   if (SUCCEEDED(hr)) {
+    hr = RegisterOneClsid(SZ_CLSID_AWAPI_ROOT, L"AwapiCompare Menu", modulePath);
+  }
+  if (SUCCEEDED(hr)) {
     hr = RegisterOneClsid(SZ_CLSID_AWAPI_SELECT_LEFT,
                           L"AwapiCompare Select Left", modulePath);
   }
@@ -526,6 +793,7 @@ STDAPI DllRegisterServer() {
 }
 
 STDAPI DllUnregisterServer() {
+  UnregisterOneClsid(SZ_CLSID_AWAPI_ROOT);
   UnregisterOneClsid(SZ_CLSID_AWAPI_COMPARE_TWO);
   UnregisterOneClsid(SZ_CLSID_AWAPI_SELECT_LEFT);
   UnregisterOneClsid(SZ_CLSID_AWAPI_COMPARE_PENDING);

@@ -1,4 +1,3 @@
-
 export interface RecentsFs {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   writeFile(path: string, contents: string, encoding: 'utf8'): Promise<void>;
@@ -66,18 +65,10 @@ export class RecentsService {
         // best-effort
       }
     }
-    await this.deps.fs.writeFile(
-      this.deps.filePath,
-      JSON.stringify(this.data, null, 2),
-      'utf8',
-    );
+    await this.deps.fs.writeFile(this.deps.filePath, JSON.stringify(this.data, null, 2), 'utf8');
   }
 }
 
 function isNotFound(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as { code?: string }).code === 'ENOENT'
-  );
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'ENOENT';
 }

@@ -98,7 +98,11 @@ export function buildMenuTemplate(opts: BuildMenuOptions): MenuNode[] {
       { type: 'separator' },
       { role: 'togglefullscreen' },
       ...(isDev
-        ? ([{ type: 'separator' as const }, { role: 'reload' }, { role: 'toggleDevTools' }] satisfies MenuNode[])
+        ? ([
+            { type: 'separator' as const },
+            { role: 'reload' },
+            { role: 'toggleDevTools' },
+          ] satisfies MenuNode[])
         : []),
     ],
   };
@@ -183,7 +187,10 @@ export interface MenuDeps {
  * Installs the application menu and returns the emitter that would be
  * dispatched for a given action. Wire this from `main/index.ts`.
  */
-export function installApplicationMenu(deps: MenuDeps, opts: BuildMenuOptions): {
+export function installApplicationMenu(
+  deps: MenuDeps,
+  opts: BuildMenuOptions,
+): {
   menu: ElectronMenu;
   emit: (action: MenuAction) => void;
 } {

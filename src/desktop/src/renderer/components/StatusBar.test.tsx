@@ -13,9 +13,7 @@ function summaryWithErrors(count: number): ReturnType<typeof emptyDiffSummary> {
 
 describe('<StatusBar />', () => {
   it('disables the error chip when there are no errors', () => {
-    render(
-      <StatusBar summary={emptyDiffSummary()} scanning={false} theme="light" />,
-    );
+    render(<StatusBar summary={emptyDiffSummary()} scanning={false} theme="light" />);
     const button = screen.getByRole('button', { name: /Error: 0/ });
     expect(button).toBeDisabled();
     expect(screen.queryByTestId('status-error-popover')).toBeNull();
@@ -69,12 +67,7 @@ describe('<StatusBar />', () => {
       message: 'boom',
     }));
     render(
-      <StatusBar
-        summary={summaryWithErrors(60)}
-        scanning={false}
-        theme="light"
-        errors={errors}
-      />,
+      <StatusBar summary={summaryWithErrors(60)} scanning={false} theme="light" errors={errors} />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Error: 60/ }));
     const popover = screen.getByTestId('status-error-popover');

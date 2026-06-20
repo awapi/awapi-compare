@@ -79,9 +79,7 @@ describe('ruleMatcher — picomatch glob matrix', () => {
 
   it('picomatch `!` negation excludes everything except the negated pattern', () => {
     // `!important.log` matches anything that is NOT named `important.log`.
-    const rules = [
-      rule({ kind: 'exclude', pattern: '!important.log', target: 'name' }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '!important.log', target: 'name' })];
     const c = compileRules(rules);
     expect(evaluate(c, entry('boring.log'))).toBe('excluded');
     expect(evaluate(c, entry('important.log'))).toBe('kept');
@@ -104,9 +102,7 @@ describe('ruleMatcher — name vs path target', () => {
   });
 
   it("`target: 'name'` only inspects the basename", () => {
-    const rules = [
-      rule({ kind: 'exclude', pattern: '*.log', target: 'name' }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '*.log', target: 'name' })];
     const c = compileRules(rules);
     expect(evaluate(c, entry('out.log'))).toBe('excluded');
     expect(evaluate(c, entry('deeply/nested/dir/out.log'))).toBe('excluded');
@@ -158,9 +154,7 @@ describe('ruleMatcher — ordered evaluation & precedence', () => {
 
 describe('ruleMatcher — size and mtime predicates', () => {
   it('applies size.gt predicate', () => {
-    const rules = [
-      rule({ kind: 'exclude', pattern: '**/*.bin', size: { gt: 1024 } }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '**/*.bin', size: { gt: 1024 } })];
     const c = compileRules(rules);
     expect(evaluate(c, entry('a.bin', { size: 2048 }))).toBe('excluded');
     expect(evaluate(c, entry('a.bin', { size: 500 }))).toBe('kept');
@@ -174,9 +168,7 @@ describe('ruleMatcher — size and mtime predicates', () => {
   });
 
   it('combines size.gt and size.lt (a band)', () => {
-    const rules = [
-      rule({ kind: 'exclude', pattern: '**', size: { gt: 100, lt: 1000 } }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '**', size: { gt: 100, lt: 1000 } })];
     const c = compileRules(rules);
     expect(evaluate(c, entry('mid.txt', { size: 500 }))).toBe('excluded');
     expect(evaluate(c, entry('small.txt', { size: 50 }))).toBe('kept');
@@ -184,25 +176,19 @@ describe('ruleMatcher — size and mtime predicates', () => {
   });
 
   it('applies mtime.before and mtime.after', () => {
-    const before = [
-      rule({ kind: 'exclude', pattern: '**', mtime: { before: 500 } }),
-    ];
+    const before = [rule({ kind: 'exclude', pattern: '**', mtime: { before: 500 } })];
     const cBefore = compileRules(before);
     expect(evaluate(cBefore, entry('old.txt', { mtimeMs: 100 }))).toBe('excluded');
     expect(evaluate(cBefore, entry('new.txt', { mtimeMs: 10_000 }))).toBe('kept');
 
-    const after = [
-      rule({ kind: 'exclude', pattern: '**', mtime: { after: 10_000 } }),
-    ];
+    const after = [rule({ kind: 'exclude', pattern: '**', mtime: { after: 10_000 } })];
     const cAfter = compileRules(after);
     expect(evaluate(cAfter, entry('newer.txt', { mtimeMs: 20_000 }))).toBe('excluded');
     expect(evaluate(cAfter, entry('older.txt', { mtimeMs: 100 }))).toBe('kept');
   });
 
   it('predicates fail safely when the sample lacks size/mtime data', () => {
-    const rules = [
-      rule({ kind: 'exclude', pattern: '**', size: { gt: 0 } }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '**', size: { gt: 0 } })];
     const c = compileRules(rules);
     // Sample missing `size` — the predicate cannot match, so the rule
     // doesn't fire and the default `kept` verdict stands.
@@ -222,36 +208,27 @@ describe('evaluateAll', () => {
   });
 
   it('handles an empty rule set (everything kept)', () => {
-    expect(evaluateAll([], [{ relPath: 'a' }, { relPath: 'b' }])).toEqual([
-      'kept',
-      'kept',
-    ]);
+    expect(evaluateAll([], [{ relPath: 'a' }, { relPath: 'b' }])).toEqual(['kept', 'kept']);
   });
 });
 
 describe('ruleMatcher — scope (Phase 6.1)', () => {
   it("a `scope: 'file'` rule does not match folder entries", () => {
-    const rules = [
-      rule({ kind: 'exclude', pattern: '*', target: 'name', scope: 'file' }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '*', target: 'name', scope: 'file' })];
     const c = compileRules(rules);
     expect(evaluate(c, entry('foo.log', { type: 'file' }))).toBe('excluded');
     expect(evaluate(c, entry('subdir', { type: 'dir' }))).toBe('kept');
   });
 
   it("a `scope: 'folder'` rule does not match file entries", () => {
-    const rules = [
-      rule({ kind: 'exclude', pattern: '.git', target: 'name', scope: 'folder' }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '.git', target: 'name', scope: 'folder' })];
     const c = compileRules(rules);
     expect(evaluate(c, entry('.git', { type: 'dir' }))).toBe('excluded');
     expect(evaluate(c, entry('.git', { type: 'file' }))).toBe('kept');
   });
 
   it('whitelist mode is per-scope: file-scoped includes do not exclude folders', () => {
-    const rules = [
-      rule({ kind: 'include', pattern: '*.ts', target: 'name', scope: 'file' }),
-    ];
+    const rules = [rule({ kind: 'include', pattern: '*.ts', target: 'name', scope: 'file' })];
     const c = compileRules(rules);
     // A .ts file matches the include → kept.
     expect(evaluate(c, entry('a.ts', { type: 'file' }))).toBe('kept');
@@ -269,9 +246,7 @@ describe('ruleMatcher — scope (Phase 6.1)', () => {
   });
 
   it('symlinks are treated as files for scope purposes', () => {
-    const rules = [
-      rule({ kind: 'exclude', pattern: '*', target: 'name', scope: 'file' }),
-    ];
+    const rules = [rule({ kind: 'exclude', pattern: '*', target: 'name', scope: 'file' })];
     const c = compileRules(rules);
     expect(evaluate(c, entry('link', { type: 'symlink' }))).toBe('excluded');
   });

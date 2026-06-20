@@ -9,9 +9,10 @@ import {
 
 const dirStat: DialogFsStat = () => ({ isDirectory: () => true });
 
-function makeShowOpenDialog(
-  result: { canceled: boolean; filePaths: string[] },
-): { fn: ShowOpenDialogFn; calls: Parameters<ShowOpenDialogFn>[] } {
+function makeShowOpenDialog(result: { canceled: boolean; filePaths: string[] }): {
+  fn: ShowOpenDialogFn;
+  calls: Parameters<ShowOpenDialogFn>[];
+} {
   const calls: Parameters<ShowOpenDialogFn>[] = [];
   const fn: ShowOpenDialogFn = async (window, options) => {
     calls.push([window, options]);
@@ -114,7 +115,8 @@ describe('DialogService', () => {
       expect(options.title).toBe('Pick file');
       expect(options.defaultPath).toBe('/home');
     });
-  });});
+  });
+});
 
 describe('resolveDefaultPath', () => {
   it('returns undefined for empty / whitespace input', () => {

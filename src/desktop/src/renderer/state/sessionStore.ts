@@ -149,16 +149,12 @@ export function createSessionStore(options: CreateSessionStoreOptions = {}) {
 
     markSame: (relPath) =>
       set((s) => ({
-        pairs: s.pairs.map((p) =>
-          p.relPath === relPath ? { ...p, status: 'identical' } : p,
-        ),
+        pairs: s.pairs.map((p) => (p.relPath === relPath ? { ...p, status: 'identical' } : p)),
       })),
 
     excludePath: (relPath) =>
       set((s) => ({
-        pairs: s.pairs.map((p) =>
-          p.relPath === relPath ? { ...p, status: 'excluded' } : p,
-        ),
+        pairs: s.pairs.map((p) => (p.relPath === relPath ? { ...p, status: 'excluded' } : p)),
       })),
 
     loadSnapshot: (snapshot) =>

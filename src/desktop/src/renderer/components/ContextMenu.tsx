@@ -32,13 +32,7 @@ export interface ContextMenuProps {
  * Closes on outside click, Escape, blur, and after a selection. The
  * menu is keyboard-navigable via Arrow/Enter.
  */
-export function ContextMenu({
-  x,
-  y,
-  items,
-  onSelect,
-  onClose,
-}: ContextMenuProps): JSX.Element {
+export function ContextMenu({ x, y, items, onSelect, onClose }: ContextMenuProps): JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,11 +75,7 @@ export function ContextMenu({
       {items.map((item, index) => {
         if (item.type === 'separator') {
           return (
-            <div
-              key={`sep-${index}`}
-              role="separator"
-              className="awapi-context-menu__separator"
-            />
+            <div key={`sep-${index}`} role="separator" className="awapi-context-menu__separator" />
           );
         }
         return (

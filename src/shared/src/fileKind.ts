@@ -35,10 +35,7 @@ const TEXT_SAMPLE_LIMIT = 4096;
  * including the leading `.` (e.g. `.png`); it is used as a tiebreaker
  * when the magic-byte sniff is inconclusive (small or empty file).
  */
-export function classifyFile(
-  buf: Uint8Array,
-  extensionHint?: string,
-): FileKindResult {
+export function classifyFile(buf: Uint8Array, extensionHint?: string): FileKindResult {
   const image = detectImage(buf);
   if (image) return { kind: 'image', imageFormat: image };
 

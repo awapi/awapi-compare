@@ -14,11 +14,11 @@
 The `electron-builder.yml` config produces the following installer set
 per platform. All targets ship both x64 and arm64 binaries.
 
-| OS      | Targets                                  | Notes                                                |
-| ------- | ---------------------------------------- | ---------------------------------------------------- |
-| macOS   | `.dmg` + `.zip`                          | `.zip` is consumed by `electron-updater` on update.  |
-| Windows | `.exe` (NSIS) + `.msi`                   | NSIS is the recommended installer; MSI is for IT.    |
-| Linux   | `.AppImage` + `.deb`                     | `.AppImage` is consumed by `electron-updater`.       |
+| OS      | Targets                | Notes                                               |
+| ------- | ---------------------- | --------------------------------------------------- |
+| macOS   | `.dmg` + `.zip`        | `.zip` is consumed by `electron-updater` on update. |
+| Windows | `.exe` (NSIS) + `.msi` | NSIS is the recommended installer; MSI is for IT.   |
+| Linux   | `.AppImage` + `.deb`   | `.AppImage` is consumed by `electron-updater`.      |
 
 Local packaging of the **current OS** is done with `just package`.
 Cross-platform packaging (e.g. building Windows installers from a Mac)
@@ -77,4 +77,3 @@ just package win
 Artifacts land in `release/`. The auto-update metadata files
 (`latest-mac.yml`, `latest.yml`, `latest-linux.yml`) are generated
 alongside the installers and must be uploaded to the GitHub Release.
-

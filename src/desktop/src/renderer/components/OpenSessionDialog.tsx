@@ -38,12 +38,7 @@ export function OpenSessionDialog({ onOpen, onClose }: OpenSessionDialogProps): 
       >
         <header className="awapi-modal__header">
           <h2>Open Session</h2>
-          <button
-            type="button"
-            className="awapi-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
+          <button type="button" className="awapi-modal__close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>
@@ -55,15 +50,18 @@ export function OpenSessionDialog({ onOpen, onClose }: OpenSessionDialogProps): 
           ) : (
             <ul className="awapi-session-list" role="listbox" aria-label="Saved sessions">
               {sessions.map((s) => (
-                <li key={s.id} className="awapi-session-list__row" role="option" aria-selected="false">
+                <li
+                  key={s.id}
+                  className="awapi-session-list__row"
+                  role="option"
+                  aria-selected="false"
+                >
                   <button
                     type="button"
                     className="awapi-session-list__item"
                     onClick={() => onOpen(s)}
                   >
-                    <span className="awapi-session-list__name">
-                      {s.name ?? 'Untitled'}
-                    </span>
+                    <span className="awapi-session-list__name">{s.name ?? 'Untitled'}</span>
                     <span className="awapi-session-list__roots">
                       {s.leftRoot || '—'} ↔ {s.rightRoot || '—'}
                     </span>

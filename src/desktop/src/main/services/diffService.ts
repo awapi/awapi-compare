@@ -16,8 +16,7 @@ import {
  * Kept as a named export for tests and callers that pre-date
  * {@link DiffOptions}.
  */
-export const MTIME_EPSILON_MS =
-  DEFAULT_DIFF_OPTIONS.attributes.mtime.toleranceSeconds * 1000;
+export const MTIME_EPSILON_MS = DEFAULT_DIFF_OPTIONS.attributes.mtime.toleranceSeconds * 1000;
 
 export interface ClassifyOptions {
   /**
@@ -57,11 +56,7 @@ export function classifyPair(
   if (l.type === 'dir') return 'identical';
 
   const sizeEqual = !options.attributes.size || l.size === r.size;
-  const mtimeEqual = mtimeDeltaWithinTolerance(
-    l.mtimeMs,
-    r.mtimeMs,
-    options.attributes.mtime,
-  );
+  const mtimeEqual = mtimeDeltaWithinTolerance(l.mtimeMs, r.mtimeMs, options.attributes.mtime);
   const attributesIdentical = sizeEqual && mtimeEqual;
   const tieStatus = mtimeTieStatus(l, r, options);
 

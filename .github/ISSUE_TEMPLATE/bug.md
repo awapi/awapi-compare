@@ -6,7 +6,6 @@ labels: [bug]
 
 ## Summary
 
-
 ## Environment
 
 - AwapiCompare version:
@@ -21,9 +20,7 @@ labels: [bug]
 
 ## Expected behavior
 
-
 ## Actual behavior
-
 
 ## Logs / screenshots
 

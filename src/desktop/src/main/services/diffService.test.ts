@@ -42,9 +42,9 @@ describe('classifyPair — invariants', () => {
   });
 
   it('returns different for type mismatch (file vs dir)', () => {
-    expect(
-      classifyPair(file(), dir({ relPath: 'a.txt', name: 'a.txt' }), 'quick'),
-    ).toBe('different');
+    expect(classifyPair(file(), dir({ relPath: 'a.txt', name: 'a.txt' }), 'quick')).toBe(
+      'different',
+    );
   });
 
   it('returns identical when both sides are directories', () => {
@@ -123,7 +123,13 @@ describe('classifyPair — thorough / binary mode', () => {
     // Same mtime + same size + different hash → different (with default
     // overrideAttributesResult: true, content beats attributes).
     expect(
-      classifyPair(file(), file(), 'thorough', { left: 'a', right: 'b' }, { diffOptions: ALWAYS_HASH }),
+      classifyPair(
+        file(),
+        file(),
+        'thorough',
+        { left: 'a', right: 'b' },
+        { diffOptions: ALWAYS_HASH },
+      ),
     ).toBe('different');
   });
 
@@ -224,9 +230,15 @@ describe('DiffService.classify', () => {
       attributes: { size: false, mtime: { enabled: false } },
       content: { mode: 'off' },
     });
-    const pair = svc.classify(file({ size: 1 }), file({ size: 999, mtimeMs: 9 }), 'binary', undefined, {
-      diffOptions: opts,
-    });
+    const pair = svc.classify(
+      file({ size: 1 }),
+      file({ size: 999, mtimeMs: 9 }),
+      'binary',
+      undefined,
+      {
+        diffOptions: opts,
+      },
+    );
     expect(pair.status).toBe('identical');
   });
 });

@@ -54,7 +54,10 @@ export interface FsIo {
     isDirectory(): boolean;
     isSymbolicLink(): boolean;
   }>;
-  open(path: string, flags: string): Promise<{
+  open(
+    path: string,
+    flags: string,
+  ): Promise<{
     read(
       buffer: Uint8Array,
       offset: number,
@@ -90,10 +93,7 @@ export interface FsIo {
  * symbol importable from main-side modules.
   FS_ERROR_DESTINATION_EXISTS,
  */
-export {
-  FS_ERROR_FILE_TOO_LARGE,
-  FS_ERROR_EXTERNAL_MODIFICATION,
-} from '@awapi/shared';
+export { FS_ERROR_FILE_TOO_LARGE, FS_ERROR_EXTERNAL_MODIFICATION } from '@awapi/shared';
 
 export class FsCodedError extends Error {
   constructor(
@@ -215,8 +215,7 @@ export class FsService {
     let hashes: { left?: string; right?: string } | undefined;
 
     const wantsContent = diffOptions.content.mode !== 'off';
-    const bothFiles =
-      !!left && !!right && left.type === 'file' && right.type === 'file';
+    const bothFiles = !!left && !!right && left.type === 'file' && right.type === 'file';
     const sizesMatch = bothFiles && left.size === right.size;
     // Skip the hash optimisation when attributes already match and the
     // user opted in to short-circuiting (default).
@@ -344,14 +343,14 @@ export class FsService {
     }
     const encoding = req.encoding ?? (typeof req.contents === 'string' ? 'utf8' : 'binary');
     if (encoding === 'utf8') {
-      const text = typeof req.contents === 'string'
-        ? req.contents
-        : Buffer.from(req.contents).toString('utf8');
+      const text =
+        typeof req.contents === 'string'
+          ? req.contents
+          : Buffer.from(req.contents).toString('utf8');
       await this.io.writeFile(req.path, text, { encoding: 'utf8' });
     } else {
-      const bytes = typeof req.contents === 'string'
-        ? new TextEncoder().encode(req.contents)
-        : req.contents;
+      const bytes =
+        typeof req.contents === 'string' ? new TextEncoder().encode(req.contents) : req.contents;
       await this.io.writeFile(req.path, bytes);
     }
   }

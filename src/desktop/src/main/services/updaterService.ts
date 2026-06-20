@@ -7,8 +7,7 @@ export interface UpdaterCheckResult {
   url?: string;
 }
 
-const GITHUB_API_LATEST =
-  'https://api.github.com/repos/awapi/awapi-compare/releases/latest';
+const GITHUB_API_LATEST = 'https://api.github.com/repos/awapi/awapi-compare/releases/latest';
 
 function parseVersion(v: string): [number, number, number] {
   const parts = v.replace(/^v/, '').split('.').map(Number);

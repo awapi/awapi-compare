@@ -23,10 +23,7 @@ const DIFFERING_STATUSES: ReadonlySet<DiffStatus> = new Set<DiffStatus>([
   'error',
 ]);
 
-const SAME_STATUSES: ReadonlySet<DiffStatus> = new Set<DiffStatus>([
-  'identical',
-  'excluded',
-]);
+const SAME_STATUSES: ReadonlySet<DiffStatus> = new Set<DiffStatus>(['identical', 'excluded']);
 
 function parentOf(relPath: string): string {
   const i = Math.max(relPath.lastIndexOf('/'), relPath.lastIndexOf('\\'));
@@ -46,10 +43,7 @@ function isDirPair(pair: ComparedPair): boolean {
  * themselves "diffs" (e.g. `left-only` folder) are kept in `'diffs'`
  * mode even though their children are not enumerated.
  */
-export function filterPairs(
-  pairs: readonly ComparedPair[],
-  mode: ViewFilter,
-): ComparedPair[] {
+export function filterPairs(pairs: readonly ComparedPair[], mode: ViewFilter): ComparedPair[] {
   if (mode === 'all') return pairs.slice();
 
   const target = mode === 'diffs' ? DIFFERING_STATUSES : SAME_STATUSES;
@@ -120,10 +114,7 @@ export function filterTextLines(
   const leftLines = left.length === 0 ? [] : left.split(/\r?\n/u);
   const rightLines = right.length === 0 ? [] : right.split(/\r?\n/u);
 
-  if (
-    leftLines.length > MAX_FILTERABLE_LINES ||
-    rightLines.length > MAX_FILTERABLE_LINES
-  ) {
+  if (leftLines.length > MAX_FILTERABLE_LINES || rightLines.length > MAX_FILTERABLE_LINES) {
     return { leftText: left, rightText: right, applied: false };
   }
 
@@ -163,7 +154,10 @@ export function filterTextLines(
  * Compute a line-level Longest Common Subsequence and return the
  * matched index pairs in ascending order.
  */
-function lcsLineMatches(left: readonly string[], right: readonly string[]): Array<[number, number]> {
+function lcsLineMatches(
+  left: readonly string[],
+  right: readonly string[],
+): Array<[number, number]> {
   const m = left.length;
   const n = right.length;
   if (m === 0 || n === 0) return [];

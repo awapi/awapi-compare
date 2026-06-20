@@ -42,6 +42,8 @@ export const IpcChannel = {
   SftpConnect: 'sftp.connect',
   AppMenuAction: 'app.menuAction',
   AppGetInitialCompare: 'app.getInitialCompare',
+  AppOpenCompare: 'app.openCompare',
+  AppRendererReady: 'app.rendererReady',
   AppRequestClose: 'app.requestClose',
   AppCloseWindow: 'app.closeWindow',
   AppOpenExternal: 'app.openExternal',
@@ -296,6 +298,21 @@ export interface RulesTestResponse {
   verdicts: RuleVerdict[];
 }
 
+/** Installation scope for Windows Explorer shell integration entries. */
+export type ShellIntegrationScope = 'disabled' | 'per-user' | 'per-machine';
+
+/**
+ * Current shell integration registration state for the host machine.
+ *
+ * - `disabled`: no known Explorer registration found.
+ * - `per-user`: registration found under `HKCU`.
+ * - `per-machine`: registration found under `HKLM`.
+ */
+export interface ShellIntegrationStatus {
+  enabled: boolean;
+  scope: ShellIntegrationScope;
+}
+
 /**
  * Semantic identifiers for commands emitted by the native application
  * menu (File / Edit / View / Help). The renderer subscribes via
@@ -379,6 +396,21 @@ export interface AwapiApi {
      */
     getInitialCompare(): Promise<InitialCompareSession | null>;
     /**
+     * Subscribe to "open this compare session in a new tab" pushes from
+     * the main process. Emitted when the already-running app is asked to
+     * compare a pair via Explorer (e.g. a multi-select "Compare with
+     * AwapiCompare" that funnels through the single-instance lock).
+     * Returns an unsubscribe function.
+     */
+    onOpenCompare(cb: (session: InitialCompareSession) => void): () => void;
+    /**
+     * Tell the main process the renderer has mounted and subscribed to
+     * {@link AwapiApi.app.onOpenCompare}. The main process flushes any
+     * compare sessions queued before the renderer was ready (e.g. a
+     * multi-select compare that resolved during window startup).
+     */
+    notifyReady(): void;
+    /**
      * Subscribe to a "window-close requested" event from the main
      * process. The renderer is expected to prompt the user about any
      * unsaved changes and, once the user confirms, call
@@ -461,8 +493,8 @@ export interface AwapiApi {
    * registry entries on Windows). Only surfaces on supported platforms.
    */
   shell: {
-    /** Returns `true` when context-menu entries are currently installed. */
-    status(): Promise<boolean>;
+    /** Returns registration status and scope for Explorer context-menu entries. */
+    status(): Promise<ShellIntegrationStatus>;
     /** Installs context-menu entries for the running app. */
     register(): Promise<void>;
     /** Removes previously installed context-menu entries. */
