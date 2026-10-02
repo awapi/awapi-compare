@@ -109,6 +109,9 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
   const { fs, hash, rules, session, recents, license, updater } = services;
 
   ipcMain.handle(IpcChannel.FsScan, (_e, req) => wrap(() => fs.scan(req)));
+  ipcMain.handle(IpcChannel.FsScanCancel, (_e, scanId: string) =>
+    wrap(() => fs.cancelScan(scanId)),
+  );
   ipcMain.handle(IpcChannel.FsRead, (_e, req) => wrap(() => fs.read(req)));
   ipcMain.handle(IpcChannel.FsReadChunk, (_e, req) => wrap(() => fs.readChunk(req)));
   ipcMain.handle(IpcChannel.FsHash, (_e, path: string) => wrap(() => hash.hash(path)));

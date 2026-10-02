@@ -48,6 +48,10 @@ export function classifyFile(
     return { kind: 'text' }; // empty files are conventionally treated as text.
   }
 
+  // UTF-16 text is full of NUL bytes, so the heuristic below would call
+  // it binary. A UTF-16 BOM is a strong enough signal to short-circuit.
+  if (hasUtf16Bom(buf)) return { kind: 'text' };
+
   if (looksLikeText(buf)) return { kind: 'text' };
   return { kind: 'binary' };
 }
@@ -91,6 +95,11 @@ function detectImage(buf: Uint8Array): FileKindResult['imageFormat'] | null {
   }
   if (matches(buf, BMP)) return 'bmp';
   return null;
+}
+
+function hasUtf16Bom(buf: Uint8Array): boolean {
+  if (buf.length < 2) return false;
+  return (buf[0] === 0xff && buf[1] === 0xfe) || (buf[0] === 0xfe && buf[1] === 0xff);
 }
 
 function matches(buf: Uint8Array, sig: readonly number[]): boolean {

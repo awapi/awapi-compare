@@ -42,13 +42,81 @@ function nameOf(pair: ComparedPair): string {
   return (pair.left?.name ?? pair.right?.name ?? pair.relPath).toLowerCase();
 }
 
-function compareNodes(a: Node, b: Node): number {
+/** Column a folder tree can be sorted by. */
+export type SortColumn = 'name' | 'size' | 'mtime' | 'status';
+
+export type SortDirection = 'asc' | 'desc';
+
+/**
+ * Sort request for {@link buildTreeRows}. `side` picks which pane's
+ * entry feeds the `name`, `size` and `mtime` columns; it is ignored for
+ * `status`.
+ */
+export interface TreeSort {
+  column: SortColumn;
+  side: 'left' | 'right';
+  direction: SortDirection;
+}
+
+const STATUS_ORDER: readonly DiffStatus[] = [
+  'error',
+  'left-only',
+  'right-only',
+  'different',
+  'newer-left',
+  'newer-right',
+  'identical',
+  'excluded',
+];
+
+function sideEntry(pair: ComparedPair, side: 'left' | 'right') {
+  return side === 'left' ? pair.left : pair.right;
+}
+
+function sortNameOf(pair: ComparedPair, side: 'left' | 'right'): string {
+  const own = sideEntry(pair, side);
+  const other = sideEntry(pair, side === 'left' ? 'right' : 'left');
+  return (own?.name ?? other?.name ?? pair.relPath).toLowerCase();
+}
+
+function compareValues(a: number | string, b: number | string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function compareNodes(a: Node, b: Node, sort?: TreeSort): number {
   if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-  const an = nameOf(a.pair);
-  const bn = nameOf(b.pair);
-  if (an < bn) return -1;
-  if (an > bn) return 1;
-  return 0;
+  if (sort && sort.column !== 'name') {
+    const sign = sort.direction === 'asc' ? 1 : -1;
+    if (sort.column === 'status') {
+      const diff =
+        STATUS_ORDER.indexOf(a.pair.status) - STATUS_ORDER.indexOf(b.pair.status);
+      if (diff !== 0) return diff * sign;
+    } else {
+      const key = sort.column === 'size' ? 'size' : 'mtimeMs';
+      const av = sideEntry(a.pair, sort.side)?.[key];
+      const bv = sideEntry(b.pair, sort.side)?.[key];
+      // Entries missing on the sorted side always sink to the bottom.
+      if (av === undefined && bv !== undefined) return 1;
+      if (av !== undefined && bv === undefined) return -1;
+      if (av !== undefined && bv !== undefined && av !== bv) {
+        return compareValues(av, bv) * sign;
+      }
+    }
+    return compareValues(nameOf(a.pair), nameOf(b.pair));
+  }
+  const side = sort?.side ?? 'left';
+  const sign = sort?.direction === 'desc' ? -1 : 1;
+  return compareValues(sortNameOf(a.pair, side), sortNameOf(b.pair, side)) * sign;
+}
+
+/**
+ * Which side holds the more recently modified copy, derived from the
+ * pair's classified status. `null` when neither side is flagged newer.
+ */
+export function newerSide(pair: ComparedPair): 'left' | 'right' | null {
+  if (pair.status === 'newer-left') return 'left';
+  if (pair.status === 'newer-right') return 'right';
+  return null;
 }
 
 /**
@@ -60,6 +128,7 @@ function compareNodes(a: Node, b: Node): number {
 export function buildTreeRows(
   pairs: readonly ComparedPair[],
   collapsed: ReadonlySet<string>,
+  sort?: TreeSort,
 ): TreeRow[] {
   if (pairs.length === 0) return [];
 
@@ -86,10 +155,11 @@ export function buildTreeRows(
     }
   }
 
+  const byOrder = (a: Node, b: Node): number => compareNodes(a, b, sort);
   for (const node of nodes.values()) {
-    node.children.sort(compareNodes);
+    node.children.sort(byOrder);
   }
-  roots.sort(compareNodes);
+  roots.sort(byOrder);
 
   const rows: TreeRow[] = [];
   const walk = (node: Node, depth: number): void => {

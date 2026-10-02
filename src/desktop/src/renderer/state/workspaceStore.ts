@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type TabKind = 'compare' | 'fileDiff';
+export type TabKind = 'compare' | 'fileDiff' | 'merge';
 
 export interface CompareTab {
   id: string;
@@ -39,7 +39,25 @@ export interface FileDiffTab {
   dirty?: boolean;
 }
 
-export type WorkspaceTab = CompareTab | FileDiffTab;
+/** Initial absolute paths for a three-way merge tab; every field is optional. */
+export interface MergePaths {
+  base?: string;
+  left?: string;
+  right?: string;
+  output?: string;
+}
+
+export interface MergeTab {
+  id: string;
+  kind: 'merge';
+  title: string;
+  /** Paths the tab opens with (CLI / `git mergetool` launch, or empty). */
+  initialPaths: MergePaths;
+  /** True when the merge result has unsaved edits. */
+  dirty?: boolean;
+}
+
+export type WorkspaceTab = CompareTab | FileDiffTab | MergeTab;
 
 /**
  * Stable id for the **initial** compare tab created on app launch.
@@ -70,6 +88,10 @@ export interface WorkspaceState {
    * registry, keyed by this id.
    */
   openCompareTab(title?: string): string;
+  /**
+   * Open a new three-way merge tab and focus it. Returns the tab id.
+   */
+  openMergeTab(paths?: MergePaths, title?: string): string;
   /**
    * Update the displayed title of a tab. Used by compare tabs to
    * reflect the chosen folder pair (e.g. `left ↔ right`) once both
@@ -177,6 +199,19 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
       return id;
     },
 
+    openMergeTab: (paths, title) => {
+      const id = generateId();
+      const mergeCount = get().tabs.filter((t) => t.kind === 'merge').length;
+      const tab: MergeTab = {
+        id,
+        kind: 'merge',
+        title: title ?? (mergeCount === 0 ? 'Merge' : `Merge ${mergeCount + 1}`),
+        initialPaths: { ...paths },
+      };
+      set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }));
+      return id;
+    },
+
     setTabTitle: (id, title) =>
       set((s) => ({
         tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)),
@@ -222,11 +257,13 @@ export function createWorkspaceStore(opts: CreateWorkspaceStoreOptions = {}) {
     closeAllFileDiffTabs: () => {
       const closed = get().tabs.filter((t) => t.kind === 'fileDiff');
       set((s) => {
-        const remainingCompare = s.tabs.filter((t) => t.kind === 'compare');
-        const firstCompareId = remainingCompare[0]?.id ?? COMPARE_TAB_ID;
+        const remaining = s.tabs.filter((t) => t.kind !== 'fileDiff');
+        const firstCompareId = remaining.find((t) => t.kind === 'compare')?.id ?? COMPARE_TAB_ID;
         return {
-          tabs: remainingCompare,
-          activeTabId: firstCompareId,
+          tabs: remaining,
+          activeTabId: remaining.some((t) => t.id === s.activeTabId && t.kind === 'merge')
+            ? s.activeTabId
+            : firstCompareId,
         };
       });
       for (const t of closed) onTabClosed?.(t);

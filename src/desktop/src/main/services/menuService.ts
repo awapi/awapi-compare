@@ -44,6 +44,7 @@ export function buildMenuTemplate(opts: BuildMenuOptions): MenuNode[] {
     submenu: [
       { label: 'New Session', accelerator: `${mod}+N`, action: 'session.new' },
       { label: 'Open Session…', accelerator: `${mod}+O`, action: 'session.open' },
+      { label: 'New Three-Way Merge', accelerator: `${mod}+Shift+M`, action: 'merge.new' },
       { type: 'separator' },
       { label: 'Save Session', accelerator: `${mod}+S`, action: 'session.save' },
       { label: 'Save Session As…', accelerator: `${mod}+Shift+S`, action: 'session.saveAs' },

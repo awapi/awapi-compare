@@ -11,12 +11,14 @@ import type { CompareMode, InitialCompareSession } from '@awapi/shared';
  * Usage:
  *
  *   awapi-compare --type folder --left ./a --right ./b [--mode quick|thorough|binary]
+ *   awapi-compare [--base ./base] --left ./ours --right ./theirs --output ./merged   # three-way merge
+ *                 (`--type merge` is accepted too; --output alone selects a merge)
  *   awapi-compare --register-shell           # register Windows Explorer context menu
  *   awapi-compare --unregister-shell         # remove Windows Explorer context menu
  *
  * Environment variables (handy for `just dev`):
  *
- *   AWAPI_LEFT, AWAPI_RIGHT, AWAPI_TYPE, AWAPI_MODE
+ *   AWAPI_LEFT, AWAPI_RIGHT, AWAPI_TYPE, AWAPI_MODE, AWAPI_BASE, AWAPI_OUTPUT
  *
  * Returns `null` when no recognised flag or env var is set. Throws on
  * malformed input. Unknown flags are ignored — Electron and
@@ -50,7 +52,9 @@ export function parseDesktopArgs(
   let left: string | undefined;
   let right: string | undefined;
   let mode: CompareMode | undefined;
-  let type: 'folder' | 'file' | undefined;
+  let type: 'folder' | 'file' | 'merge' | undefined;
+  let base: string | undefined;
+  let output: string | undefined;
   let typeSeen = false;
   let registerShell = false;
   let unregisterShell = false;
@@ -65,11 +69,11 @@ export function parseDesktopArgs(
     return raw;
   };
 
-  const assertType = (v: string): 'folder' | 'file' => {
-    if (v !== 'folder' && v !== 'file') {
-      throw new Error(`--type must be 'folder' or 'file' (got '${v}')`);
+  const assertType = (v: string): 'folder' | 'file' | 'merge' => {
+    if (v !== 'folder' && v !== 'file' && v !== 'merge') {
+      throw new Error(`--type must be 'folder', 'file' or 'merge' (got '${v}')`);
     }
-    return v as 'folder' | 'file';
+    return v;
   };
 
   const assertMode = (v: string): CompareMode => {
@@ -95,6 +99,14 @@ export function parseDesktopArgs(
       right = requireValue(argv[++i], '--right');
     } else if (arg?.startsWith('--right=')) {
       right = arg.slice('--right='.length);
+    } else if (arg === '--base') {
+      base = requireValue(argv[++i], '--base');
+    } else if (arg?.startsWith('--base=')) {
+      base = arg.slice('--base='.length);
+    } else if (arg === '--output') {
+      output = requireValue(argv[++i], '--output');
+    } else if (arg?.startsWith('--output=')) {
+      output = arg.slice('--output='.length);
     } else if (arg === '--mode') {
       mode = assertMode(requireValue(argv[++i], '--mode'));
     } else if (arg?.startsWith('--mode=')) {
@@ -148,6 +160,38 @@ export function parseDesktopArgs(
   if (!typeSeen) {
     const v = env['AWAPI_TYPE'];
     if (v && v.length > 0) type = assertType(v);
+  }
+  if (base === undefined) {
+    const v = env['AWAPI_BASE'];
+    if (v && v.length > 0) base = v;
+  }
+  if (output === undefined) {
+    const v = env['AWAPI_OUTPUT'];
+    if (v && v.length > 0) output = v;
+  }
+
+  const abs = (p: string): string => (isAbsolute(p) ? p : resolve(cwd, p));
+
+  // Three-way merge (`git mergetool`): needs both sides and an output file.
+  // `--output` alone selects it, because Chromium reserves `--type=` and
+  // misbehaves when it is given on the Electron command line.
+  if (type === 'merge' || output !== undefined) {
+    if (left === undefined || right === undefined) {
+      throw new Error('a merge requires both --left and --right');
+    }
+    if (output === undefined) {
+      throw new Error('--type merge requires --output');
+    }
+    return {
+      kind: 'compare',
+      session: {
+        type: 'merge',
+        ...(base !== undefined ? { basePath: abs(base) } : {}),
+        leftPath: abs(left),
+        rightPath: abs(right),
+        outputPath: abs(output),
+      },
+    };
   }
 
   // Two bare positional paths (e.g. Windows "Send to" with 2 items selected):

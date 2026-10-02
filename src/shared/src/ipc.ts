@@ -18,6 +18,7 @@ import type {
 export const IpcChannel = {
   FsScan: 'fs.scan',
   FsScanProgress: 'fs.scan.progress',
+  FsScanCancel: 'fs.scan.cancel',
   FsRead: 'fs.read',
   FsReadChunk: 'fs.readChunk',
   FsHash: 'fs.hash',
@@ -69,6 +70,11 @@ export interface FsScanRequest {
   rules: Rule[];
   followSymlinks?: boolean;
   /**
+   * Caller-chosen id used to cancel this scan via `fs.cancelScan`.
+   * Scans without an id cannot be cancelled.
+   */
+  scanId?: string;
+  /**
    * Per-session match policy. When omitted, the main process derives
    * defaults from {@link CompareMode} via `diffOptionsFromMode(mode)`.
    */
@@ -78,6 +84,8 @@ export interface FsScanRequest {
 export interface FsScanResult {
   pairs: ComparedPair[];
   durationMs: number;
+  /** True when the scan was stopped via `fs.cancelScan`; `pairs` is then empty. */
+  cancelled?: boolean;
 }
 
 export interface FsCopyRequest {
@@ -272,6 +280,17 @@ export type InitialCompareSession =
       leftPath: string;
       /** Absolute path to the right file. */
       rightPath: string;
+    }
+  | {
+      type: 'merge';
+      /** Absolute path to the common ancestor. Omit to merge against an empty base. */
+      basePath?: string;
+      /** Absolute path to the left ("ours" / `$LOCAL`) version. */
+      leftPath: string;
+      /** Absolute path to the right ("theirs" / `$REMOTE`) version. */
+      rightPath: string;
+      /** Absolute path the merged result is saved to (`$MERGED`). */
+      outputPath: string;
     };
 
 /**
@@ -318,6 +337,7 @@ export type MenuAction =
   | 'session.saveAs'
   | 'session.refresh'
   | 'session.closeTab'
+  | 'merge.new'
   // Edit
   | 'edit.find'
   | 'edit.findNext'
@@ -343,6 +363,8 @@ export type MenuAction =
 export interface AwapiApi {
   fs: {
     scan(req: FsScanRequest): Promise<FsScanResult>;
+    /** Abort the in-flight scan with the given `scanId` (no-op if unknown). */
+    cancelScan(scanId: string): Promise<void>;
     read(req: FsReadRequest): Promise<FsReadResult>;
     readChunk(req: FsReadChunkRequest): Promise<Uint8Array>;
     hash(path: string): Promise<string>;

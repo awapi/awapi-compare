@@ -161,6 +161,29 @@ describe('FsService.scan', () => {
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
+  it('stops a cancelled scan and reports cancelled with no pairs', async () => {
+    const fs = makeFs({ '/l/a': 'x', '/l/b': 'y', '/r/a': 'x' });
+    const s = svc(fs);
+    s.onScanProgress(() => {
+      void s.cancelScan('scan-1');
+    });
+    const r = await s.scan(req({ leftRoot: '/l', rightRoot: '/r', scanId: 'scan-1' }));
+    expect(r.cancelled).toBe(true);
+    expect(r.pairs).toEqual([]);
+  });
+
+  it('ignores cancelScan for unknown ids and after completion', async () => {
+    const fs = makeFs({ '/l/a': 'x', '/r/a': 'x' });
+    const s = svc(fs);
+    await expect(s.cancelScan('nope')).resolves.toBeUndefined();
+    const r = await s.scan(req({ leftRoot: '/l', rightRoot: '/r', scanId: 'done' }));
+    expect(r.cancelled).toBeUndefined();
+    await s.cancelScan('done');
+    const again = await s.scan(req({ leftRoot: '/l', rightRoot: '/r', scanId: 'done' }));
+    expect(again.cancelled).toBeUndefined();
+    expect(again.pairs).toHaveLength(1);
+  });
+
   it('captures per-side scan errors as error pairs', async () => {
     const fs = makeFs({ '/l/a': 'x' });
     const r = await svc(fs).scan(req({ leftRoot: '/l', rightRoot: '/missing' }));

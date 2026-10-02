@@ -2,7 +2,12 @@ import { useId } from 'react';
 import type { ChangeEvent, FormEvent, JSX, KeyboardEvent, ReactNode } from 'react';
 import type { CompareMode } from '@awapi/shared';
 import type { ThemeName } from '../state/themeStore.js';
-import type { ViewFilter } from '../viewFilter.js';
+import {
+  isFolderOnlyFilter,
+  type FolderFilter,
+  type FolderOnlyFilter,
+  type ViewFilter,
+} from '../viewFilter.js';
 import { Icon, type IconName } from './icons/Icon.js';
 
 export interface ToolbarProps {
@@ -12,11 +17,13 @@ export interface ToolbarProps {
   scanning: boolean;
   theme: ThemeName;
   /** Current view filter (`'all' | 'diffs' | 'same'`). Defaults to `'all'`. */
-  viewFilter?: ViewFilter;
+  viewFilter?: FolderFilter;
   onLeftRootChange(value: string): void;
   onRightRootChange(value: string): void;
   onModeChange(mode: CompareMode): void;
   onRefresh(): void;
+  /** Cancel the in-flight scan. The Stop button is enabled only while `scanning`. */
+  onStop?(): void;
   onToggleTheme(): void;
   onOpenRules(): void;
   onPickLeftFolder?(): void;
@@ -30,7 +37,16 @@ export interface ToolbarProps {
   onGoUpLeft?(): void;
   onGoUpRight?(): void;
   onOpenDiffOptions?(): void;
+  /** Open the folder-sync dialog. The Sync button is rendered only when provided. */
+  onOpenSync?(): void;
   onViewFilterChange?(filter: ViewFilter): void;
+  /**
+   * Folder-only filters (different / newer / orphans / selected). The
+   * "More filters" dropdown is rendered only when this is provided.
+   */
+  onFolderFilterChange?(filter: FolderOnlyFilter): void;
+  /** Whether the `Selected` folder filter is currently usable. */
+  canFilterSelected?: boolean;
   /**
    * Called when the user presses Enter while focused in either path
    * input. Used to load/refresh the comparison immediately instead of
@@ -135,6 +151,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onRightRootChange,
     onModeChange,
     onRefresh,
+    onStop,
     onToggleTheme,
     onOpenRules,
     onPickLeftFolder,
@@ -142,7 +159,10 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     onGoUpLeft,
     onGoUpRight,
     onOpenDiffOptions,
+    onOpenSync,
     onViewFilterChange,
+    onFolderFilterChange,
+    canFilterSelected = false,
     onSubmitPaths,
     viewFilter = 'all',
     pathLabel = 'folder',
@@ -233,6 +253,28 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             disabled={!onViewFilterChange}
             onClick={() => onViewFilterChange?.('same')}
           />
+          {onFolderFilterChange ? (
+            <select
+              className="awapi-toolbar__select"
+              aria-label="More filters"
+              title="More filters"
+              value={isFolderOnlyFilter(viewFilter) ? viewFilter : ''}
+              onChange={(e) => {
+                const next = e.target.value as FolderFilter;
+                if (isFolderOnlyFilter(next)) onFolderFilterChange(next);
+              }}
+            >
+              <option value="" disabled>
+                More filters…
+              </option>
+              <option value="different">Different only</option>
+              <option value="newer">Newer only</option>
+              <option value="orphans">Orphans only</option>
+              <option value="selected" disabled={!canFilterSelected}>
+                Selected only
+              </option>
+            </select>
+          ) : null}
         </div>
         <div className="awapi-toolbar__group">
           <IconBtn
@@ -250,7 +292,16 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
               onRightRootChange(leftRoot);
             }}
           />
-          <IconBtn icon="stop" label="Stop" disabled={!scanning} />
+          <IconBtn icon="stop" label="Stop" disabled={!scanning} onClick={onStop} />
+          {onOpenSync ? (
+            <IconBtn
+              icon="sync"
+              label="Sync"
+              ariaLabel="Sync folders"
+              disabled={!canCompare || !leftRoot.trim() || !rightRoot.trim()}
+              onClick={onOpenSync}
+            />
+          ) : null}
         </div>
         {onSaveLeft || onSaveRight ? (
           <div className="awapi-toolbar__group" role="group" aria-label="Save edits">

@@ -29,8 +29,26 @@
 3. Main `fsService` streams entries on both sides, applies rules, pairs
    left ↔ right via `pairingKey(...)`, then classifies each pair via
    `classifyPair(..., { diffOptions })`.
-4. Progress is pushed back via `fs.scan.progress` events.
-5. Result is rendered as a twin virtualized tree.
+4. Progress is pushed back via `fs.scan.progress` events. The renderer tags
+   each scan with a `scanId`; the toolbar's Stop button calls
+   `window.awapi.fs.cancelScan(scanId)` (`fs.scan.cancel`), which aborts the
+   scan's `AbortController` in `fsService`. The scan then resolves with
+   `cancelled: true` and the renderer keeps the previous results.
+5. Result is rendered as a twin virtualized tree. Renderer-only view
+   state sits on top of the scan result and is never sent over IPC:
+   `filterPairs` in `viewFilter.ts` applies the All / Diffs / Same /
+   Different / Newer / Orphans / Selected filter, and `buildTreeRows` in
+   `treeRows.ts` takes an optional `TreeSort` (column, side, direction)
+   that orders siblings within each directory (folders first).
+
+6. **Folder sync** also stays out of IPC. `planFolderSync` in
+   `src/shared/src/folderSync.ts` is a pure function that turns the scanned
+   pairs plus a `FolderSyncMode` (mirror / update / two-way) into a
+   `FolderSyncPlan`: ordered copy and delete items plus conflicts that are
+   reported but never touched. The Sync dialog renders that plan as the
+   dry-run preview; on confirmation `runFolderSync` (`folderSyncRunner.ts`)
+   executes it item by item through the existing `fs.copy` / `fs.rm`
+   channels and the tab rescans afterwards.
 
 The pairing rules, attribute checks (size, mtime tolerance, DST,
 timezone), and content-comparison strategy live in
@@ -49,6 +67,29 @@ unit-tested). The result is stashed on the `Services` object as
 mount in `App.tsx` and pre-populates the first compare tab. See
 [`docs/user-guide.md`](user-guide.md#command-line--launch-flags) for the
 user-facing contract.
+
+### Three-way merge
+
+`--output` (with `--left` / `--right`, optional `--base`) yields an
+`InitialCompareSession` of `type: 'merge'`; `App.tsx` opens a `merge`
+workspace tab for it, and the **New Three-Way Merge** menu action
+(`merge.new`) opens an empty one. The pieces:
+
+- `src/shared/src/merge3.ts` — pure: Myers line diff, diff3 region builder
+  (`merge3`), region choices, conflict markers, region stepping and line /
+  EOL helpers. No new IPC channels: files are read / written through the
+  existing `fs.read`, `fs.stat` and `fs.write`.
+- `renderer/mergeFiles.ts` — loads the inputs (decode, text check) and
+  writes the result (encoding-aware, external-modification guard) behind an
+  injectable fs API.
+- `renderer/mergeEditing.ts` — pure mapping between regions and Monaco line
+  slots / edits / decoration classes.
+- `components/MergeView.tsx` — four Monaco editors; result regions are
+  tracked with decorations so choices and manual edits keep working.
+  `components/MergeTab.tsx` owns paths, load and save.
+- `main/mergeExit.ts` — the process exits `0` when the output file was
+  written during a merge launch and `1` otherwise (`git mergetool`
+  `trustExitCode`).
 
 ## File-diff dispatch (Phase 7)
 
@@ -78,6 +119,30 @@ tab* mounts. The dispatch is content-driven, not extension-driven:
      pixel-diff). Pixel diff is computed via the `pixelmatch` wrapper
      in `imageDiff.ts`. Images flow as `data:` URIs (CSP allows
      `img-src 'self' data:`).
+
+#### Text-compare controls
+
+Renderer-only (no IPC changes):
+
+- `@awapi/shared/textEncoding` — pure BOM/UTF-8/Windows-1252 detection,
+  `decodeTextFile` / `encodeText`, and `detectEol`. `useFileDiffData`
+  decodes through it and records `SideData.encoding`; `FileDiffTab`
+  owns the per-side encoding choice and encodes on save (plain UTF-8
+  still goes through `fs.write` as a string; other encodings are
+  written as `binary` bytes). A UTF-16 BOM makes `classifyFile` return
+  `text`.
+- `renderer/textCompare.ts` — pure option model, regex compilation and
+  **hunk classification**. Monaco only natively ignores leading/trailing
+  whitespace (`ignoreTrimWhitespace`), so every other ignore option
+  post-classifies Monaco's `getLineChanges()` hunks: a hunk is *ignored*
+  when both sides are equal after normalisation. `TextDiffView` re-runs
+  this on `onDidUpdateDiff`, dims ignored hunks with a line decoration
+  (`awapi-diff-ignored-line`, see `styles.css`), and drives
+  next/previous (skipping ignored hunks) and the counter from the
+  classified list.
+- `state/textCompareStore.ts` — persisted (localStorage) global options,
+  injected into `TextDiffView` by `FileDiffTab` as props so the view
+  stays store-free and testable with a fake Monaco.
 
 The hex and pixel-diff algorithms live in `@awapi/shared` and the
 renderer-only `imageDiff.ts` respectively, both with 100% line

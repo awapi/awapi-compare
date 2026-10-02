@@ -4,6 +4,7 @@ import { AboutDialog } from './components/AboutDialog.js';
 import { CompareTabBody } from './components/CompareTabBody.js';
 import { DiffOptionsDialog } from './components/DiffOptionsDialog.js';
 import { FileDiffTab } from './components/FileDiffTab.js';
+import { MergeTab } from './components/MergeTab.js';
 import { OpenSessionDialog } from './components/OpenSessionDialog.js';
 import { PreferencesDialog } from './components/PreferencesDialog.js';
 import { SaveSessionDialog } from './components/SaveSessionDialog.js';
@@ -111,7 +112,17 @@ export function App(): JSX.Element {
       try {
         const initial = await window.awapi.app?.getInitialCompare?.();
         if (!cancelled && initial) {
-          if (initial.type === 'file') {
+          if (initial.type === 'merge') {
+            useWorkspaceStore.getState().openMergeTab(
+              {
+                base: initial.basePath,
+                left: initial.leftPath,
+                right: initial.rightPath,
+                output: initial.outputPath,
+              },
+              `Merge: ${basename(initial.outputPath)}`,
+            );
+          } else if (initial.type === 'file') {
             // Open a standalone file-diff tab (no parent folder scan needed).
             const title = `${basename(initial.leftPath)} ↔ ${basename(initial.rightPath)}`;
             useWorkspaceStore.getState().openFileDiffTab(
@@ -330,7 +341,19 @@ export function App(): JSX.Element {
         setOpenSessionOpen(true);
         return;
       }
+      if (menuAction === 'merge.new') {
+        useWorkspaceStore.getState().openMergeTab();
+        return;
+      }
       if (menuAction === 'session.save') {
+        const focusedTab = useWorkspaceStore.getState().tabs.find((t) => t.id === activeTabId);
+        if (focusedTab?.kind === 'merge') {
+          // Cmd/Ctrl+S on a merge tab saves the merge result.
+          void getTabSaveHandler(focusedTab.id)?.().catch((err: unknown) => {
+            console.warn('[awapi] merge save failed:', err);
+          });
+          return;
+        }
         const store = getActiveCompareStore();
         if (!store) return;
         if (store.name) {
@@ -396,6 +419,8 @@ export function App(): JSX.Element {
                   onOpenDiffOptions={() => setDiffOptionsOpen(true)}
                   onOpenSession={() => setOpenSessionOpen(true)}
                 />
+              ) : tab.kind === 'merge' ? (
+                <MergeTab tabId={tab.id} initialPaths={tab.initialPaths} />
               ) : (
                 <FileDiffTab
                   relPath={tab.relPath}

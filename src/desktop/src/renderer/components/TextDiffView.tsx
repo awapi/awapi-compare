@@ -1,7 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { JSX, MutableRefObject } from 'react';
-import { languageFromPath } from '@awapi/shared';
+import {
+  TEXT_ENCODINGS,
+  detectEol,
+  languageFromPath,
+  type TextEncodingId,
+} from '@awapi/shared';
 import { filterTextLines, type ViewFilter } from '../viewFilter.js';
+import {
+  DEFAULT_TEXT_COMPARE_OPTIONS,
+  classifyHunks,
+  compileIgnorePatterns,
+  ignoredSpans,
+  hunkRevealLine,
+  importantPosition,
+  resolveBaseIndex,
+  stepHunk,
+  summarizeHunks,
+  type ClassifiedHunk,
+  type HunkLineReader,
+  type LineSpan,
+  type TextCompareOptions,
+} from '../textCompare.js';
+import { TextCompareToolbar } from './TextCompareToolbar.js';
 
 /**
  * Imperative handle exposed via {@link TextDiffViewProps.actionsRef}.
@@ -33,6 +54,8 @@ export interface MonacoLike {
       options?: Record<string, unknown>,
     ): MonacoDiffEditor;
     createModel(value: string, language?: string): MonacoModel;
+    /** `monaco.editor.EndOfLineSequence`; optional so tiny fakes can omit it. */
+    EndOfLineSequence?: { LF: number; CRLF: number };
   };
 }
 
@@ -51,6 +74,17 @@ export interface MonacoSingleEditOperation {
   text: string | null;
 }
 
+/** A whole-line decoration (used to dim ignored differences). */
+export interface MonacoDecoration {
+  range: MonacoRange;
+  options: { isWholeLine?: boolean; className?: string; zIndex?: number };
+}
+
+export interface MonacoDecorationsCollection {
+  set(decorations: MonacoDecoration[]): void;
+  clear(): void;
+}
+
 /** Minimal surface of an individual Monaco editor (original or modified side). */
 export interface MonacoEditorInstance {
   addAction(descriptor: {
@@ -62,6 +96,13 @@ export interface MonacoEditorInstance {
     run(editor: MonacoEditorInstance): void;
   }): { dispose(): void };
   getSelection(): MonacoRange | null;
+  // The members below are optional so tiny test fakes don't have to
+  // implement them; the view degrades gracefully without them.
+  getPosition?(): { lineNumber: number; column: number } | null;
+  onDidChangeCursorSelection?(cb: (e: { selection: MonacoRange }) => void): { dispose(): void };
+  setPosition?(position: { lineNumber: number; column: number }): void;
+  revealLineInCenter?(line: number): void;
+  createDecorationsCollection?(decorations?: MonacoDecoration[]): MonacoDecorationsCollection;
 }
 
 /**
@@ -88,6 +129,8 @@ export interface MonacoDiffEditor {
   getModifiedEditor(): MonacoEditorInstance;
   /** Line-level diff result; absent in fakes / before first compute. */
   getLineChanges?(): MonacoLineChange[] | null;
+  /** Fires after Monaco (re)computes the diff. Optional for fakes. */
+  onDidUpdateDiff?(cb: () => void): { dispose(): void };
   /**
    * Update editor options after construction. Used to flip the
    * `readOnly` / `originalEditable` flags when a side finishes
@@ -113,6 +156,10 @@ export interface MonacoModel {
   getLineCount?(): number;
   /** 1-based max column for `line`; optional for the same reason. */
   getLineMaxColumn?(line: number): number;
+  /** Current line-ending sequence (`'\n'` or `'\r\n'`); optional for the same reason. */
+  getEOL?(): string;
+  /** Switch the line-ending sequence; optional for the same reason. */
+  setEOL?(eol: number): void;
 }
 
 export type MonacoLoader = () => Promise<MonacoLike>;
@@ -125,7 +172,7 @@ export type MonacoLoader = () => Promise<MonacoLike>;
  * bare specifier to a tiny stub (see `vitest.config.ts`); the few
  * tests that mount this view inject a `monacoLoader` prop instead.
  */
-const defaultLoader: MonacoLoader = async () => {
+export const defaultLoader: MonacoLoader = async () => {
   await ensureMonacoWorkers();
   const mod = await import('monaco-editor');
   return mod as unknown as MonacoLike;
@@ -206,6 +253,30 @@ export function computeCopyEdit(
 }
 
 /**
+ * Edit that copies one whole diff hunk from `source` onto `target`.
+ * Used by the toolbar's "Copy difference" buttons, which act on the
+ * currently selected hunk rather than on an editor selection.
+ */
+export function computeHunkCopyEdit(
+  change: MonacoLineChange,
+  source: MonacoModel,
+  target: MonacoModel,
+  direction: 'toModified' | 'toOriginal',
+): MonacoSingleEditOperation | null {
+  const sourceSide = direction === 'toModified' ? 'original' : 'modified';
+  const start = sourceSide === 'original' ? change.originalStartLineNumber : change.modifiedStartLineNumber;
+  const line = Math.max(1, start);
+  // A caret (not a range) makes `computeChangeEdit` take the whole hunk.
+  const caret: MonacoRange = {
+    startLineNumber: line,
+    startColumn: 1,
+    endLineNumber: line,
+    endColumn: 1,
+  };
+  return computeChangeEdit(change, source, target, caret, sourceSide);
+}
+
+/**
  * Like {@link computeCopyEdit} but returns an edit for **every** diff
  * hunk that overlaps the selection.  This is the path taken by the
  * context-menu actions so that a wide selection (e.g. Cmd+A) copies
@@ -231,6 +302,15 @@ export function computeCopyEdits(
     if (op) ops.push(op);
   }
   return ops;
+}
+
+/** Hunks whose lines on `side` overlap `selection` (a caret counts as a one-line selection). */
+function hunksIntersecting(
+  hunks: readonly ClassifiedHunk[],
+  side: 'original' | 'modified',
+  selection: MonacoRange,
+): ClassifiedHunk[] {
+  return hunks.filter((h) => changeIntersectsSelection(h.change, side, selection));
 }
 
 function changeIntersectsSelection(
@@ -473,6 +553,48 @@ export interface TextDiffViewProps {
    * non-existent right; `'toLeft'` is the inverse.
    */
   onCreateMissingSide?: (direction: 'toLeft' | 'toRight') => void;
+  /**
+   * Text-compare view options (ignore whitespace / case / regex, inline,
+   * wrap). Defaults to {@link DEFAULT_TEXT_COMPARE_OPTIONS}; the file-diff
+   * tab supplies the persisted global options.
+   */
+  compareOptions?: TextCompareOptions;
+  onCompareOptionsChange?: (patch: Partial<TextCompareOptions>) => void;
+  onResetCompareOptions?: () => void;
+  /**
+   * Encoding the file on each side will be saved with. The host owns
+   * this (it is detected from the bytes on load and applied when
+   * encoding for save); the view only renders the picker.
+   */
+  leftEncoding?: TextEncodingId;
+  rightEncoding?: TextEncodingId;
+  onEncodingChange?: (side: 'left' | 'right', encoding: TextEncodingId) => void;
+}
+
+/** Monaco diff-editor options derived from the text-compare options. */
+function monacoViewOptions(
+  o: Pick<TextCompareOptions, 'ignoreTrimWhitespace' | 'sideBySide' | 'wordWrap'>,
+): Record<string, unknown> {
+  return {
+    ignoreTrimWhitespace: o.ignoreTrimWhitespace,
+    renderSideBySide: o.sideBySide,
+    wordWrap: o.wordWrap ? 'on' : 'off',
+    // Gutter arrow that reverts a hunk to the left side's text.
+    renderMarginRevertIcon: true,
+  };
+}
+
+function toDecoration(span: LineSpan): MonacoDecoration {
+  return {
+    range: { startLineNumber: span.start, startColumn: 1, endLineNumber: span.end, endColumn: 1 },
+    // High zIndex so the dimming sits above Monaco's own insert/delete tint.
+    options: { isWholeLine: true, className: 'awapi-diff-ignored-line', zIndex: 100 },
+  };
+}
+
+/** Line ending of a model; LF for fakes that lack `getEOL`. */
+function readEol(model: MonacoModel | null | undefined): 'lf' | 'crlf' {
+  return model?.getEOL?.() === '\r\n' ? 'crlf' : 'lf';
 }
 
 /**
@@ -494,6 +616,12 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
     monacoLoader = defaultLoader,
     viewFilter = 'all',
     onCreateMissingSide,
+    compareOptions = DEFAULT_TEXT_COMPARE_OPTIONS,
+    onCompareOptionsChange,
+    onResetCompareOptions,
+    leftEncoding = 'utf-8',
+    rightEncoding = 'utf-8',
+    onEncodingChange,
   } = props;
 
   // Apply the All/Diffs/Same filter to the buffers fed to Monaco. The
@@ -526,6 +654,67 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   const [leftDirty, setLeftDirty] = useState(false);
   const [rightDirty, setRightDirty] = useState(false);
   const [saving, setSaving] = useState<'left' | 'right' | null>(null);
+  const [eol, setEol] = useState<{ left: 'lf' | 'crlf'; right: 'lf' | 'crlf' }>({
+    left: 'lf',
+    right: 'lf',
+  });
+  const [hunks, setHunks] = useState<ClassifiedHunk[]>([]);
+  const [currentHunk, setCurrentHunk] = useState(-1);
+  // Last caret / selection the user made, and in which editor. Drives
+  // which differences the copy buttons act on.
+  const [cursor, setCursor] = useState<{ side: 'original' | 'modified'; selection: MonacoRange } | null>(
+    null,
+  );
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
+
+  // Mirrors for callbacks registered once at mount.
+  const optionsRef = useRef(compareOptions);
+  optionsRef.current = compareOptions;
+  const patternsKey = JSON.stringify(compareOptions.ignorePatterns);
+  const compiledRef = useRef(compileIgnorePatterns(compareOptions.ignorePatterns));
+  const compiledKeyRef = useRef(patternsKey);
+  if (compiledKeyRef.current !== patternsKey) {
+    compiledKeyRef.current = patternsKey;
+    compiledRef.current = compileIgnorePatterns(compareOptions.ignorePatterns);
+  }
+  const hunksRef = useRef<ClassifiedHunk[]>([]);
+  hunksRef.current = hunks;
+  const currentHunkRef = useRef(-1);
+  currentHunkRef.current = currentHunk;
+  const decorationsRef = useRef<{
+    original: { set(d: MonacoDecoration[]): void; clear(): void } | null;
+    modified: { set(d: MonacoDecoration[]): void; clear(): void } | null;
+  }>({ original: null, modified: null });
+
+  // Re-classify Monaco's line hunks (ignored vs important). Cheap when
+  // no soft-ignore option is active: the reader is never invoked.
+  const recomputeHunks = useCallback(() => {
+    const editor = editorRef.current;
+    const models = modelsRef.current;
+    if (!editor || !models) return;
+    const read: HunkLineReader = (side, start, end) =>
+      readLines(side === 'original' ? models.original : models.modified, start, end);
+    const next = classifyHunks(
+      editor.getLineChanges?.() ?? null,
+      read,
+      optionsRef.current,
+      compiledRef.current.regexes,
+    );
+    setHunks(next);
+    setCurrentHunk((cur) => (cur >= next.length ? -1 : cur));
+  }, []);
+  const recomputeHunksRef = useRef(recomputeHunks);
+  recomputeHunksRef.current = recomputeHunks;
+
+  const refreshEol = useCallback(() => {
+    const m = modelsRef.current;
+    if (!m) return;
+    const next = { left: readEol(m.original), right: readEol(m.modified) };
+    setEol((prev) => (prev.left === next.left && prev.right === next.right ? prev : next));
+  }, []);
+  const refreshEolRef = useRef(refreshEol);
+  refreshEolRef.current = refreshEol;
 
   // Mount: load Monaco and create the diff editor.
   useEffect(() => {
@@ -551,20 +740,35 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
           readOnly: !editableRight,
           originalEditable: editableLeft === true,
           minimap: { enabled: false },
+          ...monacoViewOptions(optionsRef.current),
         });
         editor.setModel({ original, modified });
         editorRef.current = editor;
         modelsRef.current = { original, modified };
+        refreshEolRef.current();
         // Attach change listeners *after* the initial models are
         // installed so the synthetic createModel writes don't mark
         // the buffers dirty on first paint.
-        const subL = original.onDidChangeContent(() =>
-          setLeftDirty(original.getValue() !== (displayLeftTextRef.current ?? '')),
-        );
-        const subR = modified.onDidChangeContent(() =>
-          setRightDirty(modified.getValue() !== (displayRightTextRef.current ?? '')),
-        );
+        const subL = original.onDidChangeContent(() => {
+          setLeftDirty(original.getValue() !== (displayLeftTextRef.current ?? ''));
+          refreshEolRef.current();
+        });
+        const subR = modified.onDidChangeContent(() => {
+          setRightDirty(modified.getValue() !== (displayRightTextRef.current ?? ''));
+          refreshEolRef.current();
+        });
         subscriptionsRef.current.push(subL, subR);
+        const subDiff = editor.onDidUpdateDiff?.(() => recomputeHunksRef.current());
+        if (subDiff) subscriptionsRef.current.push(subDiff);
+        for (const side of ['original', 'modified'] as const) {
+          const ed = side === 'original' ? editor.getOriginalEditor() : editor.getModifiedEditor();
+          const sub = ed.onDidChangeCursorSelection?.((e) => setCursor({ side, selection: e.selection }));
+          if (sub) subscriptionsRef.current.push(sub);
+        }
+        decorationsRef.current = {
+          original: editor.getOriginalEditor().createDecorationsCollection?.([]) ?? null,
+          modified: editor.getModifiedEditor().createDecorationsCollection?.([]) ?? null,
+        };
 
         // Context-menu actions: "Copy → Right" (from original) and
         // "Copy ← Left" (from modified), mirroring the folder-compare
@@ -668,6 +872,9 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
       cancelled = true;
       for (const sub of subscriptionsRef.current) sub.dispose();
       subscriptionsRef.current = [];
+      decorationsRef.current.original?.clear();
+      decorationsRef.current.modified?.clear();
+      decorationsRef.current = { original: null, modified: null };
       editorRef.current?.dispose();
       modelsRef.current?.original.dispose();
       modelsRef.current?.modified.dispose();
@@ -693,6 +900,30 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
       originalEditable: editableLeft === true,
     });
   }, [editorState, editableLeft, editableRight]);
+
+  // Push view options (trim-whitespace, inline, wrap) into Monaco.
+  const { ignoreTrimWhitespace, sideBySide, wordWrap } = compareOptions;
+  useEffect(() => {
+    if (editorState !== 'ready') return;
+    editorRef.current?.updateOptions?.(
+      monacoViewOptions({ ignoreTrimWhitespace, sideBySide, wordWrap }),
+    );
+  }, [editorState, ignoreTrimWhitespace, sideBySide, wordWrap]);
+
+  // Soft-ignore options change which hunks count as important.
+  const { ignoreAllWhitespace, ignoreCase } = compareOptions;
+  useEffect(() => {
+    if (editorState !== 'ready') return;
+    recomputeHunks();
+  }, [editorState, ignoreAllWhitespace, ignoreCase, patternsKey, recomputeHunks]);
+
+  // Dim the lines of ignored hunks.
+  useEffect(() => {
+    const spansFor = (side: 'original' | 'modified'): MonacoDecoration[] =>
+      ignoredSpans(hunks, side).map(toDecoration);
+    decorationsRef.current.original?.set(spansFor('original'));
+    decorationsRef.current.modified?.set(spansFor('modified'));
+  }, [hunks]);
 
   // Re-sync model contents when the parent supplies new text (e.g.
   // after a save flushed the dirty state, or — crucially — once the
@@ -731,6 +962,7 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
         setRightDirty(false);
       }
     }
+    refreshEolRef.current();
     // The container size is often 0 while React was still painting
     // the initial frame; force a re-layout once content arrives.
     editorRef.current?.layout();
@@ -757,6 +989,88 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   // Keep the ref in sync so the mount-effect's Monaco actions always
   // call the latest `handleSave`.
   handleSaveRef.current = handleSave;
+
+  const goToHunk = useCallback((index: number) => {
+    const hunk = hunksRef.current[index];
+    const editor = editorRef.current;
+    if (!hunk || !editor) return;
+    setCurrentHunk(index);
+    const modified = editor.getModifiedEditor();
+    const line = hunkRevealLine(hunk.change);
+    modified.revealLineInCenter?.(line);
+    modified.setPosition?.({ lineNumber: line, column: 1 });
+  }, []);
+
+  const stepDifference = useCallback(
+    (direction: 'next' | 'previous') => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const base = resolveBaseIndex(
+        hunksRef.current,
+        currentHunkRef.current,
+        editor.getModifiedEditor().getPosition?.() ?? null,
+      );
+      const target = stepHunk(hunksRef.current, base, direction);
+      if (target >= 0) goToHunk(target);
+    },
+    [goToHunk],
+  );
+
+  // Copy the difference(s) under the caret / selection; fall back to the
+  // one last jumped to with the ▲/▼ buttons.
+  const copyDifference = useCallback((direction: 'toModified' | 'toOriginal') => {
+    const models = modelsRef.current;
+    const editor = editorRef.current;
+    if (!models || !editor) return;
+    const sel = cursorRef.current;
+    const hits = sel ? hunksIntersecting(hunksRef.current, sel.side, sel.selection) : [];
+    const fallback = hunksRef.current[currentHunkRef.current];
+    if (hits.length === 0 && !fallback) return;
+    const writable = direction === 'toModified' ? editableRightRef.current : editableLeftRef.current;
+    if (!writable) {
+      // Target side does not exist yet: surface the create prompt.
+      onCreateMissingSideRef.current?.(direction === 'toModified' ? 'toRight' : 'toLeft');
+      return;
+    }
+    const [source, target] =
+      direction === 'toModified' ? [models.original, models.modified] : [models.modified, models.original];
+    const sourceSide = direction === 'toModified' ? 'original' : 'modified';
+    let ops: MonacoSingleEditOperation[];
+    if (sel && hits.length > 0 && sel.side === sourceSide) {
+      // Selection is on the side being copied from: honour partial-hunk selections.
+      ops = computeCopyEdits(editor, source, target, sel.selection, direction);
+    } else {
+      const changes = hits.length > 0 ? hits.map((h) => h.change) : fallback ? [fallback.change] : [];
+      ops = changes.flatMap((c) => computeHunkCopyEdit(c, source, target, direction) ?? []);
+    }
+    if (ops.length > 0) target.pushEditOperations([], ops, () => null);
+  }, []);
+
+  const changeEol = useCallback((side: 'left' | 'right', next: 'lf' | 'crlf') => {
+    const models = modelsRef.current;
+    const seq = monacoRef.current?.editor.EndOfLineSequence;
+    if (!models || !seq) return;
+    const model = side === 'left' ? models.original : models.modified;
+    model.setEOL?.(next === 'crlf' ? seq.CRLF : seq.LF);
+    refreshEolRef.current();
+  }, []);
+
+  // Capture phase so F7 reaches us before Monaco's own (accessible
+  // diff viewer) binding for the same key.
+  const handleKeyDownCapture = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== 'F7' || e.altKey || e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      stepDifference(e.shiftKey ? 'previous' : 'next');
+    },
+    [stepDifference],
+  );
+
+  const summary = summarizeHunks(hunks);
+  const hasCurrent = currentHunk >= 0 && currentHunk < hunks.length;
+  const canCopy =
+    hasCurrent || (cursor !== null && hunksIntersecting(hunks, cursor.side, cursor.selection).length > 0);
 
   // Publish the imperative save handle so the toolbar can invoke
   // saves without owning the Monaco models directly. We re-register
@@ -805,15 +1119,105 @@ export function TextDiffView(props: TextDiffViewProps): JSX.Element {
   }, [saving, onSavingChange]);
 
   return (
-    <section className="awapi-textdiff" aria-label={`Text diff for ${relPath}`}>
-      <header className="awapi-textdiff__toolbar" role="toolbar">
-        <span className="awapi-textdiff__title">{relPath}</span>
+    <section
+      className="awapi-textdiff"
+      aria-label={`Text diff for ${relPath}`}
+      onKeyDownCapture={handleKeyDownCapture}
+    >
+      <TextCompareToolbar
+        relPath={relPath}
+        options={compareOptions}
+        onOptionsChange={(patch) => onCompareOptionsChange?.(patch)}
+        onResetOptions={() => onResetCompareOptions?.()}
+        summary={summary}
+        position={importantPosition(hunks, currentHunk)}
+        onNext={() => stepDifference('next')}
+        onPrevious={() => stepDifference('previous')}
+        onCopyToRight={() => copyDifference('toModified')}
+        onCopyToLeft={() => copyDifference('toOriginal')}
+        copyToRightDisabled={!canCopy || (!editableRight && !onCreateMissingSide)}
+        copyToLeftDisabled={!canCopy || (!editableLeft && !onCreateMissingSide)}
+      >
         {editorState === 'loading' ? <span>Loading editor…</span> : null}
         {editorState === 'error' ? (
           <span className="awapi-textdiff__error">Editor failed: {editorError}</span>
         ) : null}
-      </header>
+      </TextCompareToolbar>
       <div ref={containerRef} className="awapi-textdiff__editor" />
+      <div className="awapi-textdiff__formatbar" role="group" aria-label="File format">
+        <FormatControls
+          side="left"
+          label="Left"
+          encoding={leftEncoding}
+          eol={eol.left}
+          mixedEol={leftText !== null && detectEol(leftText) === 'mixed'}
+          disabled={!editableLeft}
+          onEncodingChange={(enc) => onEncodingChange?.('left', enc)}
+          onEolChange={(next) => changeEol('left', next)}
+        />
+        <FormatControls
+          side="right"
+          label="Right"
+          encoding={rightEncoding}
+          eol={eol.right}
+          mixedEol={rightText !== null && detectEol(rightText) === 'mixed'}
+          disabled={!editableRight}
+          onEncodingChange={(enc) => onEncodingChange?.('right', enc)}
+          onEolChange={(next) => changeEol('right', next)}
+        />
+      </div>
     </section>
+  );
+}
+
+function FormatControls({
+  side,
+  label,
+  encoding,
+  eol,
+  mixedEol,
+  disabled,
+  onEncodingChange,
+  onEolChange,
+}: {
+  side: 'left' | 'right';
+  label: string;
+  encoding: TextEncodingId;
+  eol: 'lf' | 'crlf';
+  mixedEol: boolean;
+  disabled: boolean;
+  onEncodingChange(encoding: TextEncodingId): void;
+  onEolChange(eol: 'lf' | 'crlf'): void;
+}): JSX.Element {
+  return (
+    <div className={`awapi-textdiff__format awapi-textdiff__format--${side}`}>
+      <span className="awapi-textdiff__format-label">{label}</span>
+      <select
+        aria-label={`${label} encoding`}
+        value={encoding}
+        disabled={disabled}
+        onChange={(e) => onEncodingChange(e.target.value as TextEncodingId)}
+      >
+        {TEXT_ENCODINGS.map((enc) => (
+          <option key={enc.id} value={enc.id}>
+            {enc.label}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label={`${label} line endings`}
+        value={eol}
+        disabled={disabled}
+        onChange={(e) => onEolChange(e.target.value as 'lf' | 'crlf')}
+      >
+        <option value="lf">LF (Unix)</option>
+        <option value="crlf">CRLF (Windows)</option>
+      </select>
+      {mixedEol ? (
+        <span className="awapi-textdiff__format-note" title="Mixed line endings are unified when saving">
+          mixed line endings
+        </span>
+      ) : null}
+    </div>
   );
 }

@@ -32,6 +32,8 @@ export interface ScannerOptions {
   fs?: ScannerFs;
   /** Path join/normalisation. Defaults to `node:path.posix` semantics. */
   pathJoin?: (...parts: string[]) => string;
+  /** When aborted, the walk stops at the next entry and the generator ends. */
+  signal?: AbortSignal;
 }
 
 export type ScanItem =
@@ -64,7 +66,7 @@ export async function* scan(
   const visited = new Set<string>();
   if (rootReal) visited.add(rootReal);
 
-  yield* walk(fs, root, '', follow, visited);
+  yield* walk(fs, root, '', follow, visited, options.signal);
 }
 
 async function* walk(
@@ -73,7 +75,9 @@ async function* walk(
   relDir: string,
   follow: boolean,
   visited: Set<string>,
+  signal: AbortSignal | undefined,
 ): AsyncGenerator<ScanItem, void, void> {
+  if (signal?.aborted) return;
   let dirents: Awaited<ReturnType<ScannerFs['promises']['readdir']>>;
   try {
     dirents = await fs.promises.readdir(absDir, { withFileTypes: true });
@@ -86,6 +90,7 @@ async function* walk(
   dirents.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
   for (const d of dirents) {
+    if (signal?.aborted) return;
     const absChild = joinPath(absDir, d.name);
     const relChild = relDir === '' ? d.name : `${relDir}/${d.name}`;
 
@@ -142,7 +147,7 @@ async function* walk(
             mode: tstat.mode,
           },
         };
-        yield* walk(fs, target, relChild, follow, visited);
+        yield* walk(fs, target, relChild, follow, visited, signal);
       } else if (tstat.isFile()) {
         yield {
           kind: 'entry',
@@ -171,7 +176,7 @@ async function* walk(
           mode: stat.mode,
         },
       };
-      yield* walk(fs, absChild, relChild, follow, visited);
+      yield* walk(fs, absChild, relChild, follow, visited, signal);
       continue;
     }
 

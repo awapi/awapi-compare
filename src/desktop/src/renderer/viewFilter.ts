@@ -14,6 +14,30 @@ import type { ComparedPair, DiffStatus } from '@awapi/shared';
  */
 export type ViewFilter = 'all' | 'diffs' | 'same';
 
+/**
+ * Filters that only make sense in the folder tree.
+ *
+ * - `'different'` — entries present on both sides whose content or
+ *                   attributes differ (including newer-on-one-side).
+ * - `'newer'`     — entries flagged newer on either side.
+ * - `'orphans'`   — entries that exist on only one side.
+ * - `'selected'`  — only the selected rows (and their descendants).
+ */
+export type FolderOnlyFilter = 'different' | 'newer' | 'orphans' | 'selected';
+
+export type FolderFilter = ViewFilter | FolderOnlyFilter;
+
+export const FOLDER_ONLY_FILTERS: readonly FolderOnlyFilter[] = [
+  'different',
+  'newer',
+  'orphans',
+  'selected',
+];
+
+export function isFolderOnlyFilter(filter: FolderFilter): filter is FolderOnlyFilter {
+  return (FOLDER_ONLY_FILTERS as readonly string[]).includes(filter);
+}
+
 const DIFFERING_STATUSES: ReadonlySet<DiffStatus> = new Set<DiffStatus>([
   'left-only',
   'right-only',
@@ -27,6 +51,14 @@ const SAME_STATUSES: ReadonlySet<DiffStatus> = new Set<DiffStatus>([
   'identical',
   'excluded',
 ]);
+
+const STATUS_FILTERS: Record<Exclude<FolderFilter, 'all' | 'selected'>, ReadonlySet<DiffStatus>> = {
+  diffs: DIFFERING_STATUSES,
+  same: SAME_STATUSES,
+  different: new Set<DiffStatus>(['different', 'newer-left', 'newer-right']),
+  newer: new Set<DiffStatus>(['newer-left', 'newer-right']),
+  orphans: new Set<DiffStatus>(['left-only', 'right-only']),
+};
 
 function parentOf(relPath: string): string {
   const i = Math.max(relPath.lastIndexOf('/'), relPath.lastIndexOf('\\'));
@@ -42,17 +74,20 @@ function isDirPair(pair: ComparedPair): boolean {
  *
  * Strategy: classify each non-dir pair, then re-include the chain of
  * directory-pair ancestors so the surviving entries still appear under
- * their parent folders in the tree view. Directory pairs that are
- * themselves "diffs" (e.g. `left-only` folder) are kept in `'diffs'`
- * mode even though their children are not enumerated.
+ * their parent folders in the tree view. Directory pairs whose own
+ * status matches (e.g. a `left-only` folder in `'diffs'` or `'orphans'`
+ * mode) are kept even though their children are not enumerated.
+ *
+ * `'selected'` keeps the pairs in `selected` plus everything beneath a
+ * selected directory; with no selection it keeps nothing.
  */
 export function filterPairs(
   pairs: readonly ComparedPair[],
-  mode: ViewFilter,
+  mode: FolderFilter,
+  selected: ReadonlySet<string> = new Set(),
 ): ComparedPair[] {
   if (mode === 'all') return pairs.slice();
 
-  const target = mode === 'diffs' ? DIFFERING_STATUSES : SAME_STATUSES;
   const known = new Set<string>();
   for (const pair of pairs) known.add(pair.relPath);
 
@@ -65,12 +100,32 @@ export function filterPairs(
     }
   };
 
+  if (mode === 'selected') {
+    for (const pair of pairs) {
+      let path = pair.relPath;
+      let hit = false;
+      while (path !== '') {
+        if (selected.has(path)) {
+          hit = true;
+          break;
+        }
+        path = parentOf(path);
+      }
+      if (hit) {
+        keep.add(pair.relPath);
+        includeAncestors(pair.relPath);
+      }
+    }
+    return pairs.filter((p) => keep.has(p.relPath));
+  }
+
+  const target = STATUS_FILTERS[mode];
   for (const pair of pairs) {
     const dir = isDirPair(pair);
     if (!dir && target.has(pair.status)) {
       keep.add(pair.relPath);
       includeAncestors(pair.relPath);
-    } else if (dir && mode === 'diffs' && DIFFERING_STATUSES.has(pair.status)) {
+    } else if (dir && mode !== 'same' && target.has(pair.status)) {
       // Whole folder is left-only / right-only / errored.
       keep.add(pair.relPath);
       includeAncestors(pair.relPath);

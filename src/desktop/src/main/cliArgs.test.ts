@@ -112,6 +112,96 @@ describe('parseDesktopArgs', () => {
     ).toThrow(/folder.*file|file.*folder/);
   });
 
+  describe('--type merge', () => {
+    const full = [
+      '--type', 'merge',
+      '--base', './base.txt',
+      '--left', '/l.txt',
+      '--right=/r.txt',
+      '--output=./out.txt',
+    ];
+
+    it('returns a merge session with resolved paths', () => {
+      expect(parseDesktopArgs(full, opts)).toEqual({
+        kind: 'compare',
+        session: {
+          type: 'merge',
+          basePath: resolve(CWD, 'base.txt'),
+          leftPath: '/l.txt',
+          rightPath: '/r.txt',
+          outputPath: resolve(CWD, 'out.txt'),
+        },
+      });
+    });
+
+    it('accepts --base=value and leaves the base out when not given', () => {
+      const r = parseDesktopArgs(
+        ['--type=merge', '--left', '/l', '--right', '/r', '--output', '/o'],
+        opts,
+      );
+      expect(r).toEqual({
+        kind: 'compare',
+        session: { type: 'merge', leftPath: '/l', rightPath: '/r', outputPath: '/o' },
+      });
+      const withBase = parseDesktopArgs(
+        ['--type=merge', '--base=/b', '--left', '/l', '--right', '/r', '--output', '/o'],
+        opts,
+      );
+      expect(withBase?.kind === 'compare' && withBase.session).toMatchObject({ basePath: '/b' });
+    });
+
+    it('reads AWAPI_BASE / AWAPI_OUTPUT / AWAPI_TYPE from the environment', () => {
+      const r = parseDesktopArgs([], {
+        cwd: CWD,
+        env: {
+          AWAPI_TYPE: 'merge',
+          AWAPI_BASE: '/b',
+          AWAPI_LEFT: '/l',
+          AWAPI_RIGHT: '/r',
+          AWAPI_OUTPUT: '/o',
+        },
+      });
+      expect(r).toEqual({
+        kind: 'compare',
+        session: {
+          type: 'merge',
+          basePath: '/b',
+          leftPath: '/l',
+          rightPath: '/r',
+          outputPath: '/o',
+        },
+      });
+    });
+
+    it('treats --output with --left/--right as a merge without --type', () => {
+      const r = parseDesktopArgs(['--left', '/l', '--right', '/r', '--output', '/o'], opts);
+      expect(r).toEqual({
+        kind: 'compare',
+        session: { type: 'merge', leftPath: '/l', rightPath: '/r', outputPath: '/o' },
+      });
+      expect(() => parseDesktopArgs(['--left', '/l', '--output', '/o'], opts)).toThrow(
+        /--left and --right/,
+      );
+    });
+
+    it('requires --left, --right and --output', () => {
+      expect(() => parseDesktopArgs(['--type', 'merge', '--left', '/l', '--output', '/o'], opts)).toThrow(
+        /--left and --right/,
+      );
+      expect(() => parseDesktopArgs(['--type', 'merge', '--right', '/r', '--output', '/o'], opts)).toThrow(
+        /--left and --right/,
+      );
+      expect(() => parseDesktopArgs(['--type', 'merge', '--left', '/l', '--right', '/r'], opts)).toThrow(
+        /--output/,
+      );
+    });
+
+    it('rejects --base / --output without a value', () => {
+      expect(() => parseDesktopArgs(['--base'], opts)).toThrow(/--base/);
+      expect(() => parseDesktopArgs(['--output', '--left'], opts)).toThrow(/--output/);
+    });
+  });
+
   it('rejects unknown --mode', () => {
     expect(() =>
       parseDesktopArgs(['--mode', 'fuzzy', '--left', '/a', '--right', '/b'], opts),

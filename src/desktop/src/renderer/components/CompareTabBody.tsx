@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { Toolbar } from './Toolbar.js';
 import { StatusBar } from './StatusBar.js';
@@ -7,6 +7,8 @@ import { ContextMenu } from './ContextMenu.js';
 import { OverwriteConfirmDialog } from './OverwriteConfirmDialog.js';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog.js';
 import { RenameDialog } from './RenameDialog.js';
+import { FolderSyncDialog } from './FolderSyncDialog.js';
+import { runFolderSync } from '../folderSyncRunner.js';
 import { emptyDiffSummary, summarize } from '../diffSummary.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
 import { useSessionPersistence } from '../state/useSessionPersistence.js';
@@ -20,12 +22,12 @@ import {
 import { buildRowMenuItems, isActionEnabled } from '../actions.js';
 import type { RowAction } from '../actions.js';
 import { useHotkeys } from '../useHotkeys.js';
-import { filterPairs } from '../viewFilter.js';
+import { filterPairs, type FolderOnlyFilter } from '../viewFilter.js';
 import { joinPath } from '../paths.js';
 import { parentDir } from '../pathUtils.js';
 import { useDropPaths } from '../useDropPaths.js';
 import type { DropSide } from '../useDropPaths.js';
-import type { ComparedPair, MenuAction } from '@awapi/shared';
+import type { ComparedPair, FolderSyncPlan, MenuAction } from '@awapi/shared';
 
 const MENU_TO_ROW: Partial<Record<MenuAction, RowAction>> = {
   'compare.copyLeftToRight': 'copyLeftToRight',
@@ -153,7 +155,14 @@ export function CompareTabBody({
     useState<OverwritePromptState | null>(null);
   const [deletePrompt, setDeletePrompt] = useState<DeletePromptState | null>(null);
   const [renamePrompt, setRenamePrompt] = useState<RenamePromptState | null>(null);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(
+    new Set<string>(),
+  );
+
+  // Selection captured when the "Selected only" filter was applied, so
+  // clicking another row doesn't reshuffle the filtered view.
+  const [filterSelection, setFilterSelection] = useState<ReadonlySet<string>>(
     new Set<string>(),
   );
 
@@ -181,6 +190,17 @@ export function CompareTabBody({
     return () => off?.();
   }, [scanning, setProgress]);
 
+  // Id of the in-flight scan (for cancellation) and whether the user
+  // pressed Stop before it finished.
+  const scanIdRef = useRef<string | null>(null);
+  const stoppedRef = useRef(false);
+
+  const stopScan = useCallback(() => {
+    stoppedRef.current = true;
+    const id = scanIdRef.current;
+    if (id) void window.awapi?.fs.cancelScan(id);
+  }, []);
+
   const runCompare = useCallback(async () => {
     if (!window.awapi) return;
     const left = leftRoot.trim();
@@ -188,6 +208,9 @@ export function CompareTabBody({
     // Allow listing a single side while the other is still being
     // picked. We only require *at least one* root to be set.
     if (!left && !right) return;
+    const scanId = `${tabId}:${Date.now()}`;
+    scanIdRef.current = scanId;
+    stoppedRef.current = false;
     setScanning(true);
     setError(null);
     setProgress(null);
@@ -211,13 +234,17 @@ export function CompareTabBody({
           return;
         }
       }
+      if (stoppedRef.current) return;
       const result = await window.awapi.fs.scan({
+        scanId,
         leftRoot: left,
         rightRoot: right,
         mode,
         rules: [...globalRules, ...sessionRules],
         diffOptions,
       });
+      // A stopped scan keeps the previous results and records no recents.
+      if (result.cancelled || stoppedRef.current) return;
       setPairs(result.pairs);
       // Remember the folder pair only after a successful scan, so a
       // typo'd path that errored out above doesn't pollute the
@@ -227,9 +254,11 @@ export function CompareTabBody({
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      if (scanIdRef.current === scanId) scanIdRef.current = null;
       setScanning(false);
     }
   }, [
+    tabId,
     leftRoot,
     rightRoot,
     mode,
@@ -273,8 +302,8 @@ export function CompareTabBody({
   // summary continues to reflect the unfiltered totals so the status
   // bar stays meaningful regardless of the active view.
   const visiblePairs = useMemo(
-    () => filterPairs(pairs, viewFilter),
-    [pairs, viewFilter],
+    () => filterPairs(pairs, viewFilter, filterSelection),
+    [pairs, viewFilter, filterSelection],
   );
 
   const openFileDiffTab = useWorkspaceStore((s) => s.openFileDiffTab);
@@ -459,6 +488,19 @@ export function CompareTabBody({
       }
     },
     [runCompare, setError],
+  );
+
+  const runSync = useCallback(
+    (plan: FolderSyncPlan, onProgress: (done: number, total: number) => void) => {
+      if (!window.awapi) return Promise.reject(new Error('Filesystem API unavailable.'));
+      return runFolderSync(plan, {
+        leftRoot,
+        rightRoot,
+        fs: window.awapi.fs,
+        onProgress,
+      });
+    },
+    [leftRoot, rightRoot],
   );
 
   const requestRename = useCallback(
@@ -653,6 +695,14 @@ export function CompareTabBody({
     return () => off?.();
   }, [isActive, runCompare, toggleTheme, dispatchAction]);
 
+  const handleFolderFilterChange = useCallback(
+    (filter: FolderOnlyFilter) => {
+      if (filter === 'selected') setFilterSelection(new Set(selectedPaths));
+      setViewFilter(filter);
+    },
+    [selectedPaths, setViewFilter],
+  );
+
   const handleSelectionChange = useCallback(
     (paths: ReadonlySet<string>, primary: string | null) => {
       setSelectedPaths(paths);
@@ -826,6 +876,9 @@ export function CompareTabBody({
         leftRecents={folderRecents}
         rightRecents={folderRecents}
         onViewFilterChange={setViewFilter}
+        onStop={stopScan}
+        onFolderFilterChange={handleFolderFilterChange}
+        canFilterSelected={selectedPaths.size > 0}
         onLeftRootChange={setLeftRoot}
         onRightRootChange={setRightRoot}
         onModeChange={setMode}
@@ -834,6 +887,7 @@ export function CompareTabBody({
         onToggleTheme={toggleTheme}
         onOpenRules={onOpenRules}
         onOpenDiffOptions={onOpenDiffOptions}
+        onOpenSync={() => setSyncOpen(true)}
         onOpenSession={onOpenSession}
         onPickLeftFolder={async () => {
           if (!window.awapi?.dialog) return;
@@ -923,6 +977,17 @@ export function CompareTabBody({
             const paths = [prompt.primaryPath];
             if (applyToOther && prompt.otherPath) paths.push(prompt.otherPath);
             void performDelete(paths);
+          }}
+        />
+      ) : null}
+      {syncOpen ? (
+        <FolderSyncDialog
+          pairs={pairs}
+          selectedPaths={selectedPaths}
+          onRun={runSync}
+          onClose={(didRun) => {
+            setSyncOpen(false);
+            if (didRun) void runCompare();
           }}
         />
       ) : null}

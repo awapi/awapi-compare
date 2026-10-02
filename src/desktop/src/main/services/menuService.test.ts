@@ -52,6 +52,7 @@ describe('buildMenuTemplate', () => {
       'session.saveAs',
       'session.refresh',
       'session.closeTab',
+      'merge.new',
       'edit.find',
       'edit.findNext',
       'edit.findPrev',
@@ -73,6 +74,7 @@ describe('buildMenuTemplate', () => {
     const t = buildMenuTemplate({ platform: 'linux', appName: 'AwapiCompare', isDev: false });
     expect(find(t, 'New Session')?.accelerator).toBe('CmdOrCtrl+N');
     expect(find(t, 'Open Session…')?.accelerator).toBe('CmdOrCtrl+O');
+    expect(find(t, 'New Three-Way Merge')?.accelerator).toBe('CmdOrCtrl+Shift+M');
     expect(find(t, 'Save Session')?.accelerator).toBe('CmdOrCtrl+S');
     expect(find(t, 'Save Session As…')?.accelerator).toBe('CmdOrCtrl+Shift+S');
     expect(find(t, 'Refresh')?.accelerator).toBe('F5');
@@ -120,6 +122,7 @@ describe('buildMenuTemplate', () => {
       'session.saveAs',
       'session.refresh',
       'session.closeTab',
+      'merge.new',
       'edit.find',
       'edit.findNext',
       'edit.findPrev',

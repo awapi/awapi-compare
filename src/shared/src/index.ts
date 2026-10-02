@@ -4,3 +4,6 @@ export * from './diffOptions.js';
 export * from './simpleRules.js';
 export * from './hexDiff.js';
 export * from './fileKind.js';
+export * from './textEncoding.js';
+export * from './folderSync.js';
+export * from './merge3.js';

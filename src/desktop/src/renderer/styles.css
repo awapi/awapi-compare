@@ -353,6 +353,32 @@ body,
   text-overflow: ellipsis;
 }
 
+.awapi-diff-colheader__btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.awapi-diff-colheader__btn:hover {
+  color: var(--awapi-text);
+}
+
+.awapi-diff-colheader__arrow {
+  font-size: 9px;
+}
+
+.awapi-diff-newer {
+  font-weight: 700;
+}
+
 .awapi-diff-colheader > div:last-child {
   border-right: none;
 }
@@ -945,6 +971,152 @@ body,
 .awapi-textdiff__editor {
   flex: 1;
   min-height: 0;
+}
+
+.awapi-textdiff__toolbar {
+  flex-wrap: wrap;
+}
+
+.awapi-textdiff__title {
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.awapi-textdiff__group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.awapi-textdiff__status {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.awapi-textdiff__counter {
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.awapi-textdiff__btn {
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--awapi-text);
+  background: var(--awapi-panel-alt);
+  border: 1px solid var(--awapi-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.awapi-textdiff__btn:hover:not(:disabled) {
+  background: var(--awapi-button-hover);
+}
+
+.awapi-textdiff__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.awapi-textdiff__btn--on {
+  background: var(--awapi-accent);
+  border-color: var(--awapi-accent);
+  color: #fff;
+}
+
+.awapi-textdiff__popover-host {
+  position: relative;
+}
+
+.awapi-textdiff__popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--awapi-text);
+  background: var(--awapi-panel);
+  border: 1px solid var(--awapi-border);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.awapi-textdiff__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.awapi-textdiff__patterns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.awapi-textdiff__patterns textarea {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.awapi-textdiff__pattern-errors {
+  margin: 0;
+  padding-inline-start: 16px;
+  color: var(--awapi-status-error, #ff6b6b);
+}
+
+.awapi-textdiff__hint {
+  margin: 0;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-textdiff__formatbar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 4px 10px;
+  border-top: 1px solid var(--awapi-border);
+  font-size: 12px;
+}
+
+.awapi-textdiff__format {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.awapi-textdiff__format-label {
+  color: var(--awapi-text-muted);
+  min-width: 32px;
+}
+
+.awapi-textdiff__format-note {
+  color: var(--awapi-status-newer-right, #f39c12);
+}
+
+/*
+ * Differences that only differ by ignored text: mask Monaco's line tint
+ * and hide the word-level highlights. Monaco renders those as sibling
+ * overlays inside the same line element, after ours, hence `~`.
+ */
+.monaco-editor .awapi-diff-ignored-line {
+  background-color: var(--vscode-editor-background, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--awapi-border);
+}
+
+.monaco-editor .awapi-diff-ignored-line ~ .char-insert,
+.monaco-editor .awapi-diff-ignored-line ~ .char-delete {
+  display: none;
 }
 
 /* ---- Context menu --------------------------------------------------- */
@@ -1614,4 +1786,187 @@ body,
 .awapi-save-session__input:focus {
   outline: none;
   border-color: var(--awapi-accent);
+}
+
+/* ---- Folder sync dialog --------------------------------------------- */
+
+.awapi-sync__mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.awapi-sync__summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.awapi-sync__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  display: block;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.awapi-sync__table th,
+.awapi-sync__table td {
+  text-align: left;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.awapi-sync__table td:last-child {
+  font-family: var(--awapi-mono, monospace);
+  white-space: normal;
+  word-break: break-all;
+}
+
+.awapi-sync__row--delete td:first-child {
+  color: var(--awapi-danger, #e5534b);
+}
+
+.awapi-sync__list {
+  padding-left: 1.25em;
+  max-height: 20vh;
+  overflow: auto;
+}
+
+.awapi-sync__warning {
+  color: var(--awapi-danger, #e5534b);
+}
+
+/* ---- Three-way merge ------------------------------------------------ */
+
+.awapi-merge-tab {
+  gap: 0;
+}
+
+.awapi-merge-tab__paths {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--awapi-border);
+  background: var(--awapi-ribbon);
+}
+
+.awapi-merge-tab__path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.awapi-merge-tab__path-label {
+  flex: 0 0 48px;
+  font-size: 12px;
+  color: var(--awapi-text-muted);
+}
+
+.awapi-merge-tab__path input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  color: var(--awapi-text);
+  background: var(--awapi-bg);
+  border: 1px solid var(--awapi-border);
+  border-radius: 3px;
+}
+
+.awapi-merge-tab__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.awapi-merge-tab__error {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--awapi-status-error);
+  border-bottom: 1px solid var(--awapi-border);
+}
+
+.awapi-merge-tab__hint {
+  padding: 16px;
+  color: var(--awapi-text-muted);
+  font-style: italic;
+}
+
+.awapi-merge {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--awapi-panel);
+}
+
+.awapi-merge__top {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  flex: 0 0 38%;
+  min-height: 0;
+  border-bottom: 2px solid var(--awapi-border);
+}
+
+.awapi-merge__pane,
+.awapi-merge__result {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.awapi-merge__pane + .awapi-merge__pane {
+  border-inline-start: 1px solid var(--awapi-border);
+}
+
+.awapi-merge__result {
+  flex: 1;
+}
+
+.awapi-merge__pane-title {
+  padding: 2px 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  color: var(--awapi-text-muted);
+  background: var(--awapi-panel-alt);
+  border-bottom: 1px solid var(--awapi-border-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.awapi-merge__editor {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Region highlights (Monaco whole-line decorations). */
+.awapi-merge__region--left {
+  background: rgba(78, 154, 241, 0.16);
+}
+
+.awapi-merge__region--right {
+  background: rgba(127, 219, 202, 0.16);
+}
+
+.awapi-merge__region--both {
+  background: rgba(150, 150, 150, 0.16);
+}
+
+.awapi-merge__region--conflict {
+  background: rgba(231, 76, 60, 0.26);
+}
+
+.awapi-merge__region--resolved {
+  background: rgba(46, 204, 113, 0.18);
+}
+
+.awapi-merge__region--current {
+  box-shadow: inset 3px 0 0 var(--awapi-accent);
 }

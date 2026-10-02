@@ -125,16 +125,42 @@ export interface FsServiceDeps {
  */
 export class FsService {
   private readonly progressListeners = new Set<ScanProgressListener>();
+  private readonly activeScans = new Map<string, AbortController>();
 
   constructor(private readonly deps: FsServiceDeps = {}) {}
 
+  /** Abort the in-flight scan registered under `scanId`. Unknown ids are ignored. */
+  cancelScan(scanId: string): Promise<void> {
+    this.activeScans.get(scanId)?.abort();
+    return Promise.resolve();
+  }
+
   async scan(req: FsScanRequest): Promise<FsScanResult> {
+    const controller = new AbortController();
+    if (req.scanId !== undefined) this.activeScans.set(req.scanId, controller);
+    try {
+      return await this.runScan(req, controller.signal);
+    } finally {
+      // Only drop our own registration; a newer scan may reuse the id.
+      if (req.scanId !== undefined && this.activeScans.get(req.scanId) === controller) {
+        this.activeScans.delete(req.scanId);
+      }
+    }
+  }
+
+  private async runScan(req: FsScanRequest, signal: AbortSignal): Promise<FsScanResult> {
     const started = Date.now();
+    const cancelledResult = (): FsScanResult => ({
+      pairs: [],
+      durationMs: Date.now() - started,
+      cancelled: true,
+    });
     const compiledRules = compileRules(req.rules);
     const diffOptions: DiffOptions = req.diffOptions ?? diffOptionsFromMode(req.mode);
     const options: ScannerOptions = {
       ...this.deps.scannerOptions,
       followSymlinks: req.followSymlinks === true,
+      signal,
     };
 
     // Each side maps `pairingKey -> entry`. Two entries (one per side)
@@ -187,10 +213,13 @@ export class FsService {
         : Promise.resolve(),
     ]);
 
+    if (signal.aborted) return cancelledResult();
+
     const keys = new Set<string>([...leftMap.keys(), ...rightMap.keys()]);
     const pairs: ComparedPair[] = [];
 
     for (const key of [...keys].sort()) {
+      if (signal.aborted) return cancelledResult();
       const left = leftMap.get(key);
       const right = rightMap.get(key);
       pairs.push(await this.classifyAndHash(left, right, req, diffOptions));

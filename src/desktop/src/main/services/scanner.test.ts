@@ -114,6 +114,26 @@ describe('scanner', () => {
   });
 });
 
+describe('scanner cancellation', () => {
+  it('stops yielding once the signal is aborted', async () => {
+    const fs = makeFs({ '/root/a': '1', '/root/b': '2', '/root/sub/c': '3' });
+    const controller = new AbortController();
+    const out: ScanItem[] = [];
+    for await (const item of scan('/root', { fs, signal: controller.signal })) {
+      out.push(item);
+      controller.abort();
+    }
+    expect(out).toHaveLength(1);
+  });
+
+  it('yields nothing when already aborted', async () => {
+    const fs = makeFs({ '/root/a': '1' });
+    const controller = new AbortController();
+    controller.abort();
+    expect(await collect(scan('/root', { fs, signal: controller.signal }))).toEqual([]);
+  });
+});
+
 describe('toPosix', () => {
   it('converts backslashes to forward slashes', () => {
     expect(toPosix('a\\b\\c')).toBe('a/b/c');

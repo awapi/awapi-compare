@@ -77,4 +77,32 @@ describe('useFileDiffData', () => {
     await waitFor(() => expect(result.current.left.text).toBe('beta'));
     expect(result.current.right.text).toBe('alpha');
   });
+
+  it('detects the encoding of each side and decodes accordingly', async () => {
+    const utf16 = Uint8Array.from([0xff, 0xfe, 0x68, 0x00, 0x69, 0x00]);
+    const latin1 = Uint8Array.from([0x63, 0x61, 0x66, 0xe9]);
+    const fsApi = makeFsApi({
+      '/a.txt': { data: utf16, mtimeMs: 1 },
+      '/b.txt': { data: latin1, mtimeMs: 2 },
+    });
+    const { result } = renderHook(() =>
+      useFileDiffData({ leftPath: '/a.txt', rightPath: '/b.txt', fsApi }),
+    );
+    await waitFor(() => expect(result.current.kind).toBe('text'));
+    await waitFor(() => expect(result.current.left.text).toBe('hi'));
+    expect(result.current.left.encoding).toBe('utf-16le');
+    expect(result.current.right.text).toBe('café');
+    expect(result.current.right.encoding).toBe('windows-1252');
+  });
+
+  it('keeps the UTF-8 BOM out of the text but remembers it', async () => {
+    const fsApi = makeFsApi({
+      '/a.txt': { data: Uint8Array.from([0xef, 0xbb, 0xbf, 0x68, 0x69]), mtimeMs: 1 },
+    });
+    const { result } = renderHook(() =>
+      useFileDiffData({ leftPath: '/a.txt', rightPath: null, fsApi }),
+    );
+    await waitFor(() => expect(result.current.left.text).toBe('hi'));
+    expect(result.current.left.encoding).toBe('utf-8-bom');
+  });
 });

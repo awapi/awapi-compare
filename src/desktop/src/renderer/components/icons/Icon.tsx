@@ -29,6 +29,7 @@ export type IconName =
   | 'equal'
   | 'refresh'
   | 'swap'
+  | 'sync'
   | 'stop'
   | 'save'
   | 'scale'
@@ -107,6 +108,16 @@ function renderBody(name: IconName): JSX.Element {
           <line x1="3" y1="8" x2="21" y2="8" />
           <polyline points="17 20 21 16 17 12" />
           <line x1="21" y1="16" x2="3" y2="16" />
+        </>
+      );
+    case 'sync':
+      // Two opposing circular arrows (Lucide "refresh-cw").
+      return (
+        <>
+          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+          <polyline points="21 3 21 8 16 8" />
+          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+          <polyline points="3 21 3 16 8 16" />
         </>
       );
     case 'stop':

@@ -26,7 +26,7 @@ interface TabMenuState {
  * the workspace must always contain at least one compare session.
  */
 function isClosable(tab: WorkspaceTab, tabs: readonly WorkspaceTab[]): boolean {
-  if (tab.kind === 'fileDiff') return true;
+  if (tab.kind !== 'compare') return true;
   const compareCount = tabs.filter((t) => t.kind === 'compare').length;
   return compareCount > 1;
 }

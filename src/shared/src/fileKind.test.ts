@@ -23,6 +23,11 @@ describe('classifyFile', () => {
     expect(decodeUtf8(buf)).toBe('hi');
   });
 
+  it('classifies UTF-16 text with a BOM as text despite its NUL bytes', () => {
+    expect(classifyFile(bytes(0xff, 0xfe, 0x68, 0x00, 0x69, 0x00)).kind).toBe('text');
+    expect(classifyFile(bytes(0xfe, 0xff, 0x00, 0x68, 0x00, 0x69)).kind).toBe('text');
+  });
+
   it('classifies a buffer with a NUL byte as binary', () => {
     expect(classifyFile(bytes(0x68, 0x00, 0x69))).toEqual({ kind: 'binary' });
   });

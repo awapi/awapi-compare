@@ -3,8 +3,9 @@ import {
   LARGE_FILE_BYTES,
   MAX_TEXT_FILE_BYTES,
   classifyFile,
-  decodeUtf8,
+  decodeTextFile,
   type FileKind,
+  type TextEncodingId,
 } from '@awapi/shared';
 import { extname } from './paths.js';
 
@@ -19,8 +20,10 @@ export interface SideData {
   state: 'idle' | 'loading' | 'ready' | 'error' | 'absent' | 'too-large' | 'unconfirmed';
   /** Raw bytes (length === size). Set when `state === 'ready'`. */
   bytes?: Uint8Array;
-  /** UTF-8 decode of `bytes`, only computed when the kind is `'text'`. */
+  /** Decoded `bytes`, only computed when the kind is `'text'`. */
   text?: string;
+  /** Encoding detected from `bytes` (BOM / UTF-8 validity); set alongside `text`. */
+  encoding?: TextEncodingId;
   /** Snapshot of the file's mtime at load time — used by the save flow. */
   mtimeMs?: number;
   /** Reported size in bytes, even when we declined to load it. */
@@ -226,7 +229,8 @@ function pickSniffSource(l: SideData, r: SideData): Uint8Array | null {
 
 function decoded(side: SideData): SideData {
   if (side.state !== 'ready' || !side.bytes || side.text !== undefined) return side;
-  return { ...side, text: decodeUtf8(side.bytes) };
+  const { text, encoding } = decodeTextFile(side.bytes);
+  return { ...side, text, encoding };
 }
 
 function extnameOfFirst(a: string | null, b: string | null): string {

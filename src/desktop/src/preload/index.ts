@@ -34,6 +34,8 @@ const api: AwapiApi = {
   fs: {
     scan: (req: FsScanRequest): Promise<FsScanResult> =>
       ipcRenderer.invoke(IpcChannel.FsScan, req),
+    cancelScan: (scanId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.FsScanCancel, scanId),
     read: (req: FsReadRequest): Promise<FsReadResult> =>
       ipcRenderer.invoke(IpcChannel.FsRead, req),
     readChunk: (req: FsReadChunkRequest): Promise<Uint8Array> =>

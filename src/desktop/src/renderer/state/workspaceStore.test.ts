@@ -83,6 +83,34 @@ describe('workspaceStore', () => {
     expect(useStore.getState().activeTabId).toBe(COMPARE_TAB_ID);
   });
 
+  it('openMergeTab adds a focused merge tab with its initial paths', () => {
+    let n = 0;
+    const useStore = createWorkspaceStore({ generateId: () => `g${++n}` });
+    const first = useStore.getState().openMergeTab({ left: '/l', right: '/r', output: '/o' });
+    const second = useStore.getState().openMergeTab(undefined, 'Custom');
+    const tabs = useStore.getState().tabs;
+    expect(tabs[1]).toEqual({
+      id: first,
+      kind: 'merge',
+      title: 'Merge',
+      initialPaths: { left: '/l', right: '/r', output: '/o' },
+    });
+    expect(tabs[2]).toMatchObject({ id: second, title: 'Custom', initialPaths: {} });
+    expect(useStore.getState().activeTabId).toBe(second);
+    useStore.getState().openMergeTab();
+    expect(useStore.getState().tabs[3]?.title).toBe('Merge 3');
+  });
+
+  it('closeAllFileDiffTabs keeps merge tabs', () => {
+    let n = 0;
+    const useStore = createWorkspaceStore({ generateId: () => `g${++n}` });
+    useStore.getState().openFileDiffTab('a');
+    const merge = useStore.getState().openMergeTab();
+    useStore.getState().closeAllFileDiffTabs();
+    expect(useStore.getState().tabs.map((t) => t.id)).toEqual([COMPARE_TAB_ID, merge]);
+    expect(useStore.getState().activeTabId).toBe(merge);
+  });
+
   it('setActiveTab ignores unknown ids', () => {
     const useStore = createWorkspaceStore({ generateId });
     useStore.getState().setActiveTab('nope');

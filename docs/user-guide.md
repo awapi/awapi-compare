@@ -60,6 +60,29 @@ Both `--flag value` and `--flag=value` forms work. Unknown flags are
 ignored, so Electron-internal switches (e.g. `--remote-debugging-port`)
 do not interfere.
 
+### Three-way merge from the command line
+
+```sh
+awapi-compare [--base <basePath>] --left <leftPath> --right <rightPath> --output <outputPath>
+```
+
+Passing `--output` opens a [three-way merge](#three-way-merge) tab instead
+of a folder compare. `--base` is optional (an empty base is used when it
+is omitted); `--type merge` is accepted but not needed. Prefer the
+`--output` form: `--type` is a reserved Chromium switch and the
+`--type=merge` spelling crashes the Electron binary when it is passed
+directly. `AWAPI_BASE` and `AWAPI_OUTPUT` are the matching env vars.
+
+The process exits with code **0** if the output file was written while the
+window was open and **1** if it was closed without saving, so it can be
+used as a `git mergetool`:
+
+```sh
+git config merge.tool awapi
+git config mergetool.awapi.cmd 'awapi-compare --base "$BASE" --left "$LOCAL" --right "$REMOTE" --output "$MERGED"'
+git config mergetool.awapi.trustExitCode true
+```
+
 ### Environment variables
 
 The same inputs can be supplied via env vars — handy for `just dev` or
@@ -71,6 +94,8 @@ CI:
 | `AWAPI_RIGHT` | `--right`       |
 | `AWAPI_MODE`  | `--mode`        |
 | `AWAPI_TYPE`  | `--type`        |
+| `AWAPI_BASE`  | `--base`        |
+| `AWAPI_OUTPUT`| `--output`      |
 
 CLI flags take precedence over env vars when both are set.
 
@@ -91,6 +116,32 @@ CLI flags take precedence over env vars when both are set.
 just dev ./samples/left ./samples/right            # quick mode
 just dev ./samples/left ./samples/right thorough   # quick | thorough | binary
 ```
+
+## Folder table: sorting and view filters
+
+- **Sorting.** Click a column header (Name, Size, Modified on either side,
+  or the centre status column) to sort ascending, click again for
+  descending, and a third time to return to the default order. Sorting is
+  applied within each folder and folders always stay above files. Entries
+  missing on the sorted side sink to the bottom. The active column shows
+  ▲ / ▼.
+- **Newer indicator.** When one side of a pair is newer (outside the
+  configured mtime tolerance), its *Modified* cell is bold and marked ▲.
+- **View filters.** The toolbar has **All**, **Diffs** and **Same**, plus a
+  **More filters…** dropdown:
+
+  | Filter        | Shows                                                         |
+  | ------------- | ------------------------------------------------------------- |
+  | Different only | Entries on both sides that differ (including newer-on-one-side) |
+  | Newer only    | Entries flagged newer on the left or the right                |
+  | Orphans only  | Entries that exist on one side only                           |
+  | Selected only | The rows selected when the filter was applied, plus the contents of selected folders |
+
+  Parent folders of matching rows stay visible so the tree remains
+  navigable. "Selected only" is disabled until at least one row is
+  selected, and it keeps the selection it was applied with, so clicking
+  other rows does not change the view. The status bar totals always reflect
+  the unfiltered scan.
 
 ## Filters (include / exclude rules)
 
@@ -139,6 +190,44 @@ extension):
 - **Image** — three modes: side-by-side, onion-skin (with an opacity
   slider), and pixel-diff (red highlights from `pixelmatch`).
 
+### Text compare controls
+
+The bar above a text diff has these controls (choices are remembered
+across sessions and shared by all file-diff tabs):
+
+| Control            | What it does                                                                 |
+| ------------------ | ---------------------------------------------------------------------------- |
+| **▲ / ▼**          | Previous / next difference (`Shift+F7` / `F7`, also while the editor has focus). Wraps around. |
+| **Difference N of M** | Position among the differences that matter, plus how many are ignored.    |
+| **← / →**          | Copy the *current* difference to the left / right side (copies the whole hunk). |
+| **Inline**         | Show one inline pane instead of two side-by-side panes.                       |
+| **Wrap**           | Wrap long lines.                                                              |
+| **Ignore ▾**       | Choose which differences to ignore (below).                                   |
+
+**Ignore options.** *Leading / trailing whitespace* is on by default.
+You can also ignore *all whitespace*, *letter case*, and any text that
+matches one or more regular expressions (one per line, JavaScript
+syntax — e.g. `\d{4}-\d{2}-\d{2}` for dates, `//.*` for line
+comments). A line that is entirely consumed by a pattern is dropped, so
+an inserted comment line can be ignored as a whole. Invalid patterns are
+flagged and skipped.
+
+Differences that only differ by ignored text are dimmed, left out of the
+counter and skipped by **Next / Previous**. A changed block that mixes an
+ignorable change with a real one stays a normal difference, because the
+editor reports adjacent changed lines as one block.
+
+**Encoding and line endings.** The strip below the editor shows, for each
+side, the file's encoding (detected on open: UTF-8, UTF-8 with BOM,
+UTF-16 LE/BE with BOM, otherwise Windows-1252) and its line endings
+(LF / CRLF). Saving writes the file back in the same encoding, so a
+UTF-16 file or a BOM is no longer silently converted. Pick another
+value to convert a file; that counts as an unsaved change. Saving to an
+encoding that cannot represent some characters (for example Windows-1252)
+is refused with a message rather than replacing them. Files with mixed
+line endings are shown as *mixed line endings* and unified to the chosen
+style on save.
+
 ### Large files
 
 Files above 5 MiB show a confirmation gate ("Open anyway") before
@@ -179,6 +268,36 @@ prompts to **create** the missing file as a whole-file copy of the
 source side. Once created, the new file loads into the editor and
 selection-level copy resumes its normal behaviour.
 
+Select several rows (`Ctrl`/`Shift`-click) and use the same actions to
+copy them all in one go.
+
+## Syncing folders
+
+Click **Sync** in the folder-compare toolbar (enabled once both folders
+are set) to reconcile the two sides in bulk. Pick a mode:
+
+| Mode                    | Effect                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| Mirror left → right     | Right becomes identical to left: copies/overwrites everything and **deletes** right-only items |
+| Mirror right → left     | The inverse                                                                             |
+| Update left → right     | Copies left-only and newer-on-left items to the right; never deletes, never overwrites a newer right file |
+| Update right → left     | The inverse                                                                             |
+| Two-way sync            | Copies orphans to the other side and the newer file of each differing pair over the older; never deletes |
+
+The dialog previews every operation before anything is touched (a dry
+run); changing the mode refreshes the preview. Tick **Selected rows
+only** to limit the sync to the rows selected in the table (and the
+contents of selected folders).
+
+- Pairs that cannot be resolved automatically — same-age files with
+  different content in update/two-way modes, or a file opposite a
+  folder — are listed as **conflicts** and skipped.
+- Modes that delete require ticking an explicit confirmation. Folder
+  operations apply to the whole folder, including entries hidden by
+  rules.
+- Failures on individual items do not stop the run; they are listed in
+  the result and the view is rescanned when you close the dialog.
+
 ## Renaming and deleting
 
 Right-click any row in the folder-compare view to access:
@@ -195,6 +314,38 @@ Right-click any row in the folder-compare view to access:
 Both actions surface filesystem errors (e.g. permission denied,
 destination already exists) inline at the bottom of the compare tab
 and the view is refreshed automatically afterwards.
+
+## Three-way merge
+
+**File → New Three-Way Merge** (`Ctrl/Cmd+Shift+M`) opens a merge tab. Enter
+the **Left** and **Right** versions, optionally the **Base** (common
+ancestor) and the **Output** path, then press **Load** (or `Enter` in a
+path box). Opening from the command line loads automatically.
+
+- **Layout.** Left, Base and Right are read-only panes on top; the
+  editable **Result** is below. Every changed region is highlighted in all
+  panes: blue = changed on the left only, green = right only, grey =
+  changed identically on both, red = conflict (green once resolved). The
+  current region has an accent bar on its left edge.
+- **Auto-merge.** Changes made on only one side, and identical changes on
+  both, are applied to the result. Changes whose lines overlap or touch
+  are conflicts and appear in the result as
+  `<<<<<<< left` / `=======` / `>>>>>>> right` blocks.
+- **Resolving.** Step with ▲ / ▼ (`Shift+F7` / `F7`) through every change, or
+  with **◀ Conflict** / **Conflict ▶** through conflicts only. For the
+  current region choose **Take left**, **Take base**, **Take right**,
+  **Left + right** or **Right + left**. Any region (not just conflicts) can
+  be changed this way, and you can also edit the result by hand; regions
+  stay tracked as you type, and a conflict counts as resolved once its
+  marker lines are gone. Clicking in any pane selects that region.
+- **Saving.** **Save result** (or `Ctrl/Cmd+S`) writes the result to the
+  output path, keeping the output file's encoding (the left file's if the
+  output is new) and the inputs' line endings. If conflicts are still
+  unresolved you are asked to confirm, and if the output changed on disk
+  since it was loaded you can choose to overwrite. Unsaved results are
+  flagged with `*` on the tab and prompt on close.
+- Only text files are supported, and lines are compared exactly
+  (line-ending differences are ignored).
 
 ## Preferences
 

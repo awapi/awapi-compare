@@ -6,6 +6,7 @@ import { BrowserWindow, Menu, app, ipcMain } from 'electron';
 import { IpcChannel, type InitialCompareSession } from '@awapi/shared';
 
 import { parseDesktopArgs } from './cliArgs.js';
+import { mergeExitCode, type FileStamp } from './mergeExit.js';
 import {
   attachProgressBridge,
   createServices,
@@ -35,6 +36,18 @@ const closeApprovedWindows = new WeakSet<BrowserWindow>();
 // manager (and XDG hicolor theme) only recognise standard sizes up to 512;
 // passing a 1024×1024 PNG causes the taskbar/launcher icon to go missing.
 const APP_ICON_PATH = join(__dirname, '../../../../resources/icon-512x512.png');
+
+/** Set when the app was launched with `--type merge`; drives the exit code. */
+let mergeLaunch: { outputPath: string; before: FileStamp | null } | null = null;
+
+async function statStamp(path: string): Promise<FileStamp | null> {
+  try {
+    const st = await fsPromises.stat(path);
+    return { mtimeMs: st.mtimeMs, size: st.size };
+  } catch {
+    return null;
+  }
+}
 
 function createMainWindow(services: Services): BrowserWindow {
   const win = new BrowserWindow({
@@ -167,6 +180,16 @@ void app.whenReady().then(async () => {
       console.log(
         `[awapi] launching with file compare: ${initialCompare.leftPath} ↔ ${initialCompare.rightPath}`,
       );
+    } else if (initialCompare.type === 'merge') {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[awapi] launching with three-way merge: ${initialCompare.leftPath} + ` +
+          `${initialCompare.rightPath} -> ${initialCompare.outputPath}`,
+      );
+      mergeLaunch = {
+        outputPath: initialCompare.outputPath,
+        before: await statStamp(initialCompare.outputPath),
+      };
     } else {
       console.log(
         `[awapi] launching with folder compare: ` +
@@ -254,5 +277,14 @@ void app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  if (mergeLaunch) {
+    // Launched as a merge tool: report whether the result was saved so
+    // `git mergetool` (trustExitCode) can tell success from "abandoned".
+    const launch = mergeLaunch;
+    void statStamp(launch.outputPath).then((after) => {
+      app.exit(mergeExitCode(launch.before, after));
+    });
+    return;
+  }
   if (process.platform !== 'darwin') app.quit();
 });

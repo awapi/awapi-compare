@@ -5,7 +5,13 @@ import type { ComparedPair } from '@awapi/shared';
 import { getPalette, statusLabel } from '../theme.js';
 import { formatMtime, formatSize, statusGlyph } from '../format.js';
 import type { ThemeName } from '../state/themeStore.js';
-import { buildTreeRows, collectDirPaths } from '../treeRows.js';
+import {
+  buildTreeRows,
+  collectDirPaths,
+  newerSide,
+  type SortColumn,
+  type TreeSort,
+} from '../treeRows.js';
 import { Icon } from './icons/Icon.js';
 
 export interface DiffTableProps {
@@ -18,6 +24,37 @@ export interface DiffTableProps {
 }
 
 const ROW_HEIGHT = 24;
+
+type ColumnSide = 'left' | 'right';
+
+interface ColumnDef {
+  key: string;
+  label: string;
+  column: SortColumn;
+  side: ColumnSide;
+  ariaLabel?: string;
+}
+
+const COLUMNS: readonly ColumnDef[] = [
+  { key: 'l-name', label: 'Name', column: 'name', side: 'left' },
+  { key: 'l-size', label: 'Size', column: 'size', side: 'left' },
+  { key: 'l-mtime', label: 'Modified', column: 'mtime', side: 'left' },
+  { key: 'status', label: '≠', column: 'status', side: 'left', ariaLabel: 'Status' },
+  { key: 'r-name', label: 'Name', column: 'name', side: 'right' },
+  { key: 'r-size', label: 'Size', column: 'size', side: 'right' },
+  { key: 'r-mtime', label: 'Modified', column: 'mtime', side: 'right' },
+];
+
+/** Cycle for a header click: ascending → descending → default order. */
+function nextSort(current: TreeSort | null, def: ColumnDef): TreeSort | null {
+  const same =
+    current !== null &&
+    current.column === def.column &&
+    (def.column === 'status' || current.side === def.side);
+  if (!same) return { column: def.column, side: def.side, direction: 'asc' };
+  if (current.direction === 'asc') return { ...current, direction: 'desc' };
+  return null;
+}
 const INDENT_PX = 16;
 
 /**
@@ -42,6 +79,8 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
   // always read the latest virtualised row list without stale closures.
   const rowsRef = useRef<ReturnType<typeof buildTreeRows>>([]);
 
+  const [sort, setSort] = useState<TreeSort | null>(null);
+
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 
   // Directories default to collapsed: build the `collapsed` set buildTreeRows
@@ -57,7 +96,10 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
     return result;
   }, [pairs, expanded]);
 
-  const rows = useMemo(() => buildTreeRows(pairs, collapsed), [pairs, collapsed]);
+  const rows = useMemo(
+    () => buildTreeRows(pairs, collapsed, sort ?? undefined),
+    [pairs, collapsed, sort],
+  );
   rowsRef.current = rows;
 
   // End drag-select when the mouse button is released anywhere.
@@ -88,15 +130,35 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
   return (
     <div className="awapi-diff-wrap">
       <div className="awapi-diff-colheader" role="row">
-        <div role="columnheader">Name</div>
-        <div role="columnheader">Size</div>
-        <div role="columnheader">Modified</div>
-        <div role="columnheader" aria-label="Status">
-          {' '}
-        </div>
-        <div role="columnheader">Name</div>
-        <div role="columnheader">Size</div>
-        <div role="columnheader">Modified</div>
+        {COLUMNS.map((def) => {
+          const active =
+            sort !== null &&
+            sort.column === def.column &&
+            (def.column === 'status' || sort.side === def.side);
+          return (
+            <div
+              key={def.key}
+              role="columnheader"
+              aria-sort={
+                active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'
+              }
+            >
+              <button
+                type="button"
+                className="awapi-diff-colheader__btn"
+                aria-label={`Sort by ${def.ariaLabel ?? `${def.side} ${def.label}`}`}
+                onClick={() => setSort((cur) => nextSort(cur, def))}
+              >
+                <span>{def.label}</span>
+                {active ? (
+                  <span aria-hidden="true" className="awapi-diff-colheader__arrow">
+                    {sort.direction === 'asc' ? '▲' : '▼'}
+                  </span>
+                ) : null}
+              </button>
+            </div>
+          );
+        })}
       </div>
       <div
         className="awapi-diff-table"
@@ -120,6 +182,7 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
               const { pair, depth, isDir, hasChildren, expanded, displayStatus } = row;
               const isSelected = selectedPaths?.has(pair.relPath) ?? false;
               const color = palette.status[displayStatus];
+              const newer = newerSide(pair);
               const indent = depth * INDENT_PX;
               return (
                 <div
@@ -237,8 +300,15 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
                     data-side="left"
+                    title={newer === 'left' ? 'Newer' : undefined}
                   >
-                    {formatMtime(pair.left?.mtimeMs)}
+                    {newer === 'left' ? (
+                      <span className="awapi-diff-newer" aria-label="Newer">
+                        {formatMtime(pair.left?.mtimeMs)} ▲
+                      </span>
+                    ) : (
+                      formatMtime(pair.left?.mtimeMs)
+                    )}
                   </div>
                   <div
                     className="awapi-diff-cell awapi-diff-cell--center"
@@ -282,8 +352,15 @@ export function DiffTable(props: DiffTableProps): JSX.Element {
                     className="awapi-diff-cell awapi-diff-cell--meta"
                     role="gridcell"
                     data-side="right"
+                    title={newer === 'right' ? 'Newer' : undefined}
                   >
-                    {formatMtime(pair.right?.mtimeMs)}
+                    {newer === 'right' ? (
+                      <span className="awapi-diff-newer" aria-label="Newer">
+                        {formatMtime(pair.right?.mtimeMs)} ▲
+                      </span>
+                    ) : (
+                      formatMtime(pair.right?.mtimeMs)
+                    )}
                   </div>
                 </div>
               );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ComparedPair, FsEntry } from '@awapi/shared';
-import { buildTreeRows, collectDirPaths } from './treeRows.js';
+import { buildTreeRows, collectDirPaths, newerSide, type TreeSort } from './treeRows.js';
 
 function dir(relPath: string, side: 'left' | 'right' | 'both' = 'both'): ComparedPair {
   const name = relPath.split('/').pop() ?? relPath;
@@ -193,5 +193,98 @@ describe('collectDirPaths', () => {
       file('readme.md'),
     ];
     expect(collectDirPaths(pairs).sort()).toEqual(['a', 'a/b']);
+  });
+});
+
+function sized(
+  relPath: string,
+  left: { size: number; mtimeMs: number } | null,
+  right: { size: number; mtimeMs: number } | null,
+  status: ComparedPair['status'] = 'different',
+): ComparedPair {
+  const name = relPath.split('/').pop() ?? relPath;
+  const make = (v: { size: number; mtimeMs: number }): FsEntry => ({
+    relPath,
+    name,
+    type: 'file',
+    size: v.size,
+    mtimeMs: v.mtimeMs,
+    mode: 0,
+  });
+  const pair: ComparedPair = { relPath, status };
+  if (left) pair.left = make(left);
+  if (right) pair.right = make(right);
+  return pair;
+}
+
+describe('buildTreeRows sorting', () => {
+  const pairs: ComparedPair[] = [
+    dir('d'),
+    file('d/z.ts'),
+    file('d/a.ts'),
+    sized('b.txt', { size: 30, mtimeMs: 100 }, { size: 5, mtimeMs: 300 }),
+    sized('a.txt', { size: 10, mtimeMs: 300 }, { size: 20, mtimeMs: 100 }),
+    sized('c.txt', null, { size: 1, mtimeMs: 200 }, 'right-only'),
+    sized('e.txt', { size: 20, mtimeMs: 200 }, null, 'left-only'),
+  ];
+  const order = (sort?: TreeSort): string[] =>
+    buildTreeRows(pairs, new Set(), sort).map((r) => r.pair.relPath);
+
+  it('defaults to directories first, then name ascending', () => {
+    expect(order()).toEqual(['d', 'd/a.ts', 'd/z.ts', 'a.txt', 'b.txt', 'c.txt', 'e.txt']);
+  });
+
+  it('sorts by name descending while keeping directories first', () => {
+    expect(order({ column: 'name', side: 'left', direction: 'desc' })).toEqual([
+      'd',
+      'd/z.ts',
+      'd/a.ts',
+      'e.txt',
+      'c.txt',
+      'b.txt',
+      'a.txt',
+    ]);
+  });
+
+  it('sorts by left size and puts entries missing on that side last', () => {
+    expect(
+      order({ column: 'size', side: 'left', direction: 'asc' }).filter((p) => p.endsWith('.txt')),
+    ).toEqual(['a.txt', 'e.txt', 'b.txt', 'c.txt']);
+    expect(
+      order({ column: 'size', side: 'left', direction: 'desc' }).filter((p) => p.endsWith('.txt')),
+    ).toEqual(['b.txt', 'e.txt', 'a.txt', 'c.txt']);
+  });
+
+  it('sorts by right mtime', () => {
+    expect(
+      order({ column: 'mtime', side: 'right', direction: 'asc' }).filter((p) =>
+        p.endsWith('.txt'),
+      ),
+    ).toEqual(['a.txt', 'c.txt', 'b.txt', 'e.txt']);
+  });
+
+  it('sorts by status severity', () => {
+    expect(
+      order({ column: 'status', side: 'left', direction: 'asc' }).filter((p) =>
+        p.endsWith('.txt'),
+      ),
+    ).toEqual(['e.txt', 'c.txt', 'a.txt', 'b.txt']);
+  });
+
+  it('sorts within each directory rather than flattening', () => {
+    const rows = buildTreeRows(pairs, new Set(), {
+      column: 'name',
+      side: 'left',
+      direction: 'desc',
+    });
+    expect(rows.find((r) => r.pair.relPath === 'd/z.ts')?.depth).toBe(1);
+  });
+});
+
+describe('newerSide', () => {
+  it('maps newer-left / newer-right and ignores other statuses', () => {
+    expect(newerSide(file('a', 'newer-left'))).toBe('left');
+    expect(newerSide(file('a', 'newer-right'))).toBe('right');
+    expect(newerSide(file('a', 'different'))).toBeNull();
   });
 });

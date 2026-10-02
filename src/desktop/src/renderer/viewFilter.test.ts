@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ComparedPair, DiffStatus, FsEntry } from '@awapi/shared';
-import { filterPairs, filterTextLines, MAX_FILTERABLE_LINES } from './viewFilter.js';
+import {
+  filterPairs,
+  filterTextLines,
+  isFolderOnlyFilter,
+  MAX_FILTERABLE_LINES,
+} from './viewFilter.js';
 
 function entry(relPath: string, type: 'file' | 'dir' = 'file'): FsEntry {
   const segs = relPath.split('/');
@@ -22,6 +27,75 @@ function pair(relPath: string, status: DiffStatus, type: 'file' | 'dir' = 'file'
     status,
   };
 }
+
+describe('folder-only filters', () => {
+  const pairs: ComparedPair[] = [
+    pair('a.txt', 'identical'),
+    pair('b.txt', 'different'),
+    pair('c.txt', 'newer-left'),
+    pair('d.txt', 'newer-right'),
+    pair('e.txt', 'left-only'),
+    pair('f.txt', 'right-only'),
+    pair('g.txt', 'error'),
+  ];
+
+  it('"different" keeps different and newer entries but not orphans', () => {
+    expect(filterPairs(pairs, 'different').map((p) => p.relPath)).toEqual([
+      'b.txt',
+      'c.txt',
+      'd.txt',
+    ]);
+  });
+
+  it('"newer" keeps only newer-left / newer-right entries', () => {
+    expect(filterPairs(pairs, 'newer').map((p) => p.relPath)).toEqual(['c.txt', 'd.txt']);
+  });
+
+  it('"orphans" keeps one-sided entries and orphan folders', () => {
+    const input = [...pairs, pair('only', 'left-only', 'dir')];
+    expect(filterPairs(input, 'orphans').map((p) => p.relPath)).toEqual([
+      'e.txt',
+      'f.txt',
+      'only',
+    ]);
+  });
+
+  it('keeps ancestor directories of surviving entries', () => {
+    const input = [
+      pair('src', 'identical', 'dir'),
+      pair('src/x.ts', 'newer-left'),
+      pair('docs', 'identical', 'dir'),
+      pair('docs/y.md', 'identical'),
+    ];
+    expect(filterPairs(input, 'newer').map((p) => p.relPath)).toEqual(['src', 'src/x.ts']);
+  });
+
+  it('"selected" keeps selected rows, descendants of selected dirs and ancestors', () => {
+    const input = [
+      pair('src', 'identical', 'dir'),
+      pair('src/x.ts', 'identical'),
+      pair('src/deep', 'identical', 'dir'),
+      pair('src/deep/z.ts', 'different'),
+      pair('other', 'identical', 'dir'),
+      pair('other/a.ts', 'identical'),
+      pair('top.txt', 'identical'),
+    ];
+    expect(
+      filterPairs(input, 'selected', new Set(['src/deep', 'other/a.ts'])).map((p) => p.relPath),
+    ).toEqual(['src', 'src/deep', 'src/deep/z.ts', 'other', 'other/a.ts']);
+  });
+
+  it('"selected" with no selection keeps nothing', () => {
+    expect(filterPairs(pairs, 'selected')).toEqual([]);
+  });
+
+  it('isFolderOnlyFilter distinguishes content filters from folder filters', () => {
+    expect(isFolderOnlyFilter('orphans')).toBe(true);
+    expect(isFolderOnlyFilter('selected')).toBe(true);
+    expect(isFolderOnlyFilter('all')).toBe(false);
+    expect(isFolderOnlyFilter('diffs')).toBe(false);
+  });
+});
 
 describe('filterPairs', () => {
   it('returns the input unchanged in "all" mode', () => {

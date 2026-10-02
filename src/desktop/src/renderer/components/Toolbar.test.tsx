@@ -28,6 +28,30 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
   return handlers;
 }
 
+describe('<Toolbar /> folder filters', () => {
+  it('hides the More filters dropdown when no handler is given', () => {
+    renderToolbar();
+    expect(screen.queryByLabelText('More filters')).toBeNull();
+  });
+
+  it('reports folder-only filter selections', async () => {
+    const onFolderFilterChange = vi.fn();
+    renderToolbar({ onFolderFilterChange });
+    await userEvent.selectOptions(screen.getByLabelText('More filters'), 'orphans');
+    expect(onFolderFilterChange).toHaveBeenCalledWith('orphans');
+  });
+
+  it('disables "Selected only" until something is selected', () => {
+    renderToolbar({ onFolderFilterChange: vi.fn(), canFilterSelected: false });
+    expect(screen.getByRole('option', { name: 'Selected only' })).toBeDisabled();
+  });
+
+  it('reflects an active folder-only filter in the dropdown', () => {
+    renderToolbar({ onFolderFilterChange: vi.fn(), viewFilter: 'newer' });
+    expect(screen.getByLabelText('More filters')).toHaveValue('newer');
+  });
+});
+
 describe('<Toolbar />', () => {
   it('disables Refresh while paths are empty', () => {
     renderToolbar();
@@ -42,6 +66,19 @@ describe('<Toolbar />', () => {
   it('shows "Scanning…" while a scan is in flight', () => {
     renderToolbar({ leftRoot: '/a', rightRoot: '/b', scanning: true });
     expect(screen.getByRole('button', { name: /scanning/i })).toBeDisabled();
+  });
+
+  it('disables Stop while idle and wires it to onStop while scanning', async () => {
+    const idle = renderToolbar({ leftRoot: '/a', rightRoot: '/b' });
+    expect(screen.getByRole('button', { name: /^stop$/i })).toBeDisabled();
+    expect(idle.onRefresh).not.toHaveBeenCalled();
+  });
+
+  it('calls onStop when Stop is clicked during a scan', async () => {
+    const onStop = vi.fn();
+    renderToolbar({ leftRoot: '/a', rightRoot: '/b', scanning: true, onStop });
+    await userEvent.click(screen.getByRole('button', { name: /^stop$/i }));
+    expect(onStop).toHaveBeenCalledTimes(1);
   });
 
   it('forwards typing into the left/right inputs', async () => {
@@ -218,5 +255,24 @@ describe('<Toolbar />', () => {
     const right = screen.getByLabelText('Right folder');
     expect(left.hasAttribute('list')).toBe(false);
     expect(right.hasAttribute('list')).toBe(false);
+  });
+});
+
+describe('<Toolbar /> sync button', () => {
+  it('is hidden when no handler is given', () => {
+    renderToolbar({ leftRoot: '/a', rightRoot: '/b' });
+    expect(screen.queryByRole('button', { name: 'Sync folders' })).toBeNull();
+  });
+
+  it('is disabled until both folders are set', () => {
+    renderToolbar({ leftRoot: '/a', rightRoot: '', onOpenSync: vi.fn() });
+    expect(screen.getByRole('button', { name: 'Sync folders' })).toBeDisabled();
+  });
+
+  it('opens the sync dialog when clicked', async () => {
+    const onOpenSync = vi.fn();
+    renderToolbar({ leftRoot: '/a', rightRoot: '/b', onOpenSync });
+    await userEvent.click(screen.getByRole('button', { name: 'Sync folders' }));
+    expect(onOpenSync).toHaveBeenCalledTimes(1);
   });
 });

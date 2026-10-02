@@ -3,14 +3,22 @@ import type { JSX } from 'react';
 import {
   FS_ERROR_EXTERNAL_MODIFICATION,
   classifyFile,
+  encodeText,
+  encodingLabel,
   type ComparedPair,
   type CompareMode,
   type DiffStatus,
+  type TextEncodingId,
 } from '@awapi/shared';
 import { useFileDiffData } from '../useFileDiffData.js';
 import { joinPath, basename, extname } from '../paths.js';
 import { getSessionStore } from '../state/sessionRegistry.js';
-import { useThemeStore, useWorkspaceStore, useRecentsStore } from '../state/stores.js';
+import {
+  useRecentsStore,
+  useTextCompareStore,
+  useThemeStore,
+  useWorkspaceStore,
+} from '../state/stores.js';
 import {
   registerTabSaveHandler,
   unregisterTabSaveHandler,
@@ -192,8 +200,14 @@ function FileDiffBody({
   const [mode, setMode] = useState<CompareMode>('quick');
   const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [leftDirty, setLeftDirty] = useState(false);
-  const [rightDirty, setRightDirty] = useState(false);
+  // Text edits made in the editor (reported by TextDiffView).
+  const [leftTextDirty, setLeftTextDirty] = useState(false);
+  const [rightTextDirty, setRightTextDirty] = useState(false);
+  // Encoding the user picked for a side; `undefined` = keep the detected one.
+  const [encodingOverride, setEncodingOverride] = useState<{
+    left?: TextEncodingId;
+    right?: TextEncodingId;
+  }>({});
   const [saving, setSaving] = useState<'left' | 'right' | null>(null);
   // Confirmation dialog state for "Copy → Right" / "Copy ← Left"
   // when the destination side does not exist yet. The destination
@@ -207,6 +221,36 @@ function FileDiffBody({
     target: string;
   } | null>(null);
   const textDiffActionsRef = useRef<TextDiffActions | null>(null);
+
+  const data = useFileDiffData({
+    leftPath: leftPath.trim() ? leftPath : null,
+    rightPath: rightPath.trim() ? rightPath : null,
+    extensionHint: extname(leftPath || rightPath || relPath),
+  });
+
+  // Encoding each side will be written with: the user's pick, else the
+  // one detected on load. Picking a different encoding makes the side
+  // dirty (saving rewrites the file's bytes even if the text is intact).
+  const leftEncoding = encodingOverride.left ?? data.left.encoding ?? 'utf-8';
+  const rightEncoding = encodingOverride.right ?? data.right.encoding ?? 'utf-8';
+  const leftDirty =
+    leftTextDirty ||
+    (encodingOverride.left !== undefined && encodingOverride.left !== (data.left.encoding ?? 'utf-8'));
+  const rightDirty =
+    rightTextDirty ||
+    (encodingOverride.right !== undefined &&
+      encodingOverride.right !== (data.right.encoding ?? 'utf-8'));
+  // A different file on a side invalidates any encoding picked for the old one.
+  useEffect(() => {
+    setEncodingOverride((prev) => (prev.left === undefined ? prev : { ...prev, left: undefined }));
+  }, [leftPath]);
+  useEffect(() => {
+    setEncodingOverride((prev) => (prev.right === undefined ? prev : { ...prev, right: undefined }));
+  }, [rightPath]);
+  const handleEncodingChange = useCallback((side: 'left' | 'right', encoding: TextEncodingId) => {
+    setEncodingOverride((prev) => ({ ...prev, [side]: encoding }));
+  }, []);
+
   // Mirror dirty state into refs so the tab save handler (registered
   // once on mount) can read the LATEST values without re-registering
   // on every render.
@@ -225,15 +269,14 @@ function FileDiffBody({
   const fileRecentsList = fileRecents['file'];
 
   const setTabDirty = useWorkspaceStore((s) => s.setTabDirty);
-  const handleDirtyChange = useCallback(
-    (state: { left: boolean; right: boolean }) => {
-      setLeftDirty(state.left);
-      setRightDirty(state.right);
-      if (!tabId) return;
-      setTabDirty(tabId, state.left || state.right);
-    },
-    [setTabDirty, tabId],
-  );
+  const handleDirtyChange = useCallback((state: { left: boolean; right: boolean }) => {
+    setLeftTextDirty(state.left);
+    setRightTextDirty(state.right);
+  }, []);
+  // Reflect text *and* encoding edits in the tab's unsaved marker.
+  useEffect(() => {
+    if (tabId) setTabDirty(tabId, leftDirty || rightDirty);
+  }, [tabId, leftDirty, rightDirty, setTabDirty]);
   // Clear the dirty flag when the file-diff tab unmounts (e.g. user
   // closed it) so a stale `*` cannot linger on a re-opened tab.
   useEffect(() => {
@@ -258,12 +301,6 @@ function FileDiffBody({
     });
     return () => unregisterTabSaveHandler(tabId);
   }, [tabId]);
-
-  const data = useFileDiffData({
-    leftPath: leftPath.trim() ? leftPath : null,
-    rightPath: rightPath.trim() ? rightPath : null,
-    extensionHint: extname(leftPath || rightPath || relPath),
-  });
 
   // Record file paths in the recents list once their content has
   // successfully loaded. This avoids polluting the dropdown with
@@ -290,13 +327,32 @@ function FileDiffBody({
       const target = side === 'left' ? data.left : data.right;
       if (!target.path) return;
       setSaveError(null);
+      const encoding = side === 'left' ? leftEncoding : rightEncoding;
+      let contents: string | Uint8Array = value;
+      let writeEncoding: 'utf8' | 'binary' = 'utf8';
+      if (encoding !== 'utf-8') {
+        // Non-UTF-8 (UTF-16, BOM, Latin-1): encode here and write raw
+        // bytes so the file keeps the encoding it was loaded with.
+        const encoded = encodeText(value, encoding);
+        if (encoded.unmappable > 0) {
+          setSaveError(
+            `Cannot save as ${encodingLabel(encoding)}: ${encoded.unmappable} character(s) ` +
+              'cannot be represented. Pick UTF-8 or another Unicode encoding.',
+          );
+          return;
+        }
+        contents = encoded.bytes;
+        writeEncoding = 'binary';
+      }
       try {
         await window.awapi?.fs.write({
           path: target.path,
-          contents: value,
-          encoding: 'utf8',
+          contents,
+          encoding: writeEncoding,
           expectedMtimeMs: target.mtimeMs,
         });
+        // The picked encoding is now the file's real one.
+        setEncodingOverride((prev) => ({ ...prev, [side]: undefined }));
         // Refresh ONLY the side we just wrote so its mtime snapshot
         // is up-to-date for the next save's external-modification
         // check. Reloading both sides would clobber unsaved edits on
@@ -316,7 +372,7 @@ function FileDiffBody({
         setSaveError(errObj.message ?? String(err));
       }
     },
-    [data],
+    [data, leftEncoding, rightEncoding],
   );
 
   const handleRefresh = useCallback(async () => {
@@ -338,6 +394,7 @@ function FileDiffBody({
       }
     } else {
       textDiffActionsRef.current?.discardEdits();
+      setEncodingOverride({});
     }
     data.reload();
   }, [leftDirty, rightDirty, data, relPath]);
@@ -572,6 +629,9 @@ function FileDiffBody({
             onCreateMissingSide={
               canCreateLeft || canCreateRight ? handleCreateMissingSide : undefined
             }
+            leftEncoding={leftEncoding}
+            rightEncoding={rightEncoding}
+            onEncodingChange={handleEncodingChange}
           />
         )}
       </div>
@@ -604,6 +664,9 @@ function FileDiffViewSwitcher({
   actionsRef,
   viewFilter,
   onCreateMissingSide,
+  leftEncoding,
+  rightEncoding,
+  onEncodingChange,
 }: {
   relPath: string;
   data: ReturnType<typeof useFileDiffData>;
@@ -614,7 +677,13 @@ function FileDiffViewSwitcher({
   actionsRef?: React.MutableRefObject<TextDiffActions | null>;
   viewFilter: ViewFilter;
   onCreateMissingSide?: (direction: 'toLeft' | 'toRight') => void;
+  leftEncoding: TextEncodingId;
+  rightEncoding: TextEncodingId;
+  onEncodingChange: (side: 'left' | 'right', encoding: TextEncodingId) => void;
 }): JSX.Element {
+  const compareOptions = useTextCompareStore((s) => s.options);
+  const updateCompareOptions = useTextCompareStore((s) => s.update);
+  const resetCompareOptions = useTextCompareStore((s) => s.reset);
   const blockingState = unconfirmedOrTooLarge(data);
   if (blockingState === 'unconfirmed') {
     return (
@@ -669,6 +738,12 @@ function FileDiffViewSwitcher({
           onSavingChange={onSavingChange}
           actionsRef={actionsRef}
           onCreateMissingSide={onCreateMissingSide}
+          compareOptions={compareOptions}
+          onCompareOptionsChange={updateCompareOptions}
+          onResetCompareOptions={resetCompareOptions}
+          leftEncoding={leftEncoding}
+          rightEncoding={rightEncoding}
+          onEncodingChange={onEncodingChange}
         />
       ) : kind === 'image' ? (
         <ImageDiffView left={left} right={right} imageFormat={sniffResult.imageFormat} />

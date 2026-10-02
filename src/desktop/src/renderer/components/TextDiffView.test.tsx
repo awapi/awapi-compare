@@ -354,10 +354,11 @@ describe('<TextDiffView /> copy context-menu actions', () => {
         monacoLoader={async () => monaco}
       />,
     );
-    await waitFor(() => expect(screen.queryByText(/loading editor/i)).not.toBeInTheDocument());
-    // Initial sync from the post-mount effect.
-    expect(updateOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ readOnly: true, originalEditable: false }),
+    // Initial sync from the post-mount effect (fires once the editor is ready).
+    await waitFor(() =>
+      expect(updateOptions).toHaveBeenCalledWith(
+        expect.objectContaining({ readOnly: true, originalEditable: false }),
+      ),
     );
     updateOptions.mockClear();
 
