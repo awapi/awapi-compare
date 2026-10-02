@@ -30,9 +30,7 @@ yarn-error.log*
 # Editor / OS
 .DS_Store
 Thumbs.db
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+.vscode/
 .idea/
 
 # Env / secrets
