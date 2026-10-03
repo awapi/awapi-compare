@@ -45,20 +45,22 @@ export class ShellIntegrationService {
    * Returns `true` when Windows Explorer context menu entries are installed.
    * Always `false` on non-Windows platforms.
    *
-   * Checks for the COM CLSID key as the authoritative indicator of the
-   * current-generation registration (which includes both registry verbs and
-   * the shell extension DLL).  An old-style installation that only has the
-   * verb keys (no CLSID) will return `false`, causing a re-registration that
-   * upgrades it to the full COM-based setup.
+   * Checks the `ShellIntegrationVersion` marker that {@link register} writes
+   * as its last step. Older installs (registry verbs / COM handler only, no
+   * Windows 11 sparse package) lack the marker or carry an older value, so
+   * they return `false` and get re-registered on the next launch.
    */
   async isRegistered(): Promise<boolean> {
     if (process.platform === 'win32') {
       try {
-        await this.execFn('reg', [
+        const result = (await this.execFn('reg', [
           'query',
-          `HKCU\\Software\\Classes\\CLSID\\${SHELLEX_CLSID}\\InprocServer32`,
-        ]);
-        return true;
+          'HKCU\\Software\\AwapiCompare',
+          '/v',
+          'ShellIntegrationVersion',
+        ])) as { stdout?: string } | undefined;
+        const match = /ShellIntegrationVersion\s+REG_SZ\s+(\S+)/.exec(result?.stdout ?? '');
+        return match?.[1] === SHELL_INTEGRATION_VERSION;
       } catch {
         return false;
       }
@@ -87,22 +89,42 @@ export class ShellIntegrationService {
 /// CLSID for `awapi_shellex.dll` — must match the constant in `src/shellex/src/lib.rs`.
 export const SHELLEX_CLSID = '{6814CA76-731B-41EC-948C-C320FB503A35}';
 
+/// CLSID of the Windows 11 `IExplorerCommand` handler in `awapi_shellex.dll` —
+/// must match `CLSID_AWAPI_EXPLORER_COMMAND` in `src/shellex/src/lib.rs` and the
+/// Clsid values in `resources/msix/AppxManifest.template.xml`.
+export const SHELLEX_EXPLORER_COMMAND_CLSID = '{EA2B6EB9-EDC9-4804-8086-9138D268CE9A}';
+
+/// Identity name of the sparse MSIX package (`resources/msix/AppxManifest.template.xml`).
+export const SPARSE_PACKAGE_NAME = 'Awapi.AwapiCompare';
+
+/// Bump whenever the registration layout changes so existing installs re-register.
+/// 2 = adds the Windows 11 sparse package (modern context menu).
+export const SHELL_INTEGRATION_VERSION = '2';
+
 /**
  * Builds the PowerShell script that registers Windows Explorer context menu
  * entries. Exported so tests can verify the script structure without running
  * PowerShell.
  *
- * Registration has two layers:
+ * Registration has three layers:
  *
  * 1. **Registry verbs** (`shell\AwapiCompareSetLeft` / `AwapiCompareDoCompare`)
  *    with `MultiSelectModel=Single` — shown only when ONE item is selected.
  *    These implement the "select left → compare pending" two-click flow.
  *
- * 2. **COM shell extension** (`awapi_shellex.dll`) — shown when exactly TWO
+ * 2. **COM shell extension** (`shellex\<arch>\awapi_shellex.dll`, native arch) — shown when exactly TWO
  *    compatible items (both files or both directories) are selected.  Adds a
  *    single "Compare with AwapiCompare" item that passes both paths directly
  *    via `--left` / `--right`.  The COM registration is skipped silently when
  *    the DLL file does not exist (e.g. in dev / CI environments).
+ *
+ * 3. **Windows 11 sparse package** (`awapi_shellex.msix`) — the only way to
+ *    appear in the modern (compact) right-click menu; layers 1 and 2 are only
+ *    visible under "Show more options" there. The package carries no
+ *    binaries: `-ExternalLocation` points it at the install directory, and its
+ *    `IExplorerCommand` handler (also in `awapi_shellex.dll`) shows a Beyond
+ *    Compare-style "AwapiCompare" flyout. Skipped on Windows 10 and when the
+ *    .msix is absent; failures only warn so layers 1 and 2 still apply.
  */
 export function buildRegisterScript(exePath: string): string {
   // Escape single quotes for use inside a PowerShell single-quoted string.
@@ -138,8 +160,15 @@ export function buildRegisterScript(exePath: string): string {
     '  }',
     '}',
     // ---- 3. COM shell extension (multi-select) ----------------------------
-    // Register awapi_shellex.dll only when it exists next to the EXE.
-    "$dllPath = Join-Path (Split-Path $exe -Parent) 'awapi_shellex.dll'",
+    // Both arches ship under <appDir>\shellex\<arch>\. Explorer only loads a
+    // DLL of its own architecture, and an x64 build may run emulated on ARM64,
+    // so pick by the OS's native arch rather than this process's.
+    '$appDir = Split-Path $exe -Parent',
+    "$nativeArch = (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment').PROCESSOR_ARCHITECTURE",
+    "$arch = if ($nativeArch -eq 'ARM64') { 'arm64' } else { 'x64' }",
+    '$shellexDir = Join-Path $appDir "shellex\\$arch"',
+    // Register awapi_shellex.dll only when it exists (absent in dev / CI).
+    "$dllPath = Join-Path $shellexDir 'awapi_shellex.dll'",
     'if (Test-Path $dllPath) {',
     "  $clsid = '" + SHELLEX_CLSID + "'",
     "  $clsidKey = \"HKCU:\\Software\\Classes\\CLSID\\$clsid\"",
@@ -160,6 +189,22 @@ export function buildRegisterScript(exePath: string): string {
     '$sc.TargetPath = $exe',
     '$sc.IconLocation = "$exe,0"',
     '$sc.Save()',
+    // ---- 5. Windows 11 sparse package (modern context menu) ---------------
+    "$msix = Join-Path $shellexDir 'awapi_shellex.msix'",
+    'if ((Test-Path $msix) -and [Environment]::OSVersion.Version.Build -ge 22000) {',
+    '  try {',
+    // Remove any previous registration first: it may point at an older
+    // install directory, and Add-AppxPackage no-ops on an equal version.
+    "    Get-AppxPackage -Name '" + SPARSE_PACKAGE_NAME + "' | Remove-AppxPackage -ErrorAction SilentlyContinue",
+    '    Add-AppxPackage -Path $msix -ExternalLocation $appDir -AllowUnsigned -ErrorAction Stop',
+    '  } catch {',
+    '    Write-Warning "AwapiCompare: sparse package registration failed: $_"',
+    '  }',
+    '}',
+    // ---- 6. Completion marker read by isRegistered() -----------------------
+    "Set-ItemProperty -Path 'HKCU:\\Software\\AwapiCompare' -Name 'ShellIntegrationVersion' -Value '" +
+      SHELL_INTEGRATION_VERSION +
+      "'",
   ].join('\n');
 }
 
@@ -197,6 +242,9 @@ export function buildUnregisterScript(): string {
     '\n' +
     removeCom +
     '\n$sendTo = [Environment]::GetFolderPath("SendTo")' +
-    '\nRemove-Item -Path "$sendTo\\AwapiCompare.lnk" -Force -ErrorAction SilentlyContinue'
+    '\nRemove-Item -Path "$sendTo\\AwapiCompare.lnk" -Force -ErrorAction SilentlyContinue' +
+    "\nGet-AppxPackage -Name '" +
+    SPARSE_PACKAGE_NAME +
+    "' | Remove-AppxPackage -ErrorAction SilentlyContinue"
   );
 }

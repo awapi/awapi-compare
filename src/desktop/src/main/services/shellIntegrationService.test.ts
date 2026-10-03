@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ShellIntegrationService,
   SHELLEX_CLSID,
+  SHELL_INTEGRATION_VERSION,
+  SPARSE_PACKAGE_NAME,
   buildRegisterScript,
   buildUnregisterScript,
 } from './shellIntegrationService.js';
@@ -71,7 +73,7 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     expect(cmd).toBe('powershell.exe');
   });
 
-  it('isRegistered() queries the COM CLSID InprocServer32 key', async () => {
+  it('isRegistered() queries the ShellIntegrationVersion marker', async () => {
     if (process.platform !== 'win32') return;
 
     const exec = makeExec();
@@ -81,8 +83,19 @@ describe('ShellIntegrationService — exec interactions (win32 only)', () => {
     expect(exec).toHaveBeenCalledOnce();
     const [cmd, args] = exec.mock.calls[0] as [string, string[]];
     expect(cmd).toBe('reg');
-    expect(args.some((a) => a.includes(SHELLEX_CLSID))).toBe(true);
-    expect(args.some((a) => a.includes('InprocServer32'))).toBe(true);
+    expect(args).toContain('HKCU\\Software\\AwapiCompare');
+    expect(args).toContain('ShellIntegrationVersion');
+  });
+
+  it('isRegistered() returns true only for the current marker version', async () => {
+    if (process.platform !== 'win32') return;
+
+    const reply = (v: string) =>
+      vi.fn().mockResolvedValue({
+        stdout: `\r\nHKEY_CURRENT_USER\\Software\\AwapiCompare\r\n    ShellIntegrationVersion    REG_SZ    ${v}\r\n`,
+      });
+    expect(await new ShellIntegrationService('', reply(SHELL_INTEGRATION_VERSION)).isRegistered()).toBe(true);
+    expect(await new ShellIntegrationService('', reply('1')).isRegistered()).toBe(false);
   });
 
   it('isRegistered() returns false when reg query fails', async () => {
@@ -160,6 +173,12 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('awapi_shellex.dll');
   });
 
+  it('picks the shellex\\<arch> folder by the OS native arch (not the process arch)', () => {
+    expect(script).toContain('Session Manager\\Environment');
+    expect(script).toContain("$nativeArch -eq 'ARM64'");
+    expect(script).toContain('"shellex\\$arch"');
+  });
+
   it('escapes single quotes in the exe path', () => {
     const tricky = "C:\\Apps\\it's here\\App.exe";
     const s = buildRegisterScript(tricky);
@@ -171,6 +190,21 @@ describe('buildRegisterScript', () => {
     expect(script).toContain('WScript.Shell');
     expect(script).toContain('AwapiCompare.lnk');
     expect(script).toContain('$sc.Save()');
+  });
+
+  it('registers the Windows 11 sparse package with the install dir as external location', () => {
+    expect(script).toContain('awapi_shellex.msix');
+    expect(script).toContain('-ExternalLocation $appDir');
+    expect(script).toContain('-AllowUnsigned');
+    expect(script).toContain('Version.Build -ge 22000');
+    expect(script).toContain(`Get-AppxPackage -Name '${SPARSE_PACKAGE_NAME}' | Remove-AppxPackage`);
+  });
+
+  it('writes the ShellIntegrationVersion marker last', () => {
+    const lines = script.trim().split('\n');
+    expect(lines[lines.length - 1]).toContain(
+      `-Name 'ShellIntegrationVersion' -Value '${SHELL_INTEGRATION_VERSION}'`,
+    );
   });
 });
 
@@ -220,5 +254,9 @@ describe('buildUnregisterScript', () => {
   it('also removes the SendTo shortcut', () => {
     expect(script).toContain('AwapiCompare.lnk');
     expect(script).toContain('GetFolderPath');
+  });
+
+  it('removes the sparse package', () => {
+    expect(script).toContain(`Get-AppxPackage -Name '${SPARSE_PACKAGE_NAME}' | Remove-AppxPackage`);
   });
 });

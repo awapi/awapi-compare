@@ -103,20 +103,24 @@ coverage:
 build:
     pnpm build
 
-# Build the Windows COM shell extension DLL for x64 (default) or arm64.
-#   just build-shellex          # x64
-#   just build-shellex arm64    # arm64
-# Compiles src/shellex and copies the matching DLL to resources/awapi_shellex.dll
-# (picked up by electron-builder.yml `extraFiles`). Requires the Rust toolchain:
-#   rustup target add x86_64-pc-windows-msvc
-#   rustup target add aarch64-pc-windows-msvc
-build-shellex arch="x64":
-    cargo build --manifest-path src/shellex/Cargo.toml --target {{ if arch == "arm64" { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" } }} --release
-    cp src/shellex/target/{{ if arch == "arm64" { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" } }}/release/awapi_shellex.dll resources/awapi_shellex.dll
+# Build the Windows COM shell extension for BOTH x64 and arm64.
+# Every installer ships both (resources/shellex/<arch>/awapi_shellex.{dll,msix},
+# picked up by electron-builder.yml `extraFiles`) and registers the one that
+# matches the OS — Explorer only loads a DLL of its own architecture, and an
+# x64 installer is often run on ARM64 Windows. The .msix is the Windows 11
+# sparse package (modern context menu); makeappx comes from the Windows SDK.
+# Requires the Rust toolchain:
+#   rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+build-shellex:
+    cargo build --manifest-path src/shellex/Cargo.toml --target x86_64-pc-windows-msvc --target aarch64-pc-windows-msvc --release
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-sparse-package.ps1 -Arch x64
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-sparse-package.ps1 -Arch arm64
 
-# Package the Windows x64 NSIS installer (builds the x64 DLL first).
-package-win: build notices (build-shellex "x64")
-    ./src/desktop/node_modules/.bin/electron-builder.cmd --config ../../electron-builder.yml --projectDir src/desktop --win --x64
+# Package the Windows NSIS installer for x64 (default) or arm64.
+#   just package-win          # x64
+#   just package-win arm64    # arm64
+package-win arch="x64": build notices build-shellex
+    ./src/desktop/node_modules/.bin/electron-builder.cmd --config ../../electron-builder.yml --projectDir src/desktop --win --{{arch}}
 
 # Package an installer for the current OS (non-Windows; on Windows use package-win).
 package target="": build notices

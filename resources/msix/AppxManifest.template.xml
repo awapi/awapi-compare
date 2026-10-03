@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sparse-package manifest for the AwapiCompare Windows 11 context menu.
+
+  Windows 11's modern (default) right-click menu only shows IExplorerCommand
+  handlers registered by a package with identity. This "sparse" package
+  carries NO binaries - `uap10:AllowExternalContent` points Windows at the
+  normal install directory (passed as `-ExternalLocation` during
+  `Add-AppxPackage`), where AwapiCompare.exe and shellex\<arch>\awapi_shellex.dll
+  live. Every installer ships both arches; the one matching the OS is registered.
+
+  Placeholders ({{VERSION}}, {{ARCH}}, {{PUBLISHER}}) are stamped by
+  scripts/build-sparse-package.ps1, which then packs this with makeappx.
+
+  The default publisher carries the Microsoft-documented unsigned-package
+  OID marker (OID.2.25.311729368913984317654407730594956997722=1) so the
+  package can be registered with `Add-AppxPackage -AllowUnsigned` on
+  Windows 11 without a code-signing certificate, Developer Mode, or admin
+  rights (the package itself holds no executable content). When a
+  signing certificate is provisioned, set AWAPI_MSIX_PUBLISHER to the cert
+  subject (without the OID) and sign the .msix - see the build script.
+
+  The two Clsid values below MUST match CLSID_AWAPI_EXPLORER_COMMAND in
+  src/shellex/src/lib.rs and SHELLEX_EXPLORER_COMMAND_CLSID in
+  shellIntegrationService.ts.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap uap10 rescap desktop4 desktop5 com">
+
+  <Identity
+    Name="Awapi.AwapiCompare"
+    ProcessorArchitecture="{{ARCH}}"
+    Publisher="{{PUBLISHER}}"
+    Version="{{VERSION}}" />
+
+  <Properties>
+    <DisplayName>AwapiCompare Shell Extension</DisplayName>
+    <PublisherDisplayName>Awapi</PublisherDisplayName>
+    <Logo>Assets\icon.png</Logo>
+    <!-- Sparse package: executable content stays in the install directory. -->
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+
+  <Dependencies>
+    <!-- 10.0.22000 = Windows 11 RTM: modern context menu + unsigned sparse
+         package registration both require Windows 11. On Windows 10 the
+         registration is skipped and the classic context menu still works. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26200.0" />
+  </Dependencies>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Applications>
+    <Application Id="AwapiCompare"
+      Executable="AwapiCompare.exe"
+      uap10:TrustLevel="mediumIL"
+      uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements
+        DisplayName="AwapiCompare"
+        Description="AwapiCompare Explorer integration"
+        Square150x150Logo="Assets\icon.png"
+        Square44x44Logo="Assets\icon.png"
+        BackgroundColor="transparent"
+        AppListEntry="none" />
+      <Extensions>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="AwapiCompare context menu handler">
+              <com:Class Id="EA2B6EB9-EDC9-4804-8086-9138D268CE9A" Path="shellex\{{ARCH}}\awapi_shellex.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="AwapiCompareFiles" Clsid="EA2B6EB9-EDC9-4804-8086-9138D268CE9A" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="AwapiCompareDirs" Clsid="EA2B6EB9-EDC9-4804-8086-9138D268CE9A" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

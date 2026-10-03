@@ -74,15 +74,18 @@ jobs:
           KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
         run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always
 
-      # WiX light.exe collides on shared temp files when x64 and arm64 MSI
-      # builds run in parallel. Build arches sequentially to avoid LGHT0001.
-      - name: Build shell extension DLL (Windows x64)
+      # Both shell-extension arches ship in every Windows installer (the
+      # installer registers the one matching the OS), so build them once.
+      - name: Build shell extension (Windows, x64 + arm64)
         if: runner.os == 'Windows'
         run: |
-          cargo build --manifest-path src/shellex/Cargo.toml --target x86_64-pc-windows-msvc --release
-          Copy-Item src/shellex/target/x86_64-pc-windows-msvc/release/awapi_shellex.dll resources/awapi_shellex.dll -Force
+          cargo build --manifest-path src/shellex/Cargo.toml --target x86_64-pc-windows-msvc --target aarch64-pc-windows-msvc --release
+          ./scripts/build-sparse-package.ps1 -Arch x64
+          ./scripts/build-sparse-package.ps1 -Arch arm64
         shell: pwsh
 
+      # WiX light.exe collides on shared temp files when x64 and arm64 MSI
+      # builds run in parallel. Build arches sequentially to avoid LGHT0001.
       - name: Package & publish to GitHub Releases (Windows x64)
         if: runner.os == 'Windows'
         env:
@@ -96,13 +99,6 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
         run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always --x64
-
-      - name: Build shell extension DLL (Windows arm64)
-        if: runner.os == 'Windows'
-        run: |
-          cargo build --manifest-path src/shellex/Cargo.toml --target aarch64-pc-windows-msvc --release
-          Copy-Item src/shellex/target/aarch64-pc-windows-msvc/release/awapi_shellex.dll resources/awapi_shellex.dll -Force
-        shell: pwsh
 
       - name: Package & publish to GitHub Releases (Windows arm64)
         if: runner.os == 'Windows'

@@ -10,6 +10,8 @@
 
 mod class_factory;
 mod context_menu;
+mod explorer_command;
+mod util;
 
 use std::sync::atomic::{AtomicIsize, Ordering};
 
@@ -32,6 +34,21 @@ pub(crate) const CLSID_AWAPI_CONTEXT_MENU: GUID = GUID {
     data4: [0x94, 0x8C, 0xC3, 0x20, 0xFB, 0x50, 0x3A, 0x35],
 };
 
+/// CLSID for the Windows 11 modern-menu `IExplorerCommand` handler.
+///
+/// `{EA2B6EB9-EDC9-4804-8086-9138D268CE9A}`
+///
+/// Referenced by the sparse-package manifest (`resources/msix/AppxManifest.template.xml`)
+/// `desktop5:Verb Clsid=...` and its `com:SurrogateServer` class registration.
+/// Must stay in sync with `SHELLEX_EXPLORER_COMMAND_CLSID` in
+/// `shellIntegrationService.ts`.
+pub(crate) const CLSID_AWAPI_EXPLORER_COMMAND: GUID = GUID {
+    data1: 0xEA2B_6EB9,
+    data2: 0xEDC9,
+    data3: 0x4804,
+    data4: [0x80, 0x86, 0x91, 0x38, 0xD2, 0x68, 0xCE, 0x9A],
+};
+
 /// Cached HMODULE set by DllMain (kept for diagnostics / future use).
 static DLL_MODULE: AtomicIsize = AtomicIsize::new(0);
 
@@ -51,7 +68,8 @@ extern "system" fn DllMain(
     true
 }
 
-/// Returns our `IClassFactory` when `rclsid` matches `CLSID_AWAPI_CONTEXT_MENU`.
+/// Returns our `IClassFactory` for either of the two handler CLSIDs:
+/// the classic `IContextMenu` handler or the Win11 `IExplorerCommand` handler.
 #[no_mangle]
 unsafe extern "system" fn DllGetClassObject(
     rclsid: *const GUID,
@@ -62,11 +80,15 @@ unsafe extern "system" fn DllGetClassObject(
         return E_POINTER;
     }
 
-    if *rclsid != CLSID_AWAPI_CONTEXT_MENU {
+    let kind = if *rclsid == CLSID_AWAPI_CONTEXT_MENU {
+        class_factory::HandlerKind::ContextMenu
+    } else if *rclsid == CLSID_AWAPI_EXPLORER_COMMAND {
+        class_factory::HandlerKind::ExplorerCommand
+    } else {
         return CLASS_E_CLASSNOTAVAILABLE;
-    }
+    };
 
-    let factory: IClassFactory = class_factory::ClassFactory.into();
+    let factory: IClassFactory = class_factory::ClassFactory::new(kind).into();
     factory.query(riid, ppv)
 }
 

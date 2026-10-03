@@ -21,7 +21,7 @@
 
 use std::sync::Mutex;
 
-use windows::core::{implement, w, Error, Result, HRESULT, PCWSTR, PSTR};
+use windows::core::{implement, Error, Result, HRESULT, PCWSTR, PSTR};
 use windows::Win32::Foundation::{E_FAIL, E_INVALIDARG, E_NOTIMPL, TRUE};
 use windows::Win32::Graphics::Gdi::{
     CreateCompatibleDC, CreateDIBSection, DeleteDC, GetDC,
@@ -31,23 +31,20 @@ use windows::Win32::System::Com::{
     IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL,
 };
 use windows::Win32::System::Ole::ReleaseStgMedium;
-use windows::Win32::System::Registry::{
-    RegGetValueW, HKEY, HKEY_CURRENT_USER, RRF_RT_REG_SZ,
-};
+use windows::Win32::System::Registry::HKEY;
 use windows::Win32::UI::Shell::{
     DragQueryFileW, ExtractIconExW, HDROP, IContextMenu, IContextMenu_Impl,
     IShellExtInit, IShellExtInit_Impl, CMINVOKECOMMANDINFO,
-    CMF_DEFAULTONLY, ShellExecuteW,
+    CMF_DEFAULTONLY,
 };
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::WindowsAndMessaging::{
     DestroyIcon, DrawIconEx, DI_NORMAL, HICON,
     InsertMenuItemW, HMENU, MENUITEMINFOW,
-    MIIM_BITMAP, MIIM_FTYPE, MIIM_ID, MIIM_STRING, MFT_STRING, SW_SHOWNORMAL,
+    MIIM_BITMAP, MIIM_FTYPE, MIIM_ID, MIIM_STRING, MFT_STRING,
 };
-use windows::Win32::Storage::FileSystem::{
-    GetFileAttributesW, FILE_ATTRIBUTE_DIRECTORY, INVALID_FILE_ATTRIBUTES,
-};
+
+use crate::util::{get_exe_path, is_directory, launch_awapi};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -55,10 +52,6 @@ use windows::Win32::Storage::FileSystem::{
 
 /// Command offset for the "Compare" verb (0 = first / only item we add).
 const CMD_COMPARE: u32 = 0;
-
-/// Registry key (under HKCU) where the installer writes the EXE path.
-const REGKEY_AWAPI: PCWSTR = w!("Software\\AwapiCompare");
-const REGVAL_EXE_PATH: PCWSTR = w!("ExePath");
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -259,8 +252,9 @@ impl IContextMenu_Impl for ContextMenuHandler_Impl {
 
         let exe = get_exe_path().ok_or_else(|| Error::from(E_FAIL))?;
         let compare_type = if is_directory(&state.paths[0]) { "folder" } else { "file" };
+        let (left, right) = (&state.paths[0], &state.paths[1]);
 
-        launch_compare(&exe, compare_type, &state.paths[0], &state.paths[1])
+        launch_awapi(&exe, &format!("--type {compare_type} --left \"{left}\" --right \"{right}\""))
     }
 
     fn GetCommandString(
@@ -283,73 +277,6 @@ impl IContextMenu_Impl for ContextMenuHandler_Impl {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/// Returns `true` if `path` is a directory (or a directory reparse point).
-fn is_directory(path: &str) -> bool {
-    let wide: Vec<u16> = path.encode_utf16().chain(core::iter::once(0)).collect();
-    let attrs = unsafe { GetFileAttributesW(PCWSTR(wide.as_ptr())) };
-    if attrs == INVALID_FILE_ATTRIBUTES {
-        return false;
-    }
-    attrs & FILE_ATTRIBUTE_DIRECTORY.0 != 0
-}
-
-/// Reads `HKCU\Software\AwapiCompare\ExePath` to find the main executable.
-///
-/// Written by the registration PowerShell script so the DLL does not need
-/// to hard-code or probe for the EXE location.
-fn get_exe_path() -> Option<String> {
-    let mut buf = vec![0u16; 1024];
-    let mut size = (buf.len() * 2) as u32;
-
-    let result = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            REGKEY_AWAPI,
-            REGVAL_EXE_PATH,
-            RRF_RT_REG_SZ,
-            None,
-            Some(buf.as_mut_ptr().cast()),
-            Some(&mut size),
-        )
-    };
-
-    if !result.is_ok() {
-        return None;
-    }
-
-    // `size` is in bytes including the NUL terminator.
-    let wchar_count = (size / 2) as usize;
-    let trimmed = wchar_count.saturating_sub(1); // drop NUL
-    Some(String::from_utf16_lossy(&buf[..trimmed]))
-}
-
-/// Spawns `AwapiCompare.exe --type <type> --left "<left>" --right "<right>"` via
-/// `ShellExecuteW`.  Windows paths cannot legally contain double-quote
-/// characters, so no additional escaping is needed.
-fn launch_compare(exe: &str, compare_type: &str, left: &str, right: &str) -> Result<()> {
-    let exe_wide: Vec<u16> = exe.encode_utf16().chain(core::iter::once(0)).collect();
-    let params = format!("--type {compare_type} --left \"{left}\" --right \"{right}\"");
-    let params_wide: Vec<u16> = params.encode_utf16().chain(core::iter::once(0)).collect();
-
-    let result = unsafe {
-        ShellExecuteW(
-            None,
-            w!("open"),
-            PCWSTR(exe_wide.as_ptr()),
-            PCWSTR(params_wide.as_ptr()),
-            PCWSTR::null(),
-            SW_SHOWNORMAL,
-        )
-    };
-
-    // ShellExecuteW returns a pseudo-HINSTANCE; values > 32 indicate success.
-    if result.0 as usize > 32 {
-        Ok(())
-    } else {
-        Err(Error::from(E_FAIL))
-    }
-}
 
 /// Creates a 16×16 32bpp HBITMAP from the first icon embedded in the given EXE.
 ///
