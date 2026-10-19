@@ -20,7 +20,7 @@ A cross-platform (Windows, macOS, Linux) Beyond Compare alternative by
 - CLI / launch flags: `awapi-compare --type folder --left <a> --right <b> [--mode quick|thorough|binary]`
   (see [`docs/user-guide.md`](docs/user-guide.md#command-line--launch-flags))
 - Auto-updates via `electron-updater`
-- 14-day free trial, then paid activation
+- Free and open source (Apache 2.0)
 
 ## Installation
 
@@ -72,6 +72,5 @@ See:
 
 ## License
 
-Proprietary. See [`LICENSE.md`](LICENSE.md) and [`EULA.md`](EULA.md).
-
-For commercial / licensing inquiries: legal@awapi.com
+Licensed under the [Apache License 2.0](LICENSE). Free to use, modify, and
+distribute.

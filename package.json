@@ -4,7 +4,7 @@
   "private": true,
   "description": "AwapiCompare — cross-platform Beyond Compare alternative by Awapi.",
   "author": "Awapi",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0",

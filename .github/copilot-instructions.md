@@ -6,9 +6,8 @@ repository. Read them before proposing or executing changes.
 ## Project
 
 **AwapiCompare** by **Awapi** — a cross-platform (Windows, macOS, Linux)
-Beyond Compare alternative. Proprietary, commercial. 14-day in-app trial,
-paid activation via LemonSqueezy + Keygen.sh, auto-updates via
-`electron-updater` against a private GitHub Releases repo.
+Beyond Compare-inspired tool. Free and open source (Apache 2.0).
+Auto-updates via `electron-updater`.
 
 ## Stack
 

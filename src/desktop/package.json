@@ -10,7 +10,7 @@
     "name": "Awapi",
     "email": "support@awapi.com"
   },
-  "license": "SEE LICENSE IN ../../LICENSE.md",
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
