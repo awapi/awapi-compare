@@ -59,7 +59,7 @@ const INDENT_PX = 16;
 
 /**
  * Twin virtualized tree/table: left side, center status, right side.
- * Pairs are arranged into a directory tree (Beyond Compare style) so
+ * Pairs are arranged into a directory tree so
  * folders contain their children rather than every file appearing as a
  * flat list. Expansion state is tracked locally by relPath.
  */

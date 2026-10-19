@@ -22,7 +22,6 @@
     "picomatch": "^4.0.2"
   },
   "devDependencies": {
-    "@awapi/licensing": "workspace:*",
     "@awapi/shared": "workspace:*",
     "@tanstack/react-virtual": "^3.10.8",
     "@testing-library/dom": "^10.4.1",

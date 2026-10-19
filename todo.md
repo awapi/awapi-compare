@@ -1,7 +1,7 @@
-# Feature Gap Analysis vs. Beyond Compare
+# Feature Gap Analysis
 
-> Snapshot of what AwapiCompare has and what it is still missing compared to
-> Beyond Compare 4/5. Each gap is a checkbox so it can be promoted into
+> Snapshot of what AwapiCompare has and what is still missing on the
+> roadmap. Each gap is a checkbox so it can be promoted into
 > `todo/plan.md` (or ticked here) per the rules in [`todo/README.md`](./todo/README.md).
 > Tick a box only when the change is merged to `main`.
 
@@ -17,11 +17,11 @@
   external-modification detection. There are also image diff (side-by-side,
   onion-skin, pixel diff) and hex diff views.
 - **App features:** sessions with history, tabs, launch flags and CLI,
-  shell/Finder integration, recents, themes, licensing and auto-update.
+  shell/Finder integration, recents, themes, and auto-update.
 
 ## What's missing
 
-### High priority (core to Beyond Compare)
+### High priority
 
 - [x] **1. Three-way merge.** See
       [`docs/user-guide.md`](./docs/user-guide.md#three-way-merge).
@@ -107,7 +107,7 @@
       properties dialog.
 - [ ] Symlink handling, permissions and attribute comparison, and case-only
       rename handling.
-- [ ] Scripting and automation, such as Beyond Compare's script language or a
+- [ ] Scripting and automation, such as a batch script DSL or a
       headless sync from the CLI.
 
 ## Notes

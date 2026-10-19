@@ -53,6 +53,6 @@ PRs must pass all gates before review.
 
 ## Dependencies
 
-- No GPL / AGPL / SSPL dependencies (proprietary product).
+- No GPL / AGPL / SSPL dependencies (to stay compatible with Apache-2.0 distribution).
 - Run `just notices` before adding a new dependency; verify its license
   is MIT / BSD / Apache-2.0 / ISC or similarly permissive.

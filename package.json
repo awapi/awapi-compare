@@ -2,7 +2,7 @@
   "name": "awapi-compare-root",
   "version": "0.0.0",
   "private": true,
-  "description": "AwapiCompare — cross-platform Beyond Compare alternative by Awapi.",
+  "description": "AwapiCompare — cross-platform file and folder comparison tool by Awapi.",
   "author": "Awapi",
   "license": "Apache-2.0",
   "type": "module",

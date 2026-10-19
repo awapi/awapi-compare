@@ -70,8 +70,6 @@ jobs:
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # License-backend slot (Phase 8); empty in v1.
-          KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
         run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always
 
       # Both shell-extension arches ship in every Windows installer (the
@@ -97,7 +95,6 @@ jobs:
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
         run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always --x64
 
       - name: Package & publish to GitHub Releases (Windows arm64)
@@ -111,5 +108,4 @@ jobs:
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          KEYGEN_API_KEY: ${{ secrets.KEYGEN_API_KEY }}
         run: pnpm --filter @awapi/desktop exec electron-builder --config ../../electron-builder.yml --publish always --arm64

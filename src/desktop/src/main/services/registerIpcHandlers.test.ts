@@ -63,7 +63,6 @@ describe('registerIpcHandlers', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     registerIpcHandlers(mockIpc as any, createServices());
 
-    await expect(mockIpc.invoke(IpcChannel.LicenseStatus)).resolves.toEqual({ state: 'invalid' });
     await expect(mockIpc.invoke(IpcChannel.UpdaterCheck)).resolves.toEqual({ available: false });
     await expect(mockIpc.invoke(IpcChannel.RulesGet)).resolves.toEqual([]);
     await expect(mockIpc.invoke(IpcChannel.SessionList)).resolves.toEqual([]);

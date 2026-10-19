@@ -9,7 +9,6 @@ import { DialogService, type DialogServiceDeps } from './dialogService.js';
 import { DiffService } from './diffService.js';
 import { FsCodedError, FsService } from './fsService.js';
 import { HashService } from './hashService.js';
-import { LicenseService } from './licenseService.js';
 import { RulesService, type RulesServiceDeps } from './rulesService.js';
 import { SessionService, type SessionServiceDeps } from './sessionService.js';
 import { RecentsService, type RecentsServiceDeps } from './recentsService.js';
@@ -27,7 +26,6 @@ export interface Services {
   session: SessionService;
   recents: RecentsService;
   sftp: SftpService;
-  license: LicenseService;
   updater: UpdaterService;
   cli: CliService;
   dialog: DialogService;
@@ -64,7 +62,6 @@ export function createServices(options: CreateServicesOptions = {}): Services {
     session: new SessionService(options.session),
     recents: new RecentsService(options.recents),
     sftp: new SftpService(),
-    license: new LicenseService(),
     updater: new UpdaterService(),
     cli: new CliService(),
     dialog: new DialogService(options.dialog),
@@ -106,7 +103,7 @@ function translateError<T>(err: unknown): Promise<T> {
  * progress events back to the renderer via `webContents.send`.
  */
 export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void {
-  const { fs, hash, rules, session, recents, license, updater } = services;
+  const { fs, hash, rules, session, recents, updater } = services;
 
   ipcMain.handle(IpcChannel.FsScan, (_e, req) => wrap(() => fs.scan(req)));
   ipcMain.handle(IpcChannel.FsScanCancel, (_e, scanId: string) =>
@@ -132,10 +129,6 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services): void 
 
   ipcMain.handle(IpcChannel.RecentsGet, () => wrap(() => recents.get()));
   ipcMain.handle(IpcChannel.RecentsSet, (_e, data) => wrap(() => recents.set(data)));
-
-  ipcMain.handle(IpcChannel.LicenseStatus, () => wrap(() => license.status()));
-  ipcMain.handle(IpcChannel.LicenseActivate, (_e, req) => wrap(() => license.activate(req)));
-  ipcMain.handle(IpcChannel.LicenseDeactivate, () => wrap(() => license.deactivate()));
 
   ipcMain.handle(IpcChannel.UpdaterCheck, () => wrap(() => updater.check()));
   ipcMain.handle(IpcChannel.UpdaterDownload, () => wrap(() => updater.download()));

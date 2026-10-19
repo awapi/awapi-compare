@@ -3,7 +3,6 @@ import type {
   CompareMode,
   DiffOptions,
   EntryType,
-  LicenseStatus,
   Rule,
   RuleVerdict,
   ScanProgress,
@@ -34,9 +33,6 @@ export const IpcChannel = {
   RulesGet: 'rules.get',
   RulesSet: 'rules.set',
   RulesTest: 'rules.test',
-  LicenseStatus: 'license.status',
-  LicenseActivate: 'license.activate',
-  LicenseDeactivate: 'license.deactivate',
   UpdaterCheck: 'updater.check',
   UpdaterDownload: 'updater.download',
   UpdaterInstall: 'updater.install',
@@ -197,10 +193,6 @@ export const FS_ERROR_EXTERNAL_MODIFICATION = 'E_EXTERNAL_MODIFICATION';
 
 /** Error code returned when a file exceeds the read-size cap. */
 export const FS_ERROR_FILE_TOO_LARGE = 'E_FILE_TOO_LARGE';
-
-export interface LicenseActivateRequest {
-  key: string;
-}
 
 /**
  * Request payload for {@link AwapiApi.dialog.pickFolder}. Both fields are
@@ -385,11 +377,6 @@ export interface AwapiApi {
     get(): Promise<Rule[]>;
     set(rules: Rule[]): Promise<void>;
     test(req: RulesTestRequest): Promise<RulesTestResponse>;
-  };
-  license: {
-    status(): Promise<LicenseStatus>;
-    activate(req: LicenseActivateRequest): Promise<LicenseStatus>;
-    deactivate(): Promise<void>;
   };
   updater: {
     check(): Promise<{ available: boolean; version?: string; url?: string }>;

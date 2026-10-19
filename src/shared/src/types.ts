@@ -184,10 +184,3 @@ export interface ScanProgress {
   total?: number;
   currentPath?: string;
 }
-
-export interface LicenseStatus {
-  state: 'trial' | 'active' | 'expired' | 'invalid' | 'revoked';
-  trialDaysRemaining?: number;
-  expiresAt?: number;
-  licensee?: string;
-}

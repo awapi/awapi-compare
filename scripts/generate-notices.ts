@@ -29,7 +29,8 @@ const ALLOWED = new Set([
 
 interface PnpmLicenseEntry {
   name: string;
-  version: string;
+  version?: string;
+  versions?: string[];
   license: string;
   homepage?: string;
   author?: string | { name?: string };
@@ -68,7 +69,10 @@ function main(): void {
   const forbidden = rows.filter((r) => !licenseIsAllowed(r.license));
   if (forbidden.length > 0) {
     console.error('\nForbidden licenses detected:');
-    for (const f of forbidden) console.error(`  - ${f.name}@${f.version}: ${f.license}`);
+    for (const f of forbidden) {
+      const ver = f.version ?? f.versions?.join(', ') ?? 'unknown';
+      console.error(`  - ${f.name}@${ver}: ${f.license}`);
+    }
     console.error('\nAllowed licenses:', [...ALLOWED].join(', '));
     process.exit(1);
   }
@@ -83,7 +87,8 @@ function main(): void {
     '| --- | --- | --- |',
   ];
   for (const r of rows) {
-    lines.push(`| ${r.name} | ${r.version} | ${r.license} |`);
+    const version = r.version ?? r.versions?.join(', ') ?? 'unknown';
+    lines.push(`| ${r.name} | ${version} | ${r.license} |`);
   }
   lines.push('');
 

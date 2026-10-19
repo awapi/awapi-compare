@@ -28,14 +28,10 @@ developer machines.
 
 ## Auto-update (`electron-updater`)
 
-- Feed: GitHub Releases on `awapi/awapi-compare` (private).
-- The packaged app embeds a read-only `GH_TOKEN` via the
-  `GH_TOKEN` env var at `just package` time. **This token is embedded in
-  the installer**; treat it as public-readable and scope it to
-  "repo:public_read" style — rotate if leaked.
-- Rotation: regenerate token in the release workflow's secrets and
-  re-cut a release. Old installers continue to work with the old token
-  until they auto-update.
+- Feed: GitHub Releases on `awapi/awapi-compare` (public).
+- Release artifacts and update metadata (`latest-mac.yml`, `latest.yml`,
+  `latest-linux.yml`) are published to GitHub Releases by the release
+  workflow using `GITHUB_TOKEN`.
 
 ## Code signing
 

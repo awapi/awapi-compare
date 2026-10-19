@@ -6,7 +6,7 @@ repository. Read them before proposing or executing changes.
 ## Project
 
 **AwapiCompare** by **Awapi** — a cross-platform (Windows, macOS, Linux)
-Beyond Compare-inspired tool. Free and open source (Apache 2.0).
+file and folder comparison tool. Free and open source (Apache 2.0).
 Auto-updates via `electron-updater`.
 
 ## Stack
@@ -35,12 +35,12 @@ The PR template includes a checklist item enforcing this rule.
 - **All source code** lives under `src/`. Never create source files at
   the repo root or under `apps/` / `packages/`.
 - **All documentation** lives under `docs/`. Only the following markdown
-  files may appear at the repo root: `README.md`, `LICENSE.md`,
-  `EULA.md`, plus anything under `.github/` and `todo/`.
+  files may appear at the repo root: `README.md`, `THIRD_PARTY_NOTICES.md`,
+  plus `LICENSE` and anything under `.github/` and `todo/`.
 - **Unit tests** colocate with source as `*.test.ts` / `*.test.tsx`.
 - **End-to-end tests** live in `tests/e2e/` with fixtures in `tests/fixtures/`.
 - **Workspaces**: `src/desktop` (Electron app), `src/shared` (types + IPC),
-  `src/licensing` (trial + activation), `src/cli` (CLI entry).
+  `src/cli` (CLI entry).
 
 ## Code style
 
@@ -98,8 +98,7 @@ exhaustively unit-tested). When adding a new launch flag:
 - **Every new module requires unit tests.** PRs without tests will be
   rejected.
 - Coverage thresholds enforced by Vitest: ≥80% lines overall; **100% on
-  pure-logic modules** (rules engine, diff classifier, license verify,
-  trial evaluator).
+  pure-logic modules** (rules engine, diff classifier, CLI arg parser).
 - Pure logic must be testable **without importing `electron`**.
 - Services that touch the filesystem or HTTP must accept their
   dependencies via constructor/factory injection so tests can use
@@ -116,16 +115,15 @@ exhaustively unit-tested). When adding a new launch flag:
 
 ## Dependencies
 
-- **No GPL, AGPL, or SSPL-licensed dependencies.** The product is
-  proprietary. Run `just notices` before adding a new dependency and
-  verify its license is MIT / BSD / Apache-2.0 / ISC or similarly
-  permissive.
+- **No GPL, AGPL, or SSPL-licensed dependencies.** The project is
+  licensed under Apache 2.0. Run `just notices` before adding a new
+  dependency and verify its license is MIT / BSD / Apache-2.0 / ISC or
+  similarly permissive.
 - Prefer small, well-maintained packages over large frameworks.
 
 ## Files Copilot must NOT edit without explicit user request
 
-- `LICENSE.md`
-- `EULA.md`
+- `LICENSE`
 - `electron-builder.yml` (the `publish:` block in particular)
 - `.github/workflows/release.yml`
 - Anything under `todo/` except ticking a checkbox that corresponds to
@@ -133,5 +131,5 @@ exhaustively unit-tested). When adding a new launch flag:
 
 ## When in doubt
 
-Ask. Never guess about licensing, security boundaries, or the IPC
+Ask. Never guess about security boundaries or the IPC
 contract — they are the product's foundation.

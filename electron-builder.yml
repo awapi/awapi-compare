@@ -87,9 +87,7 @@ publish:
   owner: awapi
   repo: awapi-compare
   releaseType: draft
-  # For a private repo, the running app needs a GH_TOKEN; it is embedded
-  # during packaging via env var, NOT committed. See docs/release-process.md.
-  private: true
+  private: false
 
 asarUnpack:
   - "**/*.node"

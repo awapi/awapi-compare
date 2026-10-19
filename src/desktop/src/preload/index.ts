@@ -19,8 +19,6 @@ import type {
   FsStatResult,
   FsWriteRequest,
   InitialCompareSession,
-  LicenseActivateRequest,
-  LicenseStatus,
   MenuAction,
   Rule,
   RulesTestRequest,
@@ -73,12 +71,6 @@ const api: AwapiApi = {
     set: (rules: Rule[]): Promise<void> => ipcRenderer.invoke(IpcChannel.RulesSet, rules),
     test: (req: RulesTestRequest): Promise<RulesTestResponse> =>
       ipcRenderer.invoke(IpcChannel.RulesTest, req),
-  },
-  license: {
-    status: (): Promise<LicenseStatus> => ipcRenderer.invoke(IpcChannel.LicenseStatus),
-    activate: (req: LicenseActivateRequest): Promise<LicenseStatus> =>
-      ipcRenderer.invoke(IpcChannel.LicenseActivate, req),
-    deactivate: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LicenseDeactivate),
   },
   updater: {
     check: (): Promise<{ available: boolean; version?: string; url?: string }> =>

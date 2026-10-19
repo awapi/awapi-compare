@@ -9,7 +9,7 @@
 //! package with identity (we use a *sparse* MSIX package whose external
 //! location is the install directory — see `resources/msix/`).
 //!
-//! ## Menu shape (Beyond Compare style)
+//! ## Menu shape
 //!
 //! A single cascaded "AwapiCompare" flyout whose subcommands show/hide based
 //! on the current selection:

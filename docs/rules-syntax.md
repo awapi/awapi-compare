@@ -87,7 +87,7 @@ The Rules editor has two tabs over the same underlying engine:
 
 | View       | Surface                                                                                                       | Best for                                                  |
 | ---------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Simple     | Four boxes: Include files / Exclude files / Include folders / Exclude folders. One glob per line.             | Beyond Compare-style "hide `.git` and `*.log`" filtering. |
+| Simple     | Four boxes: Include files / Exclude files / Include folders / Exclude folders. One glob per line.             | Quick "hide `.git` and `*.log`" name filtering. |
 | Advanced   | Ordered list with `kind` × `target` × `scope` × `pattern` plus optional `size` / `mtime` predicates.          | Custom ordering, predicates, anything outside the four boxes. |
 
 Simple → Advanced compilation (`compileSimpleRules`):

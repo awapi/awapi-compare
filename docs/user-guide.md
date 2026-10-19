@@ -11,9 +11,8 @@
 
 ## First run
 
-1. Accept the EULA.
-2. A 14-day trial begins automatically.
-3. Pick two folders to compare.
+1. Launch AwapiCompare.
+2. Pick two folders (or files) to compare.
 
 ## Drag and drop
 
@@ -147,8 +146,8 @@ just dev ./samples/left ./samples/right thorough   # quick | thorough | binary
 
 The toolbar's **Rules** button opens the Rules editor. It has two tabs:
 
-- **Simple** (default) — four boxes, mirroring Beyond Compare's Name
-  Filters dialog. One glob per line.
+- **Simple** (default) — four boxes for quick name filtering. One glob
+  per line.
 
   | Box              | What it does                                                       | Default |
   | ---------------- | ------------------------------------------------------------------ | ------- |

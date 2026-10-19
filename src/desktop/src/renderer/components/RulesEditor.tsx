@@ -520,7 +520,7 @@ interface SimpleViewProps {
 }
 
 /**
- * Beyond-Compare-style four-box editor (Phase 6.1). Treats the
+ * Four-box simple rules editor (Phase 6.1). Treats the
  * underlying ordered rule list as a derived value: textareas are the
  * source of truth while the user is on this tab; every change
  * recompiles the whole rule list via {@link compileSimpleRules}. When

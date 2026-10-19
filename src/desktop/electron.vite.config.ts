@@ -7,9 +7,9 @@ export default defineConfig({
     // Workspace packages (`@awapi/*`) are bundled into the main process
     // output so the packaged app does not depend on symlinked sources
     // outside `src/desktop/` (electron-builder rejects those).
-    plugins: [externalizeDepsPlugin({ exclude: ['@awapi/shared', '@awapi/licensing'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['@awapi/shared'] })],
     ssr: {
-      noExternal: ['@awapi/shared', '@awapi/licensing'],
+      noExternal: ['@awapi/shared'],
     },
     build: {
       outDir: 'out/main',

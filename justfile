@@ -33,8 +33,8 @@ clean:
 dev left="samples/folderA" right="samples/folderB" mode="quick":
     #!/usr/bin/env bash
     set -euo pipefail
-    # The desktop app imports from the @awapi/shared and @awapi/licensing
-    # workspace packages via their published `exports` (e.g.
+    # The desktop app imports from the @awapi/shared
+    # workspace package via its published `exports` (e.g.
     # `dist/index.js`). Vite (and electron-vite's SSR pre-bundle of the
     # main process) resolves those *before* it starts watching, so if
     # the dist folders are missing — typically right after a fresh
@@ -42,9 +42,9 @@ dev left="samples/folderA" right="samples/folderB" mode="quick":
     #   [commonjs--resolver] Failed to resolve entry for package "@awapi/shared"
     # Build the dependency packages on demand (no-op when up to date)
     # so `just dev` "just works" without a separate `just build`.
-    if [[ ! -f src/shared/dist/index.js || ! -f src/licensing/dist/index.js ]]; then
-        echo "==> First-run setup: building workspace libraries (@awapi/shared, @awapi/licensing)..." >&2
-        pnpm --filter @awapi/shared --filter @awapi/licensing build
+    if [[ ! -f src/shared/dist/index.js ]]; then
+        echo "==> First-run setup: building workspace libraries (@awapi/shared)..." >&2
+        pnpm --filter @awapi/shared build
     fi
     # Resolve paths against the repo root (where `just` was invoked) so
     # they don't get re-resolved against `src/desktop` once pnpm cd's

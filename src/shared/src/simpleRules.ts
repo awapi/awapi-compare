@@ -1,5 +1,5 @@
 /**
- * Beyond-Compare-style "Simple" rules view (Phase 6.1).
+ * Four-box "Simple" rules view (Phase 6.1).
  *
  * The full {@link Rule} engine is intentionally expressive — ordered,
  * last-match-wins, with `kind` × `target` × `scope` × glob plus
@@ -7,8 +7,7 @@
  * case ("hide `.git` and `node_modules`, show only `.ts` files") more
  * verbose than it needs to be.
  *
- * The Simple view exposes four flat axes, mirroring Beyond Compare's
- * "Name Filters" tab:
+ * The Simple view exposes four flat axes for name filtering:
  *
  *   - Include files   — globs whitelisting file basenames   (default: `**`)
  *   - Exclude files   — globs blacklisting file basenames   (default:  none)

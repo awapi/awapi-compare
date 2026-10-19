@@ -11,7 +11,7 @@ export interface HotkeyBinding {
 }
 
 /**
- * Default Beyond-Compare-inspired hotkey table. Cmd is treated as
+ * Default hotkey table. Cmd is treated as
  * equivalent to Ctrl so Mac users get the same bindings.
  */
 export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [

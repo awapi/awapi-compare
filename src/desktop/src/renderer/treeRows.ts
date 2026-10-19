@@ -2,7 +2,7 @@ import type { ComparedPair, DiffStatus } from '@awapi/shared';
 
 /**
  * One row in the rendered diff tree. The renderer maps these to
- * virtualised DOM rows; the shape is also what Beyond Compare-style
+ * virtualised DOM rows; the shape is also what hierarchical
  * tree navigation operates on.
  */
 export interface TreeRow {
@@ -17,8 +17,7 @@ export interface TreeRow {
    * directories the diff service classifies them as `'identical'` (since
    * a dir has no comparable content of its own), so we aggregate from
    * descendants here: a directory whose subtree contains any differing
-   * entry is rendered as `'different'`, matching Beyond Compare's
-   * behaviour.
+   * entry is rendered as `'different'`.
    */
   displayStatus: DiffStatus;
 }

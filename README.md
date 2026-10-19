@@ -2,8 +2,7 @@
 
 [![CI](https://github.com/awapi/awapi-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/awapi/awapi-compare/actions/workflows/ci.yml)
 
-
-A cross-platform (Windows, macOS, Linux) Beyond Compare alternative by
+A cross-platform (Windows, macOS, Linux) file and folder comparison tool by
 **Awapi**.
 
 > **Status:** early scaffolding. Progress is tracked in

@@ -2,7 +2,6 @@
   "files": [],
   "references": [
     { "path": "./src/shared" },
-    { "path": "./src/licensing" },
     { "path": "./src/cli" },
     { "path": "./src/desktop" }
   ]

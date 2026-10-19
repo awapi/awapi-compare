@@ -17,8 +17,6 @@
 ## Packages
 
 - `@awapi/shared` — types + IPC channel contract, no runtime deps.
-- `@awapi/licensing` — pure-logic licensing primitives (trial evaluator,
-  provider interface). Electron-free.
 - `@awapi/cli` — Commander-based CLI entry point.
 - `@awapi/desktop` — the Electron application.
 

@@ -17,7 +17,7 @@ Enforced by [`vitest.config.ts`](../vitest.config.ts):
 - Lines / statements / functions ≥ 80% overall.
 - Branches ≥ 75%.
 - **100% on pure-logic modules:** rules engine, diff classifier,
-  license trial/verify, CLI arg parser.
+  CLI arg parser.
 
 ## Running
 
@@ -32,5 +32,5 @@ just coverage      # open HTML report
 
 - Filesystem: `memfs` via constructor injection. Services accept an
   `fs` parameter so tests pass a memfs instance.
-- HTTP: `msw/node` for licensing + update-feed tests.
+- HTTP: `msw/node` for update-feed tests.
 - Electron APIs: wrap in an adapter interface; unit tests use a fake.

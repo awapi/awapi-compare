@@ -2,7 +2,7 @@ import type { DiffStatus } from '@awapi/shared';
 import type { ThemeName } from './state/themeStore.js';
 
 /**
- * Beyond-Compare-inspired palette. The dark variant is the default;
+ * Diff status colour palette. The dark variant is the default;
  * a light variant is exposed for theme switching.
  */
 export interface DiffPalette {

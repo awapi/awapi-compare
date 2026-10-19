@@ -43,7 +43,6 @@ export default defineConfig({
         // entry points). Remove each entry once tests are added.
         'src/desktop/**',
         'src/cli/src/index.ts',
-        'src/licensing/src/provider.ts',
       ],
       thresholds: {
         lines: 80,

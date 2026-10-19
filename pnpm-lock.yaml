@@ -60,9 +60,6 @@ importers:
         specifier: ^4.0.2
         version: 4.0.4
     devDependencies:
-      '@awapi/licensing':
-        specifier: workspace:*
-        version: link:../licensing
       '@awapi/shared':
         specifier: workspace:*
         version: link:../shared
@@ -126,12 +123,6 @@ importers:
       zustand:
         specifier: ^5.0.0
         version: 5.0.12(@types/react@18.3.28)(react@18.3.1)
-
-  src/licensing:
-    dependencies:
-      '@awapi/shared':
-        specifier: workspace:*
-        version: link:../shared
 
   src/shared: {}
 
